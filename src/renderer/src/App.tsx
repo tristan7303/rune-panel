@@ -25,7 +25,7 @@ import profileLogo from './assets/logo.png'
 import {
   SwordIcon,
   CoinsIcon,
-  ChartIcon,
+  TrophyIcon,
   CalculatorIcon,
   GearIcon,
   SunIcon,
@@ -41,7 +41,7 @@ import {
 const NAV: Array<{ route: Route; label: string; icon: () => JSX.Element }> = [
   { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: SwordIcon },
   { route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon },
-  { route: { kind: 'hiscores' }, label: 'Hiscores', icon: ChartIcon },
+  { route: { kind: 'hiscores' }, label: 'Hiscores', icon: TrophyIcon },
   {
     route: { kind: 'tool', id: 'profile' },
     label: 'RuneProfile',
@@ -235,6 +235,15 @@ function ThemeToggle(): JSX.Element {
   const patch = useStore((s) => s.patchSettings)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const pushOverlay = useStore((s) => s.pushOverlay)
+  const popOverlay = useStore((s) => s.popOverlay)
+
+  // Registered while open so an embedded tool steps aside; see store.ts.
+  useEffect(() => {
+    if (!open) return
+    pushOverlay()
+    return popOverlay
+  }, [open, pushOverlay, popOverlay])
 
   // Dismiss on an outside click or Escape, the two things every popup owes you.
   useEffect(() => {

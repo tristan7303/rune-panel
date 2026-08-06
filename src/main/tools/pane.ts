@@ -87,6 +87,11 @@ export function debugWebContents(): Electron.WebContents | null {
   return view?.webContents ?? null
 }
 
+/** Whether the pane is currently on screen. For the smoke suite only. */
+export function debugVisible(): boolean {
+  return view?.getVisible() ?? false
+}
+
 /**
  * Push the current theme into the pane.
  *

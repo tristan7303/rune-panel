@@ -12,10 +12,28 @@ interface State {
   setSettings: (settings: Settings) => void
   /** Patch settings optimistically and push the change to main. */
   patchSettings: (patch: Partial<Settings>) => void
+
+  /**
+   * How many overlays are open — the theme menu, the search results.
+   *
+   * An embedded tool is a WebContentsView, which composites *above* the DOM
+   * and cannot be layered under anything. Any panel that opens over the content
+   * area is therefore invisible while a tool is showing, so the pane has to be
+   * hidden for the duration. A counter rather than a boolean because two can
+   * overlap — searching with the theme menu open — and the first to close must
+   * not bring the pane back over the second.
+   */
+  overlays: number
+  pushOverlay: () => void
+  popOverlay: () => void
 }
 
 export const useStore = create<State>((set, get) => ({
   settings: null,
+  overlays: 0,
+
+  pushOverlay: () => set((s) => ({ overlays: s.overlays + 1 })),
+  popOverlay: () => set((s) => ({ overlays: Math.max(0, s.overlays - 1) })),
 
   setSettings: (settings) => set({ settings }),
 
@@ -27,3 +45,7 @@ export const useStore = create<State>((set, get) => ({
     window.rp.setSettings(patch)
   },
 }))
+
+// Exposed for the smoke suite, which drives overlays through the real store
+// rather than synthesising clicks on a menu that may not be on screen.
+;(window as unknown as { __rpStore: typeof useStore }).__rpStore = useStore

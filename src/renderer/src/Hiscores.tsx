@@ -13,7 +13,7 @@
 import { useState, type JSX } from 'react'
 import type { Hiscores as Data, HiscoreSkill } from '@shared/ipc'
 import { shortNumber } from '@shared/xp'
-import { ChartIcon, SearchIcon } from './icons'
+import { TrophyIcon, SearchIcon } from './icons'
 
 const STORAGE_KEY = 'rp.hiscores'
 const MAX_SAVED = 10
@@ -60,7 +60,7 @@ export function Hiscores(): JSX.Element {
     <div className="hiscores">
       {!primary && (
         <div className="ge-hero">
-          <ChartIcon />
+          <TrophyIcon />
           <h1>Hiscores</h1>
           <p>
             Look up any account. Rune Panel works out which board it is on, so ironman accounts are

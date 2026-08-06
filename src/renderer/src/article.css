@@ -1035,7 +1035,18 @@
   margin: 0 18px 12px 0;
 }
 
-/* Headings must clear a float rather than wrap around its bottom edge. */
-.article-body h2 {
-  clear: both;
+/*
+ * Floats are contained, not cleared past.
+ *
+ * `clear: both` on every h2 looked right until an item page showed the cost:
+ * the infobox is tall, so the next heading was pushed below all of it, leaving
+ * a screen of blank space between the description and Combat stats. Text is
+ * supposed to wrap beside the infobox — that is what the float is for.
+ *
+ * The blocks that genuinely need to contain their own floats get
+ * `display: flow-root`, which does it without displacing anything.
+ */
+.article-body .tabbertab,
+.article-body .mw-parser-output {
+  display: flow-root;
 }

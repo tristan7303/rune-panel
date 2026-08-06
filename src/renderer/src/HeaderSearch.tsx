@@ -155,6 +155,16 @@ export function HeaderSearch(): JSX.Element {
 
   const showing = open && results.length > 0
 
+  // The results list is drawn over the content area, so an embedded tool has
+  // to stand down while it is up.
+  const pushOverlay = useStore((s) => s.pushOverlay)
+  const popOverlay = useStore((s) => s.popOverlay)
+  useEffect(() => {
+    if (!showing) return
+    pushOverlay()
+    return popOverlay
+  }, [showing, pushOverlay, popOverlay])
+
   return (
     <div className="header-search" ref={wrapRef}>
       <div className="search-field is-header">

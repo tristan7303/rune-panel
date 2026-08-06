@@ -40,28 +40,38 @@ export const BookIcon = (): JSX.Element => (
   </Svg>
 )
 
+/** An upright sword: blade, crossguard, grip, pommel. */
 export const SwordIcon = (): JSX.Element => (
   <Svg>
-    <path d="M14.5 3H20v5.5L10 18.5 5.5 14z" />
-    <path d="m9 15-5 5" />
-    <path d="m3 18 3 3" />
+    <path d="M12 2.5 14.5 7v7h-5V7z" />
+    <path d="M6.5 14h11" />
+    <path d="M12 14v5.5" />
+    <path d="M10 19.5h4" />
   </Svg>
 )
 
+/**
+ * Coins, as overlapping discs.
+ *
+ * The previous version was a stack of ellipses, which is the universal symbol
+ * for a database rather than for money.
+ */
 export const CoinsIcon = (): JSX.Element => (
   <Svg>
-    <ellipse cx="12" cy="6.5" rx="7" ry="3" />
-    <path d="M5 6.5v11c0 1.7 3.1 3 7 3s7-1.3 7-3v-11" />
-    <path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3" />
+    <circle cx="9" cy="9" r="5.5" />
+    <path d="M9 6.5v5M7.6 7.7h2.4a1.2 1.2 0 0 1 0 2.4H8a1.2 1.2 0 0 0 0 2.4h2.4" />
+    <path d="M15.2 5.4a5.5 5.5 0 0 1 0 13.2M6.6 17.4a5.5 5.5 0 0 0 8.6 1.2" />
   </Svg>
 )
 
-export const ChartIcon = (): JSX.Element => (
+/** A trophy, for the hiscores. */
+export const TrophyIcon = (): JSX.Element => (
   <Svg>
-    <path d="M4 20V10" />
-    <path d="M10 20V4" />
-    <path d="M16 20v-7" />
-    <path d="M21 20H3" />
+    <path d="M7 4h10v5a5 5 0 0 1-10 0z" />
+    <path d="M7 5.5H4.5v1.5a3 3 0 0 0 3 3" />
+    <path d="M17 5.5h2.5V7a3 3 0 0 1-3 3" />
+    <path d="M12 14v3.5" />
+    <path d="M8.5 20.5h7l-.8-3h-5.4z" />
   </Svg>
 )
 

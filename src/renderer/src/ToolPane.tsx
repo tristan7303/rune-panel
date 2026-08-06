@@ -12,9 +12,11 @@
 
 import { useEffect, useRef, type JSX } from 'react'
 import type { ToolId } from '@shared/ipc'
+import { useStore } from './store'
 
 export function ToolPane({ id, arg }: { id: ToolId; arg?: string }): JSX.Element {
   const slotRef = useRef<HTMLDivElement>(null)
+  const overlays = useStore((s) => s.overlays)
 
   useEffect(() => {
     const slot = slotRef.current
@@ -26,7 +28,11 @@ export function ToolPane({ id, arg }: { id: ToolId; arg?: string }): JSX.Element
     }
 
     publish()
-    window.rp.showTool(id, arg)
+    if (overlays === 0) window.rp.showTool(id, arg)
+    // While an overlay is open the pane must be out of the way: it composites
+    // above the DOM, so a menu or a result list drawn over the content area
+    // would otherwise be completely hidden behind it.
+    else window.rp.hideTool()
 
     // Bounds are window-relative, so anything that moves the slot invalidates
     // them: window resize, and the rail or top bar changing size.
@@ -41,7 +47,7 @@ export function ToolPane({ id, arg }: { id: ToolId; arg?: string }): JSX.Element
       // next, with no way to click past it.
       window.rp.hideTool()
     }
-  }, [id, arg])
+  }, [id, arg, overlays])
 
   return <div className="tool-slot" ref={slotRef} />
 }

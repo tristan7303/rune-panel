@@ -68,12 +68,12 @@ export async function runSmoke(initial: Settings): Promise<void> {
       await checkArticle(win.webContents)
       await checkCrawl(win.webContents)
       checkToolRegistry()
-  if (process.env.SMOKE_FETCH) {
-    await checkPrices(win.webContents)
-    await checkProfileLookup(win.webContents)
-    await checkHiscores(win.webContents)
-  }
-      if (process.env.SMOKE_FETCH) await checkToolPane(win)
+      if (process.env.SMOKE_FETCH) {
+        await checkPrices(win.webContents)
+        await checkProfileLookup(win.webContents)
+        await checkHiscores(win.webContents)
+        await checkToolPane(win)
+      }
       await checkShowHide(win)
 
       if (process.env.SMOKE_SHOT) await screenshot(win)
@@ -568,6 +568,33 @@ async function checkToolPane(win: Electron.BrowserWindow): Promise<void> {
     dps.bg === wanted,
     `${dps.bg} vs ${wanted} (${settingsModule.get().theme})`
   )
+
+  // A WebContentsView composites above the DOM and cannot be layered under
+  // anything, so any menu opening over the content area is invisible until the
+  // pane stands down. Driven through the real store, since that is the
+  // mechanism the UI uses.
+  await win.webContents.executeJavaScript(
+    `window.__rpNav.getState().push({ kind: 'tool', id: 'dps' }); true`
+  )
+  await settle(900)
+  const visibleWithTool = pane.debugVisible()
+
+  await win.webContents.executeJavaScript(`window.__rpStore.getState().pushOverlay(); true`)
+  await settle(500)
+  const hiddenForOverlay = !pane.debugVisible()
+
+  await win.webContents.executeJavaScript(`window.__rpStore.getState().popOverlay(); true`)
+  await settle(500)
+  const backAfterOverlay = pane.debugVisible()
+
+  check(
+    'tools: pane yields to an overlay and comes back',
+    visibleWithTool && hiddenForOverlay && backAfterOverlay,
+    `shown=${visibleWithTool} hiddenWhileOpen=${hiddenForOverlay} restored=${backAfterOverlay}`
+  )
+
+  await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
+  await settle(300)
 
   const calcDark = await probe(
     'calculators',
