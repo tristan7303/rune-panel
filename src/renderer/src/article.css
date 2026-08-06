@@ -887,3 +887,155 @@
   max-height: 30px !important;
   vertical-align: middle;
 }
+
+/* ── Footnotes ──────────────────────────────────────────────────────── */
+
+/**
+ * Lettered markers need a lettered list.
+ *
+ * The wiki puts these references in a `lower-alpha` group, so the markers read
+ * [a], [b], [c] — but the list itself is a plain `<ol>` and numbered 1, 2, 3
+ * without the wiki's stylesheet, so nothing lined up with anything.
+ */
+.article-body ol.references[data-mw-group='lower-alpha'],
+.article-body .reflist-lower-alpha ol {
+  list-style-type: lower-alpha;
+}
+
+.article-body ol.references[data-mw-group='upper-alpha'] {
+  list-style-type: upper-alpha;
+}
+
+.article-body ol.references[data-mw-group='lower-roman'] {
+  list-style-type: lower-roman;
+}
+
+.article-body .reference a {
+  cursor: help;
+}
+
+/* Hovering a marker lights up the note it points at. */
+.article-body .rp-cite-target {
+  background: color-mix(in srgb, var(--accent-a) 20%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent-a);
+  border-radius: 0 4px 4px 0;
+  padding-left: 6px;
+  margin-left: -8px;
+}
+
+/* Gear notes, moved below the table by the transform. */
+.article-body .rp-gear-notes {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rim);
+}
+
+.article-body .rp-gear-notes > :first-child {
+  margin-top: 0;
+}
+
+/* ── Worn equipment ─────────────────────────────────────────────────── */
+
+/**
+ * The OSRS worn-equipment panel.
+ *
+ * The wiki emits one div per slot — `.equipment-head`, `.equipment-cape` and so
+ * on — and arranges them with its own stylesheet into the game's familiar
+ * cross. Without it they stack into a single column, which is unreadable as an
+ * equipment loadout. A grid with named areas rebuilds the real layout:
+ *
+ *        head
+ *   cape neck ammo
+ *  weapon body shield
+ *        legs
+ *  gloves boots ring
+ */
+.article-body .equipment-div {
+  display: grid;
+  grid-template-columns: repeat(3, 40px);
+  grid-template-areas:
+    '.      head   .'
+    'cape   neck   ammo'
+    'weapon torso  shield'
+    '.      legs   .'
+    'gloves boots  ring';
+  gap: 3px;
+  justify-content: center;
+  padding: 8px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+}
+
+.article-body .equipment-head { grid-area: head; }
+.article-body .equipment-cape { grid-area: cape; }
+.article-body .equipment-neck { grid-area: neck; }
+.article-body .equipment-ammo,
+.article-body .equipment-ammo2 { grid-area: ammo; }
+.article-body .equipment-weapon { grid-area: weapon; }
+.article-body .equipment-torso { grid-area: torso; }
+.article-body .equipment-shield { grid-area: shield; }
+.article-body .equipment-legs { grid-area: legs; }
+.article-body .equipment-gloves { grid-area: gloves; }
+.article-body .equipment-boots { grid-area: boots; }
+.article-body .equipment-ring { grid-area: ring; }
+
+/* Every slot is the same square whether or not it holds anything, which is what
+   makes the cross read as the game's panel. */
+.article-body [class*='equipment-'][class*='equipment-blank'],
+.article-body .equipment-div > div {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 36px;
+  background: var(--surface);
+  border-radius: 4px;
+}
+
+.article-body .equipment-plinkp {
+  display: grid !important;
+  place-items: center;
+  width: auto !important;
+  height: auto !important;
+  background: none !important;
+}
+
+.article-body .equipment-div img {
+  max-width: 32px !important;
+  max-height: 30px !important;
+}
+
+/* The wrapper table the wiki floats these in. */
+.article-body table.equipment {
+  display: inline-block;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.article-body table.equipment td {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+/* The wiki's float helpers. Its stylesheet supplies these and we strip it, so
+   without them a floated equipment panel or infobox drops into the flow and
+   takes a full-width block of its own. */
+.article-body .floatright,
+.article-body .tright {
+  float: right;
+  margin: 0 0 12px 18px;
+}
+
+.article-body .floatleft,
+.article-body .tleft {
+  float: left;
+  margin: 0 18px 12px 0;
+}
+
+/* Headings must clear a float rather than wrap around its bottom edge. */
+.article-body h2 {
+  clear: both;
+}

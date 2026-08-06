@@ -456,9 +456,43 @@ function buildTabbers($: cheerio.CheerioAPI): void {
       )
       .join('')
 
+    tabs.each((_, tab) => moveNotesBelowTable($, $(tab)))
+
     $tabber.addClass('rp-tabber').attr('data-active-tab', '0')
     $tabber.prepend(`<div class="rp-tabbar" role="tablist">${bar}</div>`)
   })
+}
+
+/**
+ * Put the gear notes under the gear.
+ *
+ * The wiki leads each loadout with a bullet list of caveats and follows it with
+ * the recommended-equipment table. Read top to bottom that is backwards: the
+ * notes reference items you have not seen yet, and the table — the thing you
+ * opened the tab for — is pushed below a screen of prose. Moving the notes
+ * after the table costs nothing and puts the answer first.
+ */
+function moveNotesBelowTable($: cheerio.CheerioAPI, $tab: cheerio.Cheerio<Element>): void {
+  const table = $tab.find('table').first()
+  if (table.length === 0) return
+
+  // Everything before the table that is prose, not layout.
+  const notes = $tab
+    .children()
+    .toArray()
+    .filter((el) => {
+      const $el = $(el)
+      if ($el.is('table') || $el.find('table').length > 0) return false
+      // Only what precedes the table; anything after is already in place.
+      return $el.nextAll().toArray().some((n) => n === table[0] || $(n).find('table').length > 0)
+    })
+
+  if (notes.length === 0) return
+
+  const wrapper = $('<div class="rp-gear-notes"></div>')
+  // Appended in source order so the list still follows its own heading.
+  for (const el of notes) wrapper.append($(el))
+  $tab.append(wrapper)
 }
 
 /** Minimal escaping for text taken from a wiki attribute. */

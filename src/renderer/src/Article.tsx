@@ -110,8 +110,32 @@ export function Article({ title }: { title: string }): JSX.Element {
       }
     }
 
+    /**
+     * Highlight the note a footnote marker points at, the way the website does.
+     *
+     * Not expressible in CSS: the marker and its note are unrelated in the tree
+     * and joined only by an href fragment, so the target has to be looked up.
+     */
+    let highlighted: Element | null = null
+    const clearHighlight = (): void => {
+      highlighted?.classList.remove('rp-cite-target')
+      highlighted = null
+    }
+    const highlightCite = (e: MouseEvent): void => {
+      const ref = (e.target as HTMLElement).closest<HTMLElement>('.reference a')
+      if (!ref) return clearHighlight()
+      const id = ref.getAttribute('href')?.slice(1)
+      if (!id) return
+      const note = root.querySelector(`[id="${CSS.escape(decodeURIComponent(id))}"]`)
+      if (note === highlighted) return
+      clearHighlight()
+      note?.classList.add('rp-cite-target')
+      highlighted = note
+    }
+
     let timer: number | undefined
     const onOver = (e: MouseEvent): void => {
+      highlightCite(e)
       const anchor = (e.target as HTMLElement).closest('a')
       const target = anchor?.dataset.title
       if (!target) return
@@ -120,7 +144,10 @@ export function Article({ title }: { title: string }): JSX.Element {
       // links, and prefetching each one would be the opposite of polite.
       timer = window.setTimeout(() => window.rp.prefetchPage(target), HOVER_MS)
     }
-    const onOut = (): void => window.clearTimeout(timer)
+    const onOut = (): void => {
+      window.clearTimeout(timer)
+      clearHighlight()
+    }
 
     root.addEventListener('click', onClick)
     root.addEventListener('mouseover', onOver)

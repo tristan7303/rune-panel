@@ -1182,14 +1182,14 @@ input[type='text']:focus {
 .search-field.is-header {
   /* The icon needs clearance from the rounded edge, and the text needs
      clearance from the icon; both were touching before. */
-  padding: 0 8px 0 14px;
-  gap: 11px;
+  padding: 0 8px 0 18px;
+  gap: 15px;
   border-radius: 9px;
   background: var(--surface-sunken);
 }
 
 .search-field.is-header .search-input {
-  padding: 8px 0 8px 1px;
+  padding: 8px 0 8px 2px;
   font-size: 13.5px;
 }
 

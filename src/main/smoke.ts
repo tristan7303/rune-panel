@@ -651,6 +651,30 @@ async function checkTabber(wc: Electron.WebContents): Promise<void> {
 
   check('tabber: built a tab strip', (tabs.buttons ?? 0) > 1, `${tabs.buttons} tabs`)
   check('tabber: shows exactly one panel', tabs.visible === 1, `${tabs.visible} of ${tabs.panels} visible`)
+
+  // Notes were moved below the recommended-equipment table, and the lettered
+  // footnote markers need a lettered list to point into.
+  const layout = JSON.parse(
+    await wc.executeJavaScript(`
+      (() => {
+        const tab = document.querySelector('.rp-tabber .tabbertab[data-tab-index="0"]')
+        const notes = tab?.querySelector('.rp-gear-notes')
+        const table = tab?.querySelector('table')
+        const list = document.querySelector('ol.references[data-mw-group="lower-alpha"]')
+        const eq = document.querySelector('.equipment-div')
+        return JSON.stringify({
+          notesAfterTable: !!(notes && table) &&
+            (table.compareDocumentPosition(notes) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+          listStyle: list ? getComputedStyle(list).listStyleType : 'none',
+          equipmentGrid: eq ? getComputedStyle(eq).display : 'none',
+        })
+      })()
+    `)
+  ) as { notesAfterTable: boolean; listStyle: string; equipmentGrid: string }
+
+  check('tabber: gear notes sit below the table', layout.notesAfterTable)
+  check('footnotes: lettered list matches lettered markers', layout.listStyle === 'lower-alpha', layout.listStyle)
+  check('equipment: worn slots laid out as a grid', layout.equipmentGrid === 'grid', layout.equipmentGrid)
 }
 
 /**
@@ -785,6 +809,17 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
     // Images resolve through the protocol handler; give them a moment to paint.
     await settle(2500)
     article = await shoot('smoke-article.png')
+
+    // Scroll to the worn-equipment panel when there is one, so the capture
+    // shows the layout rather than the top of the page.
+    if (process.env.SMOKE_SCROLL) {
+      await win.webContents.executeJavaScript(`
+        document.querySelector(${JSON.stringify(process.env.SMOKE_SCROLL)})
+          ?.scrollIntoView({ block: 'center' }); true
+      `)
+      await settle(900)
+      await shoot('smoke-article-detail.png')
+    }
 
     if (process.env.SMOKE_THEMES) {
       for (const theme of ['parchment', 'dark'] as const) {
