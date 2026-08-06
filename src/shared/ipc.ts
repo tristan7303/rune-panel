@@ -102,6 +102,13 @@ export const Send = {
   /** Ask the crawler to stop after the current page. */
   StopCrawl: 'wiki:crawl-stop',
 
+  /** Begin the first-run download. */
+  RunSetup: 'setup:run',
+  /** Check, download or install an update. */
+  UpdateCheck: 'update:check',
+  UpdateDownload: 'update:download',
+  UpdateInstall: 'update:install',
+
   /** Show an embedded tool, optionally with an argument. */
   ShowTool: 'tools:show',
   /** Hide the embedded pane. It composites above the DOM, so this is required. */
@@ -256,6 +263,39 @@ export interface Hiscores {
   fetchedAt: number
 }
 
+// ── First run and updates ───────────────────────────────────────────────────
+
+export type SetupStep = 'titles' | 'prices' | 'crawl' | 'done'
+
+export interface SetupProgress {
+  step: SetupStep
+  /** 0-100 across the whole run, weighted by how long each step takes. */
+  percent: number
+  detail: string
+  running: boolean
+  done: boolean
+  error?: boolean
+}
+
+export type UpdateState =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'ready'
+  | 'current'
+  | 'error'
+  /** Development build: there is nothing to replace. */
+  | 'unsupported'
+
+export interface UpdateStatus {
+  state: UpdateState
+  version: string | null
+  /** Download percentage, 0-100. */
+  progress: number
+  message?: string
+}
+
 export type CrawlPhase = 'idle' | 'refreshing' | 'crawling' | 'paused' | 'done' | 'error'
 
 export interface CrawlState {
@@ -296,6 +336,8 @@ export const Invoke = {
   GeDetail: 'ge:detail',
   GeFindByName: 'ge:find',
   Hiscores: 'hiscores:lookup',
+  GetSetup: 'setup:state',
+  GetUpdate: 'update:state',
 } as const
 
 /** Main -> renderer. */
@@ -310,6 +352,8 @@ export const On = {
   Settings: 'settings:changed',
   /** One step of a title-index sync. */
   SyncProgress: 'wiki:sync-progress',
+  SetupProgress: 'setup:progress',
+  UpdateStatus: 'update:status',
   /** One step of the background refresh + crawl. */
   CrawlProgress: 'wiki:crawl-progress',
 } as const
@@ -342,6 +386,16 @@ export interface RunePanelApi {
   geFindByName(name: string): Promise<GeItem | null>
 
   hiscores(name: string, mode?: AccountMode): Promise<Hiscores>
+
+  getSetup(): Promise<SetupProgress>
+  runSetup(options: { prices: boolean; crawl: boolean }): void
+  onSetupProgress(cb: (progress: SetupProgress) => void): () => void
+
+  getUpdate(): Promise<UpdateStatus>
+  checkUpdate(): void
+  downloadUpdate(): void
+  installUpdate(): void
+  onUpdateStatus(cb: (status: UpdateStatus) => void): () => void
 
   onShown(cb: () => void): () => void
   onSettings(cb: (settings: Settings) => void): () => void

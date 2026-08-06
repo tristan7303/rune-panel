@@ -26,6 +26,8 @@ import * as pane from './tools/pane'
 import * as profile from './tools/profile'
 import * as ge from './prices/ge'
 import * as hiscores from './hiscores'
+import * as setup from './setup'
+import * as updater from './updater'
 import type { PaneBounds, ToolId } from '../shared/ipc'
 
 /**
@@ -105,6 +107,18 @@ function registerIpc(): void {
     hiscores.lookup(name, mode)
   )
 
+  ipcMain.handle(Invoke.GetSetup, () => setup.getProgress())
+  ipcMain.on(Send.RunSetup, (_e, options: { prices: boolean; crawl: boolean }) => {
+    void setup.run(options)
+  })
+  setup.onProgress((p) => getWindow()?.webContents.send(On.SetupProgress, p))
+
+  ipcMain.handle(Invoke.GetUpdate, () => updater.getStatus())
+  ipcMain.on(Send.UpdateCheck, () => void updater.check())
+  ipcMain.on(Send.UpdateDownload, () => void updater.download())
+  ipcMain.on(Send.UpdateInstall, () => updater.install())
+  updater.onStatus((s) => getWindow()?.webContents.send(On.UpdateStatus, s))
+
   titles.onProgress((progress) => {
     // A finished sync replaced the rows the in-memory haystack was built from.
     if (progress.phase === 'done') search.invalidate()
@@ -150,6 +164,11 @@ function main(): void {
     registerIpc()
     registerHotkey(initial.hotkey)
 
+    // Outside the smoke branch below on purpose: in a development build this
+    // only records that updates do not apply, and the renderer needs that
+    // answer either way.
+    updater.init()
+
     settings.onChange((next) => {
       registerHotkey(next.hotkey)
       setHotkey(next.hotkey)
@@ -170,10 +189,12 @@ function main(): void {
 
       onVisibilityChange(sync.setWindowVisible)
 
-      // First launch has no index and search would find nothing, so this runs
-      // unprompted — at background priority, so anything the user does while it
-      // works jumps ahead of it.
-      if (titles.isStale()) {
+      // A first run is handed to the setup wizard rather than started silently:
+      // the index takes four minutes and search finds nothing until it lands,
+      // which reads as a broken app rather than a pending download.
+      if (setup.isFirstRun()) {
+        // nothing to do here; the renderer shows the wizard and calls runSetup.
+      } else if (titles.isStale()) {
         void titles
           .sync('background')
           .then(() => sync.run())

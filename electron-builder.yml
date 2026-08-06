@@ -1,0 +1,68 @@
+# Packaging.
+#
+# electron-vite emits to out/; this wraps that plus the runtime dependencies
+# into an installer. Everything else in the repo — sources, the smoke suite,
+# artwork — is excluded, so the shipped app carries only what it runs.
+
+appId: org.runepanel.app
+productName: Rune Panel
+copyright: Rune Panel. Not affiliated with Jagex or the OSRS Wiki.
+
+directories:
+  output: release
+  buildResources: build
+
+# No spaces. The default is "${productName} Setup ${version}.exe", which lands
+# on disk with spaces while the update feed refers to the URL-encoded form —
+# two names for one file is a needless way for an update to 404.
+artifactName: RunePanel-Setup-${version}.${ext}
+
+# out/ is the built app. `resources/` holds the icon the tray and window load at
+# runtime, and has to travel as an extra resource because it is read from
+# `process.resourcesPath` rather than bundled.
+files:
+  - out/**/*
+  - package.json
+
+extraResources:
+  - from: resources
+    to: .
+    filter:
+      - '**/*'
+
+# Pure-JS dependencies. Nothing here is native — `node:sqlite` is a Node
+# builtin, which is the whole reason the database needed no rebuild step.
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.png
+  # Signing is wired but unset. electron-builder reads these from the
+  # environment, so supplying a certificate later needs no code change:
+  #   CSC_LINK           path or base64 of a .pfx
+  #   CSC_KEY_PASSWORD   its password
+  # Until then builds are unsigned and Windows SmartScreen will warn once.
+  signAndEditExecutable: true
+  verifyUpdateCodeSignature: false
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Rune Panel
+  # Keep the user's cache and settings on uninstall — they live in
+  # %APPDATA%/rune-panel and are expensive to rebuild (the title index alone is
+  # a four-minute download).
+  deleteAppDataOnUninstall: false
+
+publish:
+  provider: github
+  owner: tristan7303
+  repo: rune-panel
+  # Releases are drafted rather than published outright, so a bad build can be
+  # discarded before anyone's updater sees it.
+  releaseType: draft

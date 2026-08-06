@@ -20,6 +20,8 @@ import { Profile } from './Profile'
 import { Calculators } from './Calculators'
 import { Grand } from './Grand'
 import { Hiscores } from './Hiscores'
+import { Setup } from './Setup'
+import { UpdateBanner } from './UpdateBanner'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
 import {
@@ -55,11 +57,18 @@ const NAV: Array<{ route: Route; label: string; icon: () => JSX.Element }> = [
 ]
 
 export function App(): JSX.Element {
+  const [needsSetup, setNeedsSetup] = useState<boolean | null>(null)
   const route = useRoute()
   const { push, back, forward } = useNav()
   const canBack = useCanGoBack()
   const canForward = useCanGoForward()
   const setSettings = useStore((s) => s.setSettings)
+
+  // Whether this is a first run. Null until asked, so the shell does not flash
+  // before the wizard appears.
+  useEffect(() => {
+    void window.rp.getSetup().then((p) => setNeedsSetup(!p.done))
+  }, [])
 
   // Pull settings once, then track main's broadcasts. Main owns the sanitized
   // truth; the renderer only ever mirrors it.
@@ -119,6 +128,15 @@ export function App(): JSX.Element {
       window.removeEventListener('mouseup', onMouse)
     }
   }, [push, back, forward])
+
+  if (needsSetup === null) return <div className="shell" />
+  if (needsSetup) {
+    return (
+      <div className="shell is-setup">
+        <Setup onDone={() => setNeedsSetup(false)} />
+      </div>
+    )
+  }
 
   return (
     <div className="shell">
@@ -183,6 +201,8 @@ export function App(): JSX.Element {
             <CloseIcon />
           </button>
         </header>
+
+        <UpdateBanner />
 
         {/* Articles own their scrolling so the infobox can float against the
             full width, and tools are a native view that must not be scrolled

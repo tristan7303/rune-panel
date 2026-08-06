@@ -24,7 +24,9 @@ import {
   type RunePanelApi,
   type SearchResult,
   type Settings,
+  type SetupProgress,
   type SyncProgress,
+  type UpdateStatus,
   type TitleIndexState,
   type ToolId,
 } from '../shared/ipc'
@@ -77,6 +79,17 @@ const api: RunePanelApi = {
 
   hiscores: (name: string, mode?: AccountMode): Promise<Hiscores> =>
     ipcRenderer.invoke(Invoke.Hiscores, name, mode),
+
+  getSetup: (): Promise<SetupProgress> => ipcRenderer.invoke(Invoke.GetSetup),
+  runSetup: (options: { prices: boolean; crawl: boolean }) =>
+    ipcRenderer.send(Send.RunSetup, options),
+  onSetupProgress: (cb) => subscribeWith<SetupProgress>(On.SetupProgress, cb),
+
+  getUpdate: (): Promise<UpdateStatus> => ipcRenderer.invoke(Invoke.GetUpdate),
+  checkUpdate: () => ipcRenderer.send(Send.UpdateCheck),
+  downloadUpdate: () => ipcRenderer.send(Send.UpdateDownload),
+  installUpdate: () => ipcRenderer.send(Send.UpdateInstall),
+  onUpdateStatus: (cb) => subscribeWith<UpdateStatus>(On.UpdateStatus, cb),
 
   onShown: (cb) => subscribe(On.Shown, cb),
   onSettings: (cb) => subscribeWith<Settings>(On.Settings, cb),

@@ -60,6 +60,7 @@ export async function runSmoke(initial: Settings): Promise<void> {
       check('preload bridge exposed', bridge === 'object', `typeof window.rp = ${bridge}`)
 
       await checkCloseButton(win.webContents)
+      await checkSetupAndUpdater(win.webContents)
 
       checkDatabase()
       checkClient()
@@ -136,6 +137,10 @@ async function checkSettingsRoundTrip(
  * stops growing at a max-width and nothing filled the gap.
  */
 async function checkCloseButton(wc: Electron.WebContents): Promise<void> {
+  // The shell renders empty until the first-run query resolves, so the button
+  // does not exist for the first frame or two.
+  await waitFor(wc, '.icon-btn.is-close', 5000)
+
   const raw = await wc.executeJavaScript(`
     (() => {
       const b = document.querySelector('.icon-btn.is-close')
@@ -156,6 +161,37 @@ async function checkCloseButton(wc: Electron.WebContents): Promise<void> {
     'close button sits in the top-right corner',
     (b.fromRight ?? 999) < 24 && (b.fromTop ?? 999) < 24 && (b.size ?? 0) >= 24,
     `${b.fromRight}px from right, ${b.fromTop}px from top, ${b.size}px`
+  )
+}
+
+/**
+ * First-run setup and the updater, without triggering either.
+ *
+ * The interesting properties are negative ones: a populated install must not
+ * show the wizard, and a development build must not pretend it can update
+ * itself. Both are states you would only notice were wrong by launching a
+ * fresh install or shipping a broken release.
+ */
+async function checkSetupAndUpdater(wc: Electron.WebContents): Promise<void> {
+  const raw = await wc.executeJavaScript('window.rp.getSetup().then(s => JSON.stringify(s))')
+  const state = JSON.parse(raw) as { done: boolean; running: boolean; percent: number }
+  const populated = titles.state().count > 0
+
+  check(
+    'setup: wizard state matches the index',
+    state.done === populated,
+    `done=${state.done}, ${titles.state().count} titles`
+  )
+
+  const upRaw = await wc.executeJavaScript('window.rp.getUpdate().then(s => JSON.stringify(s))')
+  const update = JSON.parse(upRaw) as { state: string; message?: string }
+  check('IPC round trip (getUpdate)', typeof update?.state === 'string', update?.state)
+  // A dev build has nothing to replace; claiming otherwise would mean the
+  // updater is live in a context where quitAndInstall throws.
+  check(
+    'updater: development build reports unsupported',
+    update.state === 'unsupported',
+    `${update.state}${update.message ? ` — ${update.message}` : ''}`
   )
 }
 

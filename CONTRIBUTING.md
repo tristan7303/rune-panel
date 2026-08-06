@@ -22,7 +22,7 @@ agent, the embedded browser, and the WebGL refraction engine are gone.
 | 5 | Embedded tool pane: DPS, calculators, RuneProfile | done |
 | 6 | Grand Exchange prices | done |
 | 7 | Hiscores lookup and compare | done |
-| 8 | Packaging | |
+| 8 | Packaging | done |
 
 Plan lives in `~/.claude/plans/please-copy-glass-agent-vast-rabin.md`.
 
@@ -258,3 +258,37 @@ resources/icon.png the app, window and tray icon
 app, price API included. One global 4 req/s ceiling is stricter than either host
 needs, but it means a background crawl can never outpace or starve anything, and
 interactive work jumps the queue regardless.
+
+
+## Releasing
+
+```sh
+npm run dist      # build an installer into release/, publish nothing
+npm run release   # build and upload to a draft GitHub Release
+```
+
+CI does the second on any `v*` tag:
+
+```sh
+npm version 0.1.1 -m 'Release %s'   # bumps package.json and tags
+git push --follow-tags
+```
+
+The workflow builds on `windows-latest` and uploads to a **draft** release, so a
+bad build can be deleted before anyone's updater sees it. Publishing the draft is
+what actually ships it.
+
+Three things that have to stay true or auto-update breaks silently:
+
+- **The repository must be public.** `electron-updater` checks releases
+  unauthenticated; against a private repo GitHub answers 404 and the app reports
+  "no updates" forever, with no error anywhere.
+- **`latest.yml` must ship with the installer.** electron-builder writes it into
+  `release/` and uploads it; it is the feed the updater reads.
+- **The artifact name must not contain spaces.** `artifactName` in
+  `electron-builder.yml` pins it, because the default lands on disk with spaces
+  while the feed refers to the URL-encoded form — two names for one file.
+
+Signing is wired but unset. Supply `CSC_LINK` (a .pfx path or its base64) and
+`CSC_KEY_PASSWORD` as environment variables, or as repository secrets for CI,
+and builds sign with no code change.

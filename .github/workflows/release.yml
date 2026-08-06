@@ -1,0 +1,40 @@
+# Build and publish a Windows installer.
+#
+# Triggered by pushing a tag like `v0.1.0`. electron-builder uploads to a
+# *draft* GitHub Release, so a bad build can be discarded before anyone's
+# updater sees it — publishing the draft is what actually ships it.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  # Also runnable by hand, for testing the pipeline without cutting a tag.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build and publish
+        run: npm run release
+        env:
+          # Provided by Actions; electron-builder uses it to create the draft.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signing, if a certificate is ever configured. Unset means unsigned.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}

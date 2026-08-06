@@ -2,7 +2,7 @@
   "name": "rune-panel",
   "version": "0.1.0",
   "private": true,
-  "description": "An all-in-one Old School RuneScape desktop tool",
+  "description": "An all-in-one Old School RuneScape companion for Windows",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -10,11 +10,14 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "sync:titles": "electron out/main/index.js --sync-titles",
-    "crawl": "electron out/main/index.js --crawl"
+    "crawl": "electron out/main/index.js --crawl",
+    "dist": "npm run build && electron-builder --win --publish never",
+    "release": "npm run build && electron-builder --win --publish always"
   },
   "dependencies": {
     "@leeoniya/ufuzzy": "^1.0.19",
-    "cheerio": "^1.1.2"
+    "cheerio": "^1.1.2",
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -22,11 +25,19 @@
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^3.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
     "zustand": "^5.0.2"
+  },
+  "author": {
+    "name": "tristan7303"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tristan7303/rune-panel.git"
   }
 }

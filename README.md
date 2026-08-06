@@ -45,7 +45,32 @@ side.
 
 ---
 
-## Getting it running
+## Installing
+
+Download the installer from
+[Releases](https://github.com/tristan7303/rune-panel/releases) and run it.
+
+Windows will show **"Windows protected your PC"** the first time — the installer
+is not code-signed, because a certificate costs a few hundred a year and this is
+free. Click **More info** → **Run anyway**. Rune Panel updates itself after that,
+so you only see it once.
+
+On first launch it asks to download the wiki's page list — about four minutes,
+and the app tells you where it is up to. Nothing works properly before that
+finishes, which is why it asks rather than starting quietly in the background.
+
+**Ctrl+Shift+Space** opens and closes it. So does the tray icon, which is also
+the only way to quit. Closing keeps your place — reopening returns you to
+whatever you were reading.
+
+### Updates
+
+Rune Panel checks GitHub for a new version shortly after launch and once a day
+after that. When one exists a strip appears at the top of the window; nothing
+downloads or installs until you click it. It will not restart itself while you
+are using it.
+
+### Running from source
 
 You need [Node.js](https://nodejs.org) 20 or newer.
 
@@ -54,13 +79,6 @@ npm install
 npm run build
 npx electron out/main/index.js
 ```
-
-**Ctrl+Shift+Space** opens and closes it. So does the tray icon, which is also
-the only way to quit. Closing keeps your place — reopening returns you to
-whatever you were reading.
-
-The first launch spends about four minutes in the background learning every page
-name on the wiki. Search works while it fills.
 
 ---
 
