@@ -15,8 +15,9 @@
  * something, because there is no underneath.
  */
 
-import { WebContentsView, shell, session, type BrowserWindow, type Rectangle } from 'electron'
+import { WebContentsView, session, type BrowserWindow, type Rectangle } from 'electron'
 import { TOOLS, PALETTES, type ToolCookie, type ToolId } from './registry'
+import { openExternal } from '../safe-open'
 import * as settings from '../settings'
 
 /** Shared so a login or a preference survives switching tools and restarts. */
@@ -164,8 +165,12 @@ function wire(v: WebContentsView): void {
 
   // Links that leave the tool go to the real browser. Without this a stray
   // footer link strands the pane on an unrelated site with no way back.
+  //
+  // Scheme-checked, and this is the site where it counts: these are
+  // third-party pages, and `window.open('file:///…')` from one of them — or
+  // from an ad script it loaded — would otherwise reach the shell.
   wc.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    openExternal(url)
     return { action: 'deny' }
   })
 

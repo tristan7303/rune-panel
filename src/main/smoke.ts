@@ -28,6 +28,7 @@ import * as sync from './wiki/sync'
 import * as pane from './tools/pane'
 import { TOOLS, PALETTES } from './tools/registry'
 import * as settingsModule from './settings'
+import { openExternal } from './safe-open'
 import type { ToolId } from '../shared/ipc'
 import { XP_FOR_LEVEL } from '../shared/xp'
 
@@ -62,6 +63,7 @@ export async function runSmoke(initial: Settings): Promise<void> {
       await checkCloseButton(win.webContents)
       await checkSetupAndUpdater(win.webContents)
 
+      checkSafeOpen()
       checkDatabase()
       checkClient()
       await checkSettingsRoundTrip(win.webContents, initial)
@@ -193,6 +195,43 @@ async function checkSetupAndUpdater(wc: Electron.WebContents): Promise<void> {
     update.state === 'unsupported',
     `${update.state}${update.message ? ` — ${update.message}` : ''}`
   )
+}
+
+/**
+ * Only http and https ever reach the shell.
+ *
+ * `shell.openExternal` launches whatever Windows registered for a scheme, so
+ * `file:///` opens local executables and `ms-msdt:` and friends are known
+ * attack vectors. The tool pane renders third-party pages that can call
+ * `window.open` with anything, which is what makes this worth pinning down
+ * rather than trusting.
+ */
+function checkSafeOpen(): void {
+  const opened: string[] = []
+  const real = shell.openExternal.bind(shell)
+  ;(shell as { openExternal: typeof shell.openExternal }).openExternal = async (u: string) => {
+    opened.push(u)
+  }
+
+  for (const url of [
+    'file:///C:/Windows/System32/calc.exe',
+    'ms-msdt:/id PCWDiagnostic',
+    'search-ms:query=x',
+    'javascript:alert(1)',
+    'not a url at all',
+  ]) {
+    openExternal(url)
+  }
+  const leaked = [...opened]
+
+  opened.length = 0
+  openExternal('https://oldschool.runescape.wiki/w/Varrock')
+  const allowed = opened.length === 1
+
+  ;(shell as { openExternal: typeof shell.openExternal }).openExternal = real
+
+  check('open: dangerous schemes are refused', leaked.length === 0, leaked.join(', '))
+  check('open: https still opens', allowed)
 }
 
 /** The database opened, migrated, and is in the mode the design assumes. */

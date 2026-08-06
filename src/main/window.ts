@@ -16,10 +16,11 @@
  * ever adds depth.
  */
 
-import { BrowserWindow, screen, shell } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import { WINDOW, On, type Settings, type WindowBounds } from '../shared/ipc'
 import { appIcon } from './icon'
+import { openExternal } from './safe-open'
 import * as settings from './settings'
 
 let win: BrowserWindow | null = null
@@ -89,15 +90,20 @@ export function createWindow(initial: Settings): BrowserWindow {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      // Inherited as `false` from the project this forked, whose preload
+      // needed Node. Ours uses only contextBridge and ipcRenderer, both of
+      // which work sandboxed — so the renderer runs in the OS sandbox like any
+      // browser tab.
+      sandbox: true,
     },
   })
 
   win.setMenuBarVisibility(false)
 
-  // Anything that tries to open a new window goes to the real browser instead.
+  // Anything that tries to open a new window goes to the real browser instead —
+  // http and https only. See safe-open.ts for why that matters.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    openExternal(url)
     return { action: 'deny' }
   })
 
