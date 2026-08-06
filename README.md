@@ -13,7 +13,7 @@ agent, the embedded browser, and the WebGL refraction engine are gone.
 |---|---|---|
 | 0 | Fork, acrylic window, hotkey, tray, settings | done |
 | 1 | SQLite storage, throttled wiki client, title index | done |
-| 2 | Shell UI, navigation history, Ctrl+K search | |
+| 2 | Shell UI, navigation history, Ctrl+K search | done |
 | 3 | Article renderer and HTML transform | |
 | 4 | Background sync: recentchanges + seed crawler | |
 | 5 | Embedded tool pane: DPS, calculators, RuneProfile | |
@@ -117,6 +117,26 @@ not just match against it.
 The sync runs automatically on first launch and weekly thereafter, at background
 priority so anything you do jumps ahead of it.
 
+### Search
+
+**Ctrl+K** from anywhere. Search runs in main over an in-memory copy of the
+index — measured at 6–12ms across the full 239k rows, so there is no debounce
+and no worker; every keystroke queries.
+
+The interesting problem is not matching, it is **collapsing**. A raw match for
+`aby` returns 1,108 rows that are really a few dozen articles wearing hats, so
+every hit resolves to its canonical article and dedupes. That turns the wiki's
+enormous redirect table from noise into precisely the typo tolerance you want —
+it has already written down every misspelling anyone makes. On top of that,
+single-error tolerance costs nothing measurable (11ms vs 12ms) and rescues
+what strict matching drops outright: `dragn scim` goes from 0 hits to 57.
+
+Two subtleties that took a bug each to find. The alias shown as "matched …" is
+chosen *during* dedupe, preferring an exact match — otherwise `bowfa` collapses
+to `Bow of faerdhinen` but reports having matched `BOWFA RANGE`. And an exact
+title is promoted to the top afterwards, because fuzzy ranking will otherwise
+put `Zulrah/Strategies` above `Zulrah`.
+
 **Invariant worth relying on:** a redirect's target is either NULL or a title
 that exists locally. A few redirects point off-wiki entirely (`Api` resolves to
 `rsw:Application programming interface` on the RS3 wiki); their targets are
@@ -139,10 +159,15 @@ src/
     smoke.ts       SMOKE=1 self-check
     wiki/
       client.ts    the only outbound request path: UA, queue, retries
-      titles.ts    the 41k-article / 203k-redirect search index
+      titles.ts    the 36k-article / 203k-redirect index
+      search.ts    uFuzzy matching + alias collapsing
   preload/         the entire renderer-facing API surface
   shared/          types and channel names used by both processes
-  renderer/src/    React UI — shell, rail, settings
+  renderer/src/
+    App.tsx        shell: rail, top bar, routed body
+    nav.ts         history stack — a tagged union, not a router
+    Search.tsx     the Ctrl+K palette
+    Settings.tsx   settings view
 scripts/           tray icon generator (pure Node, no deps)
 ```
 

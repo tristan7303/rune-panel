@@ -79,10 +79,18 @@ export const Send = {
   SyncTitles: 'wiki:sync-titles',
 } as const
 
+export interface SearchResult {
+  /** The canonical article to navigate to. */
+  title: string
+  /** The alias that actually matched, when it differs from `title`. */
+  matchedVia?: string
+}
+
 /** Renderer -> main, awaits a reply. */
 export const Invoke = {
   GetSettings: 'settings:get',
   GetTitleIndex: 'wiki:title-index',
+  Search: 'wiki:search',
 } as const
 
 /** Main -> renderer. */
@@ -110,6 +118,7 @@ export interface RuneBuddyApi {
 
   getTitleIndex(): Promise<TitleIndexState>
   syncTitles(): void
+  search(query: string): Promise<SearchResult[]>
 
   onShown(cb: () => void): () => void
   onSettings(cb: (settings: Settings) => void): () => void

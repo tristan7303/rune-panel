@@ -5,7 +5,8 @@
  * and stacking a second layer of dismissal on top of it earns nothing.
  */
 
-import type { JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
+import type { TitleIndexState } from '@shared/ipc'
 import { useStore } from './store'
 
 export function SettingsView(): JSX.Element {
@@ -64,7 +65,50 @@ export function SettingsView(): JSX.Element {
           onChange={(e) => patch({ contactEmail: e.target.value })}
         />
       </Field>
+
+      <TitleIndexField />
     </div>
+  )
+}
+
+/**
+ * The wiki title index — status and a manual rebuild.
+ *
+ * Rebuilding is roughly 880 requests over four minutes, so the button says so
+ * rather than presenting itself as a refresh. It runs automatically on first
+ * launch and weekly; this is for when you want it sooner.
+ */
+function TitleIndexField(): JSX.Element {
+  const [index, setIndex] = useState<TitleIndexState | null>(null)
+
+  useEffect(() => {
+    void window.rb.getTitleIndex().then(setIndex)
+    // Progress events arrive per batch, which is also the cheapest cue to
+    // re-read the counts.
+    return window.rb.onSyncProgress(() => {
+      void window.rb.getTitleIndex().then(setIndex)
+    })
+  }, [])
+
+  const hint = !index
+    ? 'Checking…'
+    : index.syncing
+      ? `Building — ${index.progress.phase}, ${index.progress.fetched.toLocaleString()} titles over ${index.progress.requests} requests.`
+      : index.count === 0
+        ? 'Not built yet. Roughly 880 requests over about four minutes.'
+        : `${(index.count - index.redirects).toLocaleString()} articles and ${index.redirects.toLocaleString()} aliases. Last built ${index.syncedAt ? new Date(index.syncedAt).toLocaleString() : 'never'}.`
+
+  return (
+    <Field label="Wiki title index" hint={hint}>
+      <button
+        type="button"
+        className="btn"
+        disabled={index?.syncing ?? true}
+        onClick={() => window.rb.syncTitles()}
+      >
+        {index?.syncing ? 'Building…' : 'Rebuild'}
+      </button>
+    </Field>
   )
 }
 

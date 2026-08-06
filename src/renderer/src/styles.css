@@ -245,6 +245,94 @@ kbd {
   color: var(--text-dim);
 }
 
+/* ── Search palette ─────────────────────────────────────────────────── */
+
+.search {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  color: var(--text-dim);
+  transition: border-color var(--duration) ease, box-shadow var(--duration) ease;
+}
+
+.search-field:focus-within {
+  border-color: transparent;
+  box-shadow: 0 0 0 1px var(--accent-a), 0 0 20px rgba(140, 110, 255, 0.2);
+  color: var(--text);
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.search-input::placeholder {
+  color: var(--text-faint);
+}
+
+.results {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  /* Bounded so the list scrolls internally rather than pushing the page. */
+  max-height: calc(100vh - var(--topbar) - 130px);
+  overflow-y: auto;
+}
+
+.result {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.result.is-selected {
+  background: var(--surface-hover);
+  box-shadow: inset 2px 0 0 var(--accent-a);
+}
+
+.result-title {
+  flex: none;
+  font-size: 13.5px;
+}
+
+/* The alias that matched, when it differs from the article. Dimmed and
+   truncating, because it is provenance rather than the answer. */
+.result-alias {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-note {
+  margin: 14px 2px 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
 /* ── Settings ───────────────────────────────────────────────────────── */
 
 .settings {
@@ -305,6 +393,28 @@ input[type='text'] {
 input[type='text']:focus {
   border-color: transparent;
   box-shadow: 0 0 0 1px var(--accent-a), 0 0 14px rgba(140, 110, 255, 0.22);
+}
+
+.btn {
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: 6px;
+  box-shadow: inset 0 1px 0 var(--rim-bright);
+  cursor: pointer;
+  transition: background var(--duration) ease, opacity var(--duration) ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* A pill switch rather than a checkbox: the native control cannot be themed to

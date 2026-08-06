@@ -173,6 +173,8 @@ async function checkTitleIndex(wc: Electron.WebContents): Promise<void> {
 
   check('titles: has articles', state.count - state.redirects > 1000, `${state.count - state.redirects}`)
 
+  await checkSearch(wc)
+
   // Every redirect target should itself be a known title. A miss means the two
   // passes were joined on the wrong key, which would silently break search.
   const dangling = db
@@ -184,6 +186,51 @@ async function checkTitleIndex(wc: Electron.WebContents): Promise<void> {
     )
     .get() as { n: number }
   check('titles: redirect targets resolve', dangling.n === 0, `${dangling.n} dangling`)
+}
+
+/**
+ * Search, driven through the real bridge.
+ *
+ * The assertions are about *quality*, not just plumbing. A search that returns
+ * rows is easy; the three properties that make it usable are that an exact
+ * title wins, that aliases resolve to their article, and that the wiki's 203k
+ * misspelling redirects collapse instead of flooding the palette.
+ */
+async function checkSearch(wc: Electron.WebContents): Promise<void> {
+  const run = async (q: string): Promise<Array<{ title: string; matchedVia?: string }>> =>
+    JSON.parse(
+      await wc.executeJavaScript(`window.rb.search(${JSON.stringify(q)}).then(r => JSON.stringify(r))`)
+    )
+
+  const started = Date.now()
+  const whip = await run('abyssal whip')
+  const elapsed = Date.now() - started
+
+  check('search: exact title ranks first', whip[0]?.title === 'Abyssal whip', whip[0]?.title ?? 'no results')
+  // First call pays for building the in-memory index (~180ms); the budget is
+  // generous because what matters is that it is not seconds.
+  check('search: responds promptly', elapsed < 1500, `${elapsed}ms including index load`)
+
+  // "Bowfa" is a redirect. Resolving it to the article is the whole point of
+  // carrying 203k redirects around.
+  const bowfa = await run('bowfa')
+  check(
+    'search: alias resolves to article',
+    bowfa[0]?.title === 'Bow of faerdhinen' && bowfa[0]?.matchedVia?.toLowerCase() === 'bowfa',
+    `${bowfa[0]?.title} via ${bowfa[0]?.matchedVia}`
+  )
+
+  // Raw matching returns >1100 rows for "aby", nearly all of them misspellings
+  // of a few dozen articles. Collapsed, every row must be a distinct article.
+  const aby = await run('aby')
+  const unique = new Set(aby.map((r) => r.title))
+  check('search: collapses duplicate aliases', unique.size === aby.length, `${aby.length} rows, ${unique.size} distinct`)
+
+  // A typo the wiki has no redirect for — this is what error tolerance buys.
+  const typo = await run('dragn scim')
+  check('search: tolerates a typo', typo.length > 0, typo[0]?.title ?? 'no results')
+
+  check('search: ignores one-character queries', (await run('a')).length === 0)
 }
 
 /**

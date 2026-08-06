@@ -13,10 +13,10 @@
     "sync:titles": "electron out/main/index.js --sync-titles"
   },
   "dependencies": {
+    "@leeoniya/ufuzzy": "^1.0.19",
     "cheerio": "^1.1.2"
   },
   "devDependencies": {
-    "@leeoniya/ufuzzy": "^1.0.19",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",

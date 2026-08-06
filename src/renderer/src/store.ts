@@ -1,38 +1,22 @@
 /**
- * Renderer state.
+ * Renderer state that is not navigation.
  *
- * Deliberately thin for now. Navigation history and the route union land in
- * phase 2 — this only tracks which top-level view is showing and mirrors the
- * settings main owns, so the shell has something real to render against.
+ * Where you are lives in nav.ts; this is the mirror of what main owns.
  */
 
 import { create } from 'zustand'
 import type { Settings } from '@shared/ipc'
 
-export type View =
-  | 'search'
-  | 'wiki'
-  | 'dps'
-  | 'ge'
-  | 'hiscores'
-  | 'profile'
-  | 'calculators'
-  | 'settings'
-
 interface State {
-  view: View
   settings: Settings | null
-  setView: (view: View) => void
   setSettings: (settings: Settings) => void
   /** Patch settings optimistically and push the change to main. */
   patchSettings: (patch: Partial<Settings>) => void
 }
 
 export const useStore = create<State>((set, get) => ({
-  view: 'search',
   settings: null,
 
-  setView: (view) => set({ view }),
   setSettings: (settings) => set({ settings }),
 
   patchSettings: (patch) => {

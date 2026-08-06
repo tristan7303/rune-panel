@@ -10,6 +10,7 @@ import * as settings from './settings'
 import * as db from './db'
 import * as client from './wiki/client'
 import * as titles from './wiki/titles'
+import * as search from './wiki/search'
 
 /**
  * Claim our identity before anything reads it.
@@ -53,7 +54,13 @@ function registerIpc(): void {
     void titles.sync('interactive').catch(() => {})
   })
 
-  titles.onProgress((progress) => getWindow()?.webContents.send(On.SyncProgress, progress))
+  ipcMain.handle(Invoke.Search, (_e, query: string) => search.search(query))
+
+  titles.onProgress((progress) => {
+    // A finished sync replaced the rows the in-memory haystack was built from.
+    if (progress.phase === 'done') search.invalidate()
+    getWindow()?.webContents.send(On.SyncProgress, progress)
+  })
 }
 
 function registerHotkey(accelerator: string): void {

@@ -13,6 +13,7 @@ import {
   Invoke,
   On,
   type RuneBuddyApi,
+  type SearchResult,
   type Settings,
   type SyncProgress,
   type TitleIndexState,
@@ -44,6 +45,7 @@ const api: RuneBuddyApi = {
 
   getTitleIndex: (): Promise<TitleIndexState> => ipcRenderer.invoke(Invoke.GetTitleIndex),
   syncTitles: () => ipcRenderer.send(Send.SyncTitles),
+  search: (query: string): Promise<SearchResult[]> => ipcRenderer.invoke(Invoke.Search, query),
 
   onShown: (cb) => subscribe(On.Shown, cb),
   onSettings: (cb) => subscribeWith<Settings>(On.Settings, cb),

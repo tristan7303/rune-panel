@@ -1,18 +1,19 @@
 /**
  * The shell.
  *
- * Rail on the left, top bar with the drag region and window controls, content
- * in the middle. Phase 2 replaces the placeholder body with real routes; the
- * frame around it is what phase 0 has to get right, because everything else
- * hangs off it.
+ * Rail on the left, top bar with the drag region and window controls, routed
+ * content in the middle. Everything renders against the navigation stack in
+ * nav.ts; the rail is a set of shortcuts into it, not a separate notion of
+ * where you are.
  */
 
 import { useEffect, type JSX } from 'react'
-import { useStore, type View } from './store'
+import { useStore } from './store'
+import { useNav, useRoute, useCanGoBack, useCanGoForward, routeTitle, type Route } from './nav'
 import { SettingsView } from './Settings'
+import { Search } from './Search'
 import {
   SearchIcon,
-  BookIcon,
   SwordIcon,
   CoinsIcon,
   ChartIcon,
@@ -24,30 +25,20 @@ import {
   CloseIcon,
 } from './icons'
 
-const NAV: Array<{ view: View; label: string; icon: () => JSX.Element }> = [
-  { view: 'search', label: 'Search', icon: SearchIcon },
-  { view: 'wiki', label: 'Wiki', icon: BookIcon },
-  { view: 'dps', label: 'DPS calculator', icon: SwordIcon },
-  { view: 'ge', label: 'Grand Exchange', icon: CoinsIcon },
-  { view: 'hiscores', label: 'Hiscores', icon: ChartIcon },
-  { view: 'profile', label: 'RuneProfile', icon: UserIcon },
-  { view: 'calculators', label: 'Calculators', icon: CalculatorIcon },
+const NAV: Array<{ route: Route; label: string; icon: () => JSX.Element }> = [
+  { route: { kind: 'search' }, label: 'Search', icon: SearchIcon },
+  { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: SwordIcon },
+  { route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon },
+  { route: { kind: 'hiscores' }, label: 'Hiscores', icon: ChartIcon },
+  { route: { kind: 'tool', id: 'profile' }, label: 'RuneProfile', icon: UserIcon },
+  { route: { kind: 'tool', id: 'calculators' }, label: 'Calculators', icon: CalculatorIcon },
 ]
 
-const TITLES: Record<View, string> = {
-  search: 'Search',
-  wiki: 'Wiki',
-  dps: 'DPS calculator',
-  ge: 'Grand Exchange',
-  hiscores: 'Hiscores',
-  profile: 'RuneProfile',
-  calculators: 'Calculators',
-  settings: 'Settings',
-}
-
 export function App(): JSX.Element {
-  const view = useStore((s) => s.view)
-  const setView = useStore((s) => s.setView)
+  const route = useRoute()
+  const { push, back, forward, reset } = useNav()
+  const canBack = useCanGoBack()
+  const canForward = useCanGoForward()
   const setSettings = useStore((s) => s.setSettings)
 
   // Pull settings once, then track main's broadcasts. Main owns the sanitized
@@ -57,45 +48,79 @@ export function App(): JSX.Element {
     return window.rb.onSettings(setSettings)
   }, [setSettings])
 
-  // Opening always lands on search. The window is summoned to look something
-  // up, and resuming whatever was on screen three hours ago is rarely it.
-  useEffect(() => window.rb.onShown(() => setView('search')), [setView])
+  // Opening always lands on a fresh search. The window is summoned to look
+  // something up, and resuming a three-hour-old article rarely is it.
+  useEffect(() => window.rb.onShown(() => reset()), [reset])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      const mod = e.ctrlKey || e.metaKey
+
+      if (mod && e.key === 'k') {
+        e.preventDefault()
+        push({ kind: 'search' })
+        return
+      }
+      // Alt+arrows and the mouse thumb buttons, the two conventions people
+      // already have for history.
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault()
+        back()
+        return
+      }
+      if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault()
+        forward()
+        return
+      }
       if (e.key === 'Escape') {
         e.preventDefault()
-        // Escape unwinds one layer: out of settings first, then out of the app.
-        if (useStore.getState().view === 'settings') setView('search')
+        // Unwind one layer: out of a subview first, then out of the app.
+        if (useNav.getState().index > 0) back()
         else window.rb.hide()
       }
     }
+
+    const onMouse = (e: MouseEvent): void => {
+      if (e.button === 3) {
+        e.preventDefault()
+        back()
+      } else if (e.button === 4) {
+        e.preventDefault()
+        forward()
+      }
+    }
+
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [setView])
+    window.addEventListener('mouseup', onMouse)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('mouseup', onMouse)
+    }
+  }, [push, back, forward])
 
   return (
     <div className="shell">
       <nav className="rail">
         <div className="rail-mark" />
-        {NAV.map(({ view: v, label, icon: Icon }) => (
+        {NAV.map(({ route: target, label, icon: Icon }) => (
           <button
-            key={v}
-            className={`rail-btn ${view === v ? 'is-active' : ''}`}
+            key={label}
+            className={`rail-btn ${isActive(route, target) ? 'is-active' : ''}`}
             title={label}
             aria-label={label}
-            aria-current={view === v}
-            onClick={() => setView(v)}
+            aria-current={isActive(route, target)}
+            onClick={() => push(target)}
           >
             <Icon />
           </button>
         ))}
         <div className="rail-spacer" />
         <button
-          className={`rail-btn ${view === 'settings' ? 'is-active' : ''}`}
+          className={`rail-btn ${route.kind === 'settings' ? 'is-active' : ''}`}
           title="Settings"
           aria-label="Settings"
-          onClick={() => setView('settings')}
+          onClick={() => push({ kind: 'settings' })}
         >
           <GearIcon />
         </button>
@@ -103,15 +128,18 @@ export function App(): JSX.Element {
 
       <div className="main">
         <header className="topbar">
-          {/* Wired to the history stack in phase 2; disabled until it exists so
-              the bar does not advertise navigation it cannot perform. */}
-          <button className="icon-btn" disabled title="Back">
+          <button className="icon-btn" disabled={!canBack} title="Back (Alt+←)" onClick={back}>
             <BackIcon />
           </button>
-          <button className="icon-btn" disabled title="Forward">
+          <button
+            className="icon-btn"
+            disabled={!canForward}
+            title="Forward (Alt+→)"
+            onClick={forward}
+          >
             <ForwardIcon />
           </button>
-          <span className="topbar-title">{TITLES[view]}</span>
+          <span className="topbar-title">{routeTitle(route)}</span>
           <button
             className="icon-btn is-close"
             title="Close (Esc)"
@@ -123,20 +151,38 @@ export function App(): JSX.Element {
         </header>
 
         <main className="content">
-          {view === 'settings' ? <SettingsView /> : <Placeholder view={view} />}
+          <Body route={route} />
         </main>
       </div>
     </div>
   )
 }
 
-function Placeholder({ view }: { view: View }): JSX.Element {
+function Body({ route }: { route: Route }): JSX.Element {
+  switch (route.kind) {
+    case 'search':
+      return <Search />
+    case 'settings':
+      return <SettingsView />
+    case 'page':
+      return <Placeholder title={route.title} note="Article rendering lands in phase 3." />
+    default:
+      return <Placeholder title={routeTitle(route)} note="Not built yet." />
+  }
+}
+
+function Placeholder({ title, note }: { title: string; note: string }): JSX.Element {
   return (
     <div className="placeholder">
-      <h2>{TITLES[view]}</h2>
-      <p>
-        Not built yet — press <kbd>Esc</kbd> to close.
-      </p>
+      <h2>{title}</h2>
+      <p>{note}</p>
     </div>
   )
+}
+
+/** The rail highlights the family a route belongs to, not an exact match. */
+function isActive(current: Route, target: Route): boolean {
+  if (current.kind !== target.kind) return false
+  if (current.kind === 'tool' && target.kind === 'tool') return current.id === target.id
+  return true
 }
