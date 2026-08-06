@@ -45,6 +45,28 @@ export const WINDOW = {
   minHeight: 600,
 } as const
 
+// ── Wiki title index ────────────────────────────────────────────────────────
+
+export type SyncPhase = 'idle' | 'articles' | 'redirects' | 'targets' | 'writing' | 'done' | 'error'
+
+export interface SyncProgress {
+  phase: SyncPhase
+  /** Titles seen so far across every phase. */
+  fetched: number
+  /** API requests this run has made, including retries. */
+  requests: number
+  message?: string
+}
+
+export interface TitleIndexState {
+  count: number
+  redirects: number
+  /** Epoch ms of the last successful sync, or null if never. */
+  syncedAt: number | null
+  syncing: boolean
+  progress: SyncProgress
+}
+
 /** Renderer -> main, fire and forget. */
 export const Send = {
   /** Close the window. Escape, or the close control. */
@@ -53,11 +75,14 @@ export const Send = {
   Quit: 'app:quit',
   /** Persist a settings change. */
   SetSettings: 'settings:set',
+  /** Rebuild the wiki title index. No-op if one is already running. */
+  SyncTitles: 'wiki:sync-titles',
 } as const
 
 /** Renderer -> main, awaits a reply. */
 export const Invoke = {
   GetSettings: 'settings:get',
+  GetTitleIndex: 'wiki:title-index',
 } as const
 
 /** Main -> renderer. */
@@ -70,6 +95,8 @@ export const On = {
   Shown: 'window:shown',
   /** Settings changed. */
   Settings: 'settings:changed',
+  /** One step of a title-index sync. */
+  SyncProgress: 'wiki:sync-progress',
 } as const
 
 /** The surface exposed on `window.rb` by the preload script. */
@@ -81,8 +108,12 @@ export interface RuneBuddyApi {
   getSettings(): Promise<Settings>
   setSettings(patch: Partial<Settings>): void
 
+  getTitleIndex(): Promise<TitleIndexState>
+  syncTitles(): void
+
   onShown(cb: () => void): () => void
   onSettings(cb: (settings: Settings) => void): () => void
+  onSyncProgress(cb: (progress: SyncProgress) => void): () => void
 }
 
 declare global {

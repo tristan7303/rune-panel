@@ -20,6 +20,9 @@ import { writeFileSync, writeSync } from 'fs'
 import { join } from 'path'
 import { getWindow, show, hide } from './window'
 import type { Settings } from '../shared/ipc'
+import * as db from './db'
+import * as client from './wiki/client'
+import * as titles from './wiki/titles'
 
 interface Check {
   name: string
@@ -49,7 +52,10 @@ export async function runSmoke(initial: Settings): Promise<void> {
       const bridge = await win.webContents.executeJavaScript('typeof window.rb')
       check('preload bridge exposed', bridge === 'object', `typeof window.rb = ${bridge}`)
 
+      checkDatabase()
+      checkClient()
       await checkSettingsRoundTrip(win.webContents, initial)
+      await checkTitleIndex(win.webContents)
       await checkShowHide(win)
 
       if (process.env.SMOKE_SHOT) await screenshot(win)
@@ -99,6 +105,85 @@ async function checkSettingsRoundTrip(
   await wc.executeJavaScript(
     `window.rb.setSettings({ contactEmail: ${JSON.stringify(initial.contactEmail)} })`
   )
+}
+
+/** The database opened, migrated, and is in the mode the design assumes. */
+function checkDatabase(): void {
+  const d = db.get()
+
+  const journal = d.prepare('PRAGMA journal_mode').get() as { journal_mode: string }
+  check('db: WAL enabled', journal.journal_mode === 'wal', journal.journal_mode)
+
+  const version = d.prepare('PRAGMA user_version').get() as { user_version: number }
+  check('db: migrated', version.user_version >= 1, `user_version=${version.user_version}`)
+
+  const tables = (
+    d
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+      .all() as Array<{ name: string }>
+  ).map((r) => r.name)
+  const wanted = ['images', 'items', 'kv', 'pages', 'price_series', 'prices', 'titles']
+  const missing = wanted.filter((t) => !tables.includes(t))
+  check('db: schema complete', missing.length === 0, missing.length ? `missing ${missing}` : `${tables.length} tables`)
+
+  // Round-trip the kv helpers, since every sync cursor depends on them.
+  db.kvSet('smoke.probe', 42)
+  check('db: kv round trip', db.kvGetNumber('smoke.probe') === 42)
+  d.prepare('DELETE FROM kv WHERE key = ?').run('smoke.probe')
+}
+
+/** The client identifies itself the way the wiki asks it to. */
+function checkClient(): void {
+  const ua = client.userAgent()
+  check(
+    'client: descriptive user-agent',
+    ua.startsWith('rune-buddy/') && ua.includes('OSRS'),
+    ua
+  )
+  // The wiki pre-emptively blocks library defaults; ours must not resemble one.
+  check(
+    'client: not a blocked default agent',
+    !/python-requests|ApacheHttpClient|node-fetch|axios/i.test(ua)
+  )
+}
+
+/**
+ * The title index is reachable from the renderer and, if populated, coherent.
+ *
+ * A fresh clone has no index yet, so an empty one is reported rather than
+ * failed — the sync is a four-minute network operation and has no business
+ * running inside a smoke check. When rows do exist, they are checked for the
+ * one property everything downstream relies on: redirects resolving to real
+ * article titles.
+ */
+async function checkTitleIndex(wc: Electron.WebContents): Promise<void> {
+  const raw = await wc.executeJavaScript('window.rb.getTitleIndex().then(s => JSON.stringify(s))')
+  const state = JSON.parse(raw) as ReturnType<typeof titles.state>
+
+  check(
+    'IPC round trip (getTitleIndex)',
+    typeof state?.count === 'number' && typeof state.syncing === 'boolean',
+    `${state?.count} titles, ${state?.redirects} redirects`
+  )
+
+  if (state.count === 0) {
+    check('titles: index populated', true, 'empty — run `npm run sync:titles`')
+    return
+  }
+
+  check('titles: has articles', state.count - state.redirects > 1000, `${state.count - state.redirects}`)
+
+  // Every redirect target should itself be a known title. A miss means the two
+  // passes were joined on the wrong key, which would silently break search.
+  const dangling = db
+    .get()
+    .prepare(
+      `SELECT COUNT(*) AS n FROM titles r
+       WHERE r.target IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM titles t WHERE t.title = r.target)`
+    )
+    .get() as { n: number }
+  check('titles: redirect targets resolve', dangling.n === 0, `${dangling.n} dangling`)
 }
 
 /**

@@ -13,10 +13,10 @@ import { join } from 'path'
 import type { Settings, WindowBounds } from '../shared/ipc'
 
 export const DEFAULTS: Settings = {
-  // Not Control+Shift+Space: that is glass-agent's binding, and a global
-  // accelerator is first-come-first-served, so whichever launched first wins
-  // and the other silently has no hotkey at all.
-  hotkey: 'Alt+Shift+Space',
+  // Global accelerators are first-come-first-served: whichever app registers
+  // first wins, and the loser gets no hotkey at all with only a console warning
+  // to say so. Nothing else on this machine should claim this one.
+  hotkey: 'Control+Shift+Space',
   hideOnBlur: false,
   contactEmail: '',
   acrylic: true,

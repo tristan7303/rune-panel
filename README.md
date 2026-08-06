@@ -12,7 +12,7 @@ agent, the embedded browser, and the WebGL refraction engine are gone.
 | Phase | | |
 |---|---|---|
 | 0 | Fork, acrylic window, hotkey, tray, settings | done |
-| 1 | SQLite storage, throttled wiki client, title index | |
+| 1 | SQLite storage, throttled wiki client, title index | done |
 | 2 | Shell UI, navigation history, Ctrl+K search | |
 | 3 | Article renderer and HTML transform | |
 | 4 | Background sync: recentchanges + seed crawler | |
@@ -38,12 +38,12 @@ npm run build
 npx electron out/main/index.js
 ```
 
-**Alt+Shift+Space** opens and closes it. Escape closes it too. The tray icon
+**Ctrl+Shift+Space** opens and closes it. Escape closes it too. The tray icon
 opens it and is the only way to quit.
 
-Not Ctrl+Shift+Space, which is glass-agent's. Global accelerators are
-first-come-first-served: whichever app launches first wins the binding and the
-other silently has no hotkey at all. Change it in settings if you like.
+Global accelerators are first-come-first-served: if another app already holds
+the binding, registration fails with nothing but a console warning and the
+hotkey silently does nothing. Change it in settings if that happens.
 
 ## Verifying
 
@@ -94,6 +94,35 @@ The wiki does not rate limit, but it does ask automated clients to identify
 themselves. Every outgoing request carries a descriptive User-Agent, and the
 contact address in it comes from settings — fill it in.
 
+### The title index
+
+```sh
+npm run build
+npm run sync:titles              # the real thing, ~4 minutes
+npm run sync:titles -- --dry-run # 6 requests, proves the shapes parse
+```
+
+Measured on a full run: **239,057 titles — 35,680 articles and 203,377
+redirects** — in 884 requests over 246s, sustained at 3.6 req/s with zero
+retries and zero failures.
+
+That is far more than the wiki's own "41,244 articles" statistic suggests, in
+two ways worth knowing. The statistic counts every content namespace, while the
+index takes namespace 0 only, so the article count is lower. And OSRS pages
+carry an extraordinary number of aliases — 5.7 redirects per article, most of
+them misspellings (`Abhssal whip`, `Abbysal whip`) — so redirects dominate both
+the row count and the request count. Search in phase 2 has to rank around that,
+not just match against it.
+
+The sync runs automatically on first launch and weekly thereafter, at background
+priority so anything you do jumps ahead of it.
+
+**Invariant worth relying on:** a redirect's target is either NULL or a title
+that exists locally. A few redirects point off-wiki entirely (`Api` resolves to
+`rsw:Application programming interface` on the RS3 wiki); their targets are
+cleared at the end of a sync so nothing downstream can follow a redirect into a
+page that cannot be rendered. The redirect's own title stays searchable.
+
 Article views carry the required CC BY-NC-SA attribution and link back to the
 live page. The licence is non-commercial: do not sell this.
 
@@ -105,9 +134,19 @@ src/
     window.ts      frameless acrylic window, hotkey show/hide
     tray.ts        tray + menu
     settings.ts    JSON persistence in userData
+    db.ts          node:sqlite — schema, migrations, kv helpers
+    sync-cli.ts    --sync-titles headless runner
     smoke.ts       SMOKE=1 self-check
+    wiki/
+      client.ts    the only outbound request path: UA, queue, retries
+      titles.ts    the 41k-article / 203k-redirect search index
   preload/         the entire renderer-facing API surface
   shared/          types and channel names used by both processes
   renderer/src/    React UI — shell, rail, settings
 scripts/           tray icon generator (pure Node, no deps)
 ```
+
+`wiki/client.ts` is the single choke point for every outbound request in the
+app, price API included. One global 4 req/s ceiling is stricter than either host
+needs, but it means a background crawl can never outpace or starve anything, and
+interactive work jumps the queue regardless.
