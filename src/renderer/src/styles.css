@@ -465,8 +465,13 @@ kbd {
 
 /* Deliberately empty. The WebContentsView composites above the DOM and covers
    this rectangle exactly; anything drawn here would be invisible. It exists
-   only to be measured. */
+   only to be measured — which is why it must still have a size.
+   `height: 100%` is load-bearing: routes that wrap it in `.tool-host` give it a
+   1fr grid row, but the DPS route renders it bare, where an empty block
+   collapses to zero height and the pane is set to a zero rectangle. The page
+   loads, and nothing is ever shown. */
 .tool-slot {
+  height: 100%;
   min-height: 0;
 }
 

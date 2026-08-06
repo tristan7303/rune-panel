@@ -515,6 +515,31 @@ async function checkToolPane(win: Electron.BrowserWindow): Promise<void> {
     return wc.executeJavaScript(expression)
   }
 
+  // The pane is sized from a rectangle the renderer measures. A zero-height
+  // slot loads the page perfectly and shows nothing, which is exactly the
+  // failure this catches — and exactly what a CSS change reintroduced once.
+  await win.webContents.executeJavaScript(
+    `window.__rpNav.getState().push({ kind: 'tool', id: 'dps' }); true`
+  )
+  await settle(1200)
+  const slot = JSON.parse(
+    await win.webContents.executeJavaScript(`
+      (() => {
+        const el = document.querySelector('.tool-slot')
+        if (!el) return JSON.stringify({ found: false })
+        const r = el.getBoundingClientRect()
+        return JSON.stringify({ found: true, w: Math.round(r.width), h: Math.round(r.height) })
+      })()
+    `)
+  ) as { found: boolean; w?: number; h?: number }
+  check(
+    'tools: pane slot has a real size',
+    slot.found && (slot.w ?? 0) > 200 && (slot.h ?? 0) > 200,
+    `${slot.w}x${slot.h}`
+  )
+  await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
+  await settle(300)
+
   const dpsHidden = await probe(
     'dps',
     undefined,
