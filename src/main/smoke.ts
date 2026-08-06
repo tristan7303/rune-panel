@@ -59,6 +59,8 @@ export async function runSmoke(initial: Settings): Promise<void> {
       const bridge = await win.webContents.executeJavaScript('typeof window.rp')
       check('preload bridge exposed', bridge === 'object', `typeof window.rp = ${bridge}`)
 
+      await checkCloseButton(win.webContents)
+
       checkDatabase()
       checkClient()
       await checkSettingsRoundTrip(win.webContents, initial)
@@ -122,6 +124,38 @@ async function checkSettingsRoundTrip(
   wc.send('noop')
   await wc.executeJavaScript(
     `window.rp.setSettings({ contactEmail: ${JSON.stringify(initial.contactEmail)} })`
+  )
+}
+
+/**
+ * The close control is in the corner people look in.
+ *
+ * Not a cosmetic check. It is the only way out of the window for anyone who
+ * does not know the hotkey, and it had drifted 959px short of the right edge —
+ * present, clickable, and effectively invisible — because the title beside it
+ * stops growing at a max-width and nothing filled the gap.
+ */
+async function checkCloseButton(wc: Electron.WebContents): Promise<void> {
+  const raw = await wc.executeJavaScript(`
+    (() => {
+      const b = document.querySelector('.icon-btn.is-close')
+      if (!b) return JSON.stringify({ found: false })
+      const r = b.getBoundingClientRect()
+      return JSON.stringify({
+        found: true,
+        fromRight: Math.round(window.innerWidth - r.right),
+        fromTop: Math.round(r.top),
+        size: Math.round(r.width),
+      })
+    })()
+  `)
+  const b = JSON.parse(raw) as { found: boolean; fromRight?: number; fromTop?: number; size?: number }
+
+  check('close button exists', b.found)
+  check(
+    'close button sits in the top-right corner',
+    (b.fromRight ?? 999) < 24 && (b.fromTop ?? 999) < 24 && (b.size ?? 0) >= 24,
+    `${b.fromRight}px from right, ${b.fromTop}px from top, ${b.size}px`
   )
 }
 
@@ -923,6 +957,7 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
   }
 
   const search = await shoot('smoke-home.png')
+
 
   // A tight crop of the search field, because the spacing there has been
   // judged from full-window shots where 60px reads as nothing.

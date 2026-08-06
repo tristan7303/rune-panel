@@ -298,6 +298,18 @@ body,
   cursor: default;
 }
 
+/*
+ * Pinned to the right edge.
+ *
+ * `margin-left: auto` rather than relying on the title to push it: the title is
+ * `flex: 1` but capped by a max-width so it does not collide with the centred
+ * search box, and once it stops growing nothing fills the gap — the close
+ * button ended up 959px shy of the corner, which is nowhere anyone looks for it.
+ */
+.icon-btn.is-close {
+  margin-left: auto;
+}
+
 .icon-btn.is-close:hover {
   background: rgba(232, 84, 84, 0.22);
   color: #ffd9d9;
