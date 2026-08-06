@@ -826,6 +826,8 @@
   padding: 14px;
 }
 
+/* `flow-root` rather than `block` so the shown panel still contains its own
+   floated equipment tables. */
 .article-body .rp-tabber[data-active-tab='0'] .tabbertab[data-tab-index='0'],
 .article-body .rp-tabber[data-active-tab='1'] .tabbertab[data-tab-index='1'],
 .article-body .rp-tabber[data-active-tab='2'] .tabbertab[data-tab-index='2'],
@@ -833,8 +835,10 @@
 .article-body .rp-tabber[data-active-tab='4'] .tabbertab[data-tab-index='4'],
 .article-body .rp-tabber[data-active-tab='5'] .tabbertab[data-tab-index='5'],
 .article-body .rp-tabber[data-active-tab='6'] .tabbertab[data-tab-index='6'],
-.article-body .rp-tabber[data-active-tab='7'] .tabbertab[data-tab-index='7'] {
-  display: block;
+.article-body .rp-tabber[data-active-tab='7'] .tabbertab[data-tab-index='7'],
+.article-body .rp-tabber[data-active-tab='8'] .tabbertab[data-tab-index='8'],
+.article-body .rp-tabber[data-active-tab='9'] .tabbertab[data-tab-index='9'] {
+  display: flow-root;
 }
 
 .article-body .tabbertab > :first-child {
@@ -1045,8 +1049,13 @@
  *
  * The blocks that genuinely need to contain their own floats get
  * `display: flow-root`, which does it without displacing anything.
+ *
+ * Note what is *not* listed here: `.tabbertab`. It was, and it silently broke
+ * every strategy page — the panels are hidden with `display: none` and this
+ * rule sits later in the file at equal specificity, so it un-hid all of them
+ * and every loadout showed at once again. The visible panel gets `flow-root`
+ * from the reveal rule instead, where it cannot fight the hiding.
  */
-.article-body .tabbertab,
 .article-body .mw-parser-output {
   display: flow-root;
 }

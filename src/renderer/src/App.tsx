@@ -23,7 +23,7 @@ import { Hiscores } from './Hiscores'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
 import {
-  SwordIcon,
+  DpsIcon,
   CoinsIcon,
   TrophyIcon,
   CalculatorIcon,
@@ -39,17 +39,19 @@ import {
 // No Search entry: the wiki search box lives in the header, reachable from
 // every view without spending a route on it.
 const NAV: Array<{ route: Route; label: string; icon: () => JSX.Element }> = [
-  { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: SwordIcon },
+  { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: DpsIcon },
   { route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon },
   { route: { kind: 'hiscores' }, label: 'Hiscores', icon: TrophyIcon },
+  { route: { kind: 'tool', id: 'calculators' }, label: 'Calculators', icon: CalculatorIcon },
   {
     route: { kind: 'tool', id: 'profile' },
     label: 'RuneProfile',
     // Their own mark rather than a generic person: this entry leads somewhere
     // that is recognisably a different product, and it should look like it.
+    // Last in the list because it is the only artwork among line icons, and
+    // breaking that run in the middle read as a mistake.
     icon: () => <img className="rail-img" src={profileLogo} alt="" draggable={false} />,
   },
-  { route: { kind: 'tool', id: 'calculators' }, label: 'Calculators', icon: CalculatorIcon },
 ]
 
 export function App(): JSX.Element {

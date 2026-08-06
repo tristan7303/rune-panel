@@ -40,14 +40,28 @@ export const BookIcon = (): JSX.Element => (
   </Svg>
 )
 
-/** An upright sword: blade, crossguard, grip, pommel. */
-export const SwordIcon = (): JSX.Element => (
-  <Svg>
-    <path d="M12 2.5 14.5 7v7h-5V7z" />
-    <path d="M6.5 14h11" />
-    <path d="M12 14v5.5" />
-    <path d="M10 19.5h4" />
-  </Svg>
+/**
+ * "DPS", set as type.
+ *
+ * A three-letter label rather than a glyph: no weapon silhouette says
+ * damage-per-second, and at 18px the ones that try are unreadable anyway.
+ * Drawn in an SVG so it inherits `currentColor` with the other rail icons.
+ */
+export const DpsIcon = (): JSX.Element => (
+  <svg width="22" height="18" viewBox="0 0 30 18" fill="none" aria-hidden="true">
+    <text
+      x="15"
+      y="13"
+      textAnchor="middle"
+      fill="currentColor"
+      fontSize="12"
+      fontWeight="700"
+      letterSpacing="0.4"
+      fontFamily="ui-sans-serif, system-ui, 'Segoe UI', sans-serif"
+    >
+      DPS
+    </text>
+  </svg>
 )
 
 /**

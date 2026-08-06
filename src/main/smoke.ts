@@ -15,7 +15,7 @@
  * a machine where DWM declines still gets a correct-looking window.
  */
 
-import { app, globalShortcut, Tray } from 'electron'
+import { app, globalShortcut, shell, Tray } from 'electron'
 import { writeFileSync, writeSync } from 'fs'
 import { join } from 'path'
 import { getWindow, show, hide } from './window'
@@ -599,6 +599,20 @@ async function checkToolPane(win: Electron.BrowserWindow): Promise<void> {
 
   // The point of the change: the page stays on screen and merely gives up the
   // smallest slice that clears the menu, rather than vanishing for it.
+  // A disallowed navigation must be blocked outright rather than forwarded to
+  // the system browser — these pages carry ad redirects, and an embedded panel
+  // has no business opening arbitrary URLs on the user's machine.
+  const opened: string[] = []
+  const realOpen = shell.openExternal.bind(shell)
+  ;(shell as { openExternal: typeof shell.openExternal }).openExternal = async (u: string) => {
+    opened.push(u)
+  }
+  const wc = pane.debugWebContents()
+  wc?.emit('will-navigate', { preventDefault: () => {} }, 'https://tracker.example.com/sync?x=1')
+  await settle(200)
+  ;(shell as { openExternal: typeof shell.openExternal }).openExternal = realOpen
+  check('tools: off-site navigation is blocked, not opened', opened.length === 0, opened.join(', '))
+
   check(
     'tools: pane stays visible under an overlay',
     visibleWithTool && stillVisible,

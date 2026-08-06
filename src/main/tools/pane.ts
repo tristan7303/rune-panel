@@ -169,11 +169,25 @@ function wire(v: WebContentsView): void {
     return { action: 'deny' }
   })
 
+  /**
+   * Off-site navigation is blocked, not forwarded.
+   *
+   * This used to hand the URL to `shell.openExternal`, which meant anything
+   * that navigated the pane away could open a tab in the real browser — and
+   * these pages do carry ad and tracker redirects; one turned up in testing.
+   * Handing an arbitrary redirect chain to the user's browser is not something
+   * an embedded panel should be able to do on its own.
+   *
+   * Genuine link clicks still leave: they go through `setWindowOpenHandler`
+   * above, which only fires for `target=_blank` and `window.open` — an actual
+   * request for a new window rather than a redirect the page performed on
+   * itself.
+   */
   wc.on('will-navigate', (event, url) => {
     const allowed = current ? TOOLS[current.id].allowNavigation.test(url) : false
     if (allowed) return
     event.preventDefault()
-    void shell.openExternal(url)
+    console.warn(`[tools] blocked off-site navigation: ${url.slice(0, 120)}`)
   })
 
   // Re-injected on every navigation, not just the first: these are real sites
