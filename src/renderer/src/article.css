@@ -585,3 +585,66 @@
 .article-body[data-variant='3'] [data-attr-index='4'] {
   display: inline;
 }
+
+/* ── Live price under the title ─────────────────────────────────────── */
+
+.price-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: -8px 0 20px;
+  padding: 10px 14px;
+  background: var(--surface-sunken);
+  /* Gold, matching the Exchange row in the infobox — the two are the same
+     figure, one live and one as-edited. */
+  border: 1px solid var(--accent-gold);
+  border-radius: var(--radius);
+}
+
+.price-header-pair {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.price-header-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.price-header-pair strong {
+  font-size: 16px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-gold);
+}
+
+.price-header-btn {
+  margin-left: auto;
+}
+
+.price-header-note {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* The Exchange row in the infobox: the number people open an item page for. */
+.infobox-row.is-price {
+  border-top-color: var(--accent-gold);
+  background: color-mix(in srgb, var(--accent-gold) 10%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent-gold);
+  border-radius: 0 5px 5px 0;
+}
+
+.infobox-row.is-price dt {
+  color: var(--accent-gold);
+  font-weight: 620;
+}
+
+.infobox-row.is-price dd {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

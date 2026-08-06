@@ -81,17 +81,27 @@ export const CalculatorIcon = (): JSX.Element => (
 )
 
 /**
- * A real gear.
+ * Settings, as sliders.
  *
- * The previous "gear" was a circle with eight radiating spokes, which reads as a
- * brightness control rather than settings — it now serves as exactly that (see
- * SunIcon). This one has actual teeth, drawn as a single closed path so the
- * silhouette holds together at 18px.
+ * Two gear attempts read badly at 18px: a spoked circle looked like a
+ * brightness control, and a toothed one turned to mush. Sliders survive the
+ * size — three horizontal rules with offset handles stay legible as strokes,
+ * and they say "adjust things" at least as clearly as a cog does.
  */
 export const GearIcon = (): JSX.Element => (
   <Svg>
-    <path d="M10.3 3.2a1 1 0 0 1 1-.8h1.4a1 1 0 0 1 1 .8l.24 1.2a7.4 7.4 0 0 1 1.62.94l1.16-.4a1 1 0 0 1 1.2.45l.7 1.2a1 1 0 0 1-.2 1.25l-.92.8a7.5 7.5 0 0 1 0 1.87l.92.8a1 1 0 0 1 .2 1.25l-.7 1.2a1 1 0 0 1-1.2.45l-1.16-.4a7.4 7.4 0 0 1-1.62.94l-.24 1.2a1 1 0 0 1-1 .8h-1.4a1 1 0 0 1-1-.8l-.24-1.2a7.4 7.4 0 0 1-1.62-.94l-1.16.4a1 1 0 0 1-1.2-.45l-.7-1.2a1 1 0 0 1 .2-1.25l.92-.8a7.5 7.5 0 0 1 0-1.87l-.92-.8a1 1 0 0 1-.2-1.25l.7-1.2a1 1 0 0 1 1.2-.45l1.16.4a7.4 7.4 0 0 1 1.62-.94z" />
-    <circle cx="12" cy="12" r="2.6" />
+    <path d="M4 7h10M18 7h2M4 12h3M11 12h9M4 17h7M15 17h5" />
+    <circle cx="16" cy="7" r="2" />
+    <circle cx="9" cy="12" r="2" />
+    <circle cx="13" cy="17" r="2" />
+  </Svg>
+)
+
+/** Parchment: a page, for the tan reading theme. */
+export const PageIcon = (): JSX.Element => (
+  <Svg>
+    <path d="M6 3.5h7.5L18 8v12.5H6z" />
+    <path d="M13.5 3.5V8H18" />
   </Svg>
 )
 

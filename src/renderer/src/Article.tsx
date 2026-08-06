@@ -133,6 +133,8 @@ export function Article({ title }: { title: string }): JSX.Element {
       <article className="article selectable">
         <h1 className="article-title">{article.title}</h1>
 
+        <PriceHeader title={article.title} />
+
         {article.infobox && (
           <Infobox box={article.infobox} variant={variant} onVariant={setVariant} />
         )}
@@ -163,6 +165,62 @@ export function Article({ title }: { title: string }): JSX.Element {
  * time. Here they become real tabs, and a row with nothing to say for the
  * selected variant is omitted rather than shown empty.
  */
+/**
+ * Live price under the title, for anything tradeable.
+ *
+ * The infobox carries an Exchange row, but it is a static number the wiki
+ * rendered whenever the page was last edited. This one is current, and puts the
+ * two figures that actually decide a trade — buy and sell — where the eye
+ * already is. Renders nothing at all for untradeable pages, which is most of
+ * them.
+ */
+function PriceHeader({ title }: { title: string }): JSX.Element | null {
+  const [item, setItem] = useState<{ id: number; name: string } | null>(null)
+  const [price, setPrice] = useState<{ high: number | null; low: number | null } | null>(null)
+  const push = useNav((s) => s.push)
+
+  useEffect(() => {
+    let live = true
+    setItem(null)
+    setPrice(null)
+    void window.rp
+      .geFindByName(title)
+      .then(async (found) => {
+        if (!live || !found) return
+        setItem(found)
+        const detail = await window.rp.geDetail(found.id)
+        if (live && detail?.price) setPrice(detail.price)
+      })
+      .catch(() => {
+        // A page with no tradeable counterpart is the common case, not an error.
+      })
+    return () => {
+      live = false
+    }
+  }, [title])
+
+  if (!item || !price || (price.high === null && price.low === null)) return null
+
+  return (
+    <div className="price-header">
+      <span className="price-header-pair">
+        <span className="price-header-label">Buy</span>
+        <strong>{price.high !== null ? price.high.toLocaleString() : '—'}</strong>
+      </span>
+      <span className="price-header-pair">
+        <span className="price-header-label">Sell</span>
+        <strong>{price.low !== null ? price.low.toLocaleString() : '—'}</strong>
+      </span>
+      {/* Named for the item it resolves to, since a charged weapon's price is
+          really its uncharged form's. */}
+      <button className="btn price-header-btn" onClick={() => push({ kind: 'ge', itemId: item.id })}>
+        Price history
+      </button>
+      {item.name !== title && <span className="price-header-note">as {item.name}</span>}
+    </div>
+  )
+}
+
 function Infobox({
   box,
   variant,
@@ -204,8 +262,12 @@ function Infobox({
         {box.rows.map((row, i) => {
           const value = pick(row.value, row.byVariant)
           if (!value) return null
+          // The live Grand Exchange price is the row people scan an item page
+          // for; it earns a gold rule rather than sitting in the run of
+          // release dates and weights.
+          const isPrice = /^exchange$/i.test(row.label.replace(/<[^>]*>/g, '').trim())
           return (
-            <div className="infobox-row" key={`${row.label}-${i}`}>
+            <div className={`infobox-row ${isPrice ? 'is-price' : ''}`} key={`${row.label}-${i}`}>
               <dt dangerouslySetInnerHTML={{ __html: row.label }} />
               <dd dangerouslySetInnerHTML={{ __html: value }} />
             </div>

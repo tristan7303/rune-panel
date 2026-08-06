@@ -97,6 +97,10 @@ combination, Rune Panel silently gets nothing, so pick another.
 
 **Close when it loses focus** — off by default.
 
+**Appearance** — three surfaces, picked from the button above settings: **dark**
+for over a game client, **parchment** (warm tan, easiest for long reads), and
+plain **light**.
+
 **Acrylic backdrop** — the frosted blur behind the window. Windows 11 only, and
 purely cosmetic; everything is designed to look right without it.
 

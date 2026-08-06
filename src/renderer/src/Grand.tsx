@@ -8,10 +8,10 @@
  */
 
 import { useEffect, useMemo, useState, type JSX } from 'react'
-import type { GeItemDetail, GeTimestep, SearchResult } from '@shared/ipc'
+import type { GeItemDetail, GeTimestep, SearchResult, Theme } from '@shared/ipc'
 import { useStore } from './store'
 import { useNav } from './nav'
-import { PriceChart, SERIES, fmt } from './PriceChart'
+import { PriceChart, SERIES, chartMode, fmt } from './PriceChart'
 import { CoinsIcon, SearchIcon } from './icons'
 
 export function Grand({ itemId }: { itemId?: number }): JSX.Element {
@@ -137,7 +137,7 @@ function ItemView({
   onTimestep,
 }: {
   detail: GeItemDetail
-  theme: 'dark' | 'light'
+  theme: Theme
   timestep: GeTimestep
   onTimestep: (t: GeTimestep) => void
 }): JSX.Element {
@@ -163,8 +163,8 @@ function ItemView({
       {item.examine && <p className="ge-examine">{item.examine}</p>}
 
       <div className="stat-row">
-        <Stat label="Buy" value={price?.high != null ? fmt(price.high) : '—'} rule={SERIES[theme].buy} />
-        <Stat label="Sell" value={price?.low != null ? fmt(price.low) : '—'} rule={SERIES[theme].sell} />
+        <Stat label="Buy" value={price?.high != null ? fmt(price.high) : '—'} rule={SERIES[chartMode(theme)].buy} />
+        <Stat label="Sell" value={price?.low != null ? fmt(price.low) : '—'} rule={SERIES[chartMode(theme)].sell} />
         <Stat label="Margin" value={margin !== null ? fmt(margin) : '—'} />
         <Stat label="After tax" value={netMargin !== null ? fmt(netMargin) : '—'} />
         <Stat label="Buy limit" value={item.buyLimit ? item.buyLimit.toLocaleString() : '—'} />

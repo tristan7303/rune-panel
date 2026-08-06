@@ -65,7 +65,7 @@ export function onChange(listener: (next: Settings) => void): void {
 /** Clamp anything that could wedge the UI if a hand-edited file is wrong. */
 function sanitize(s: Settings): Settings {
   return {
-    theme: s.theme === 'light' ? 'light' : 'dark',
+    theme: s.theme === 'light' || s.theme === 'parchment' ? s.theme : 'dark',
     hotkey: typeof s.hotkey === 'string' && s.hotkey.trim() ? s.hotkey.trim() : DEFAULTS.hotkey,
     hideOnBlur: Boolean(s.hideOnBlur),
     contactEmail: typeof s.contactEmail === 'string' ? s.contactEmail.trim().slice(0, 200) : '',

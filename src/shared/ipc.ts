@@ -6,7 +6,11 @@
  * rather than string literals for the same reason.
  */
 
-export type Theme = 'dark' | 'light'
+/**
+ * Three reading surfaces. Parchment is the default: a warm tan that suits a
+ * fantasy wiki and is easier on the eyes than plain white for long articles.
+ */
+export type Theme = 'dark' | 'light' | 'parchment'
 
 /** Persisted user settings. */
 export interface Settings {

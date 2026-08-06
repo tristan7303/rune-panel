@@ -104,14 +104,7 @@ const NON_ARTICLE_NS = /^(File|Image|Media|Category|Template|Help|Special|Module
 export function transform(html: string, pageTitle: string): TransformResult {
   const $ = cheerio.load(html, null, false)
 
-  // 0 ── harvest the switch payload before the strip below removes it. The
-  //      rendered table only ever contains the first variant's values; every
-  //      other variant lives in this hidden block, which is the only place to
-  //      get them.
-  const switchData = harvestSwitchResources($)
-
-  // 1 ── sanitize
-  $(STRIP.join(',')).remove()
+  // 1 ── sanitize attributes
   $('*').each((_, el) => {
     const attribs = (el as Element).attribs ?? {}
     for (const name of Object.keys(attribs)) {
@@ -129,18 +122,29 @@ export function transform(html: string, pageTitle: string): TransformResult {
     .filter((_, node) => node.type === 'comment')
     .remove()
 
-  // 2 ── rewrite links and images before the infobox is lifted, so its values
-  //      come out already transformed rather than needing a second pass.
+  // 2 ── rewrite links and images across the whole document, the hidden switch
+  //      payload included. Order matters and cost a bug: harvesting before this
+  //      ran captured raw `/images/...` paths, which the renderer then resolved
+  //      against its own file:// origin and drew as broken images in every
+  //      variant-switched infobox row.
   rewriteLinks($, pageTitle)
   rewriteImages($)
 
-  // 3 ── lift the infobox
+  // 3 ── harvest the switch payload, now that its contents are rewritten, and
+  //      before the strip below removes it. The rendered table only ever holds
+  //      the first variant's values; every other variant lives in there.
+  const switchData = harvestSwitchResources($)
+
+  // 4 ── remove everything that exists for the website
+  $(STRIP.join(',')).remove()
+
+  // 5 ── lift the infobox
   const infobox = extractInfobox($, switchData)
 
-  // 4 ── tag tables so the stylesheet can make them scroll and stripe
+  // 6 ── tag tables so the stylesheet can make them scroll and stripe
   $('table.wikitable').addClass('rp-table')
 
-  // 5 ── body content that follows the infobox tabs
+  // 7 ── body content that follows the infobox tabs
   markSyncedSwitches($)
 
   // The variant buttons are drawn natively on the infobox card, so the copies

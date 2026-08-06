@@ -18,7 +18,7 @@
  */
 
 import { useMemo, useRef, useState, type JSX } from 'react'
-import type { GeSeriesPoint } from '@shared/ipc'
+import type { GeSeriesPoint, Theme } from '@shared/ipc'
 
 /**
  * Series colours, per theme.
@@ -31,6 +31,17 @@ export const SERIES = {
   dark: { buy: '#3d92d8', sell: '#c8821f' },
   light: { buy: '#1f6fb5', sell: '#9a6210' },
 } as const
+
+/**
+ * Which validated palette a theme uses.
+ *
+ * Parchment is a light surface, so it takes the light steps — the checks that
+ * passed them were run against a light background, and the darker pair would
+ * fail contrast on tan just as it does on white.
+ */
+export function chartMode(theme: Theme): 'dark' | 'light' {
+  return theme === 'dark' ? 'dark' : 'light'
+}
 
 const PAD = { top: 12, right: 62, bottom: 22, left: 8 }
 const HEIGHT = 190
@@ -46,12 +57,12 @@ export function PriceChart({
   theme,
 }: {
   series: GeSeriesPoint[]
-  theme: 'dark' | 'light'
+  theme: Theme
 }): JSX.Element | null {
   const [width, setWidth] = useState(720)
   const [hover, setHover] = useState<Hover | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
-  const colors = SERIES[theme]
+  const colors = SERIES[chartMode(theme)]
 
   // Points with no trades in the bucket carry null prices; they would otherwise
   // draw a line down to zero.

@@ -7,8 +7,9 @@
  * where you are.
  */
 
-import { useEffect, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { useStore } from './store'
+import type { Theme } from '@shared/ipc'
 import { useNav, useRoute, useCanGoBack, useCanGoForward, routeTitle, type Route } from './nav'
 import { SettingsView } from './Settings'
 import { Search } from './Search'
@@ -28,6 +29,7 @@ import {
   GearIcon,
   SunIcon,
   MoonIcon,
+  PageIcon,
   BackIcon,
   ForwardIcon,
   CloseIcon,
@@ -214,27 +216,84 @@ function Body({ route }: { route: Route }): JSX.Element {
   }
 }
 
+const THEMES: Array<{ id: Theme; label: string; hint: string; icon: () => JSX.Element }> = [
+  { id: 'dark', label: 'Dark', hint: 'Over a dark game client', icon: MoonIcon },
+  { id: 'parchment', label: 'Parchment', hint: 'Warm tan, easiest for long reads', icon: PageIcon },
+  { id: 'light', label: 'Light', hint: 'Plain white', icon: SunIcon },
+]
+
 /**
- * Light/dark switch, sitting directly above settings.
+ * Theme picker, directly above settings.
  *
- * A rail button rather than a settings row because it is the one preference
- * worth flipping mid-task — usually because the room's light changed, not
- * because you went looking for a setting.
+ * A small popup rather than a cycling button: with three options a toggle makes
+ * you click through the one you do not want, and gives no hint what the next
+ * press will do. This shows all three at once with the current one marked.
  */
 function ThemeToggle(): JSX.Element {
   const theme = useStore((s) => s.settings?.theme ?? 'dark')
   const patch = useStore((s) => s.patchSettings)
-  const next = theme === 'dark' ? 'light' : 'dark'
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Dismiss on an outside click or Escape, the two things every popup owes you.
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent): void => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      // Beat the window handler, which would otherwise close the whole app.
+      e.stopPropagation()
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey, true)
+    }
+  }, [open])
+
+  const Current = THEMES.find((t) => t.id === theme)?.icon ?? MoonIcon
 
   return (
-    <button
-      className="rail-btn"
-      title={`Switch to ${next} mode`}
-      aria-label={`Switch to ${next} mode`}
-      onClick={() => patch({ theme: next })}
-    >
-      {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-    </button>
+    <div className="theme-picker" ref={ref}>
+      <button
+        className={`rail-btn ${open ? 'is-active' : ''}`}
+        title="Appearance"
+        aria-label="Appearance"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Current />
+      </button>
+
+      {open && (
+        <div className="theme-menu" role="menu">
+          {THEMES.map(({ id, label, hint, icon: Icon }) => (
+            <button
+              key={id}
+              role="menuitemradio"
+              aria-checked={id === theme}
+              className={`theme-option ${id === theme ? 'is-active' : ''}`}
+              onClick={() => {
+                patch({ theme: id })
+                setOpen(false)
+              }}
+            >
+              <span className="theme-swatch" data-theme-swatch={id} />
+              <span className="theme-option-text">
+                <strong>{label}</strong>
+                <em>{hint}</em>
+              </span>
+              <Icon />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

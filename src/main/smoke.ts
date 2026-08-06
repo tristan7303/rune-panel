@@ -725,7 +725,7 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
 
   // Both themes, so a light-mode regression shows up without a manual pass.
   if (process.env.SMOKE_THEMES) {
-    for (const theme of ['light', 'dark'] as const) {
+    for (const theme of ['light', 'parchment', 'dark'] as const) {
       await win.webContents.executeJavaScript(
         `window.rp.setSettings({ theme: '${theme}' }); true`
       )
@@ -751,8 +751,31 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
     `)
     await waitFor(win.webContents, '.article-body', 8000)
     // Images resolve through the protocol handler; give them a moment to paint.
-    await settle(1200)
+    await settle(2500)
     article = await shoot('smoke-article.png')
+
+    if (process.env.SMOKE_THEMES) {
+      for (const theme of ['parchment', 'dark'] as const) {
+        await win.webContents.executeJavaScript(`window.rp.setSettings({ theme: '${theme}' }); true`)
+        await settle(700)
+        await shoot(`smoke-article-${theme}.png`)
+      }
+    }
+
+    if (process.env.SMOKE_IMAGES) {
+      const report = await win.webContents.executeJavaScript(`
+        (() => {
+          const broken = []
+          for (const img of document.querySelectorAll('.article, .infobox-card')) {}
+          for (const img of document.querySelectorAll('img')) {
+            if (img.complete && img.naturalWidth === 0)
+              broken.push({ src: img.currentSrc || img.src, where: img.closest('.infobox-card') ? 'infobox' : 'body' })
+          }
+          return JSON.stringify({ total: document.querySelectorAll('img').length, broken: broken.slice(0, 12), count: broken.length })
+        })()
+      `)
+      console.log('[images] ' + report)
+    }
     await checkNoHorizontalOverflow(win.webContents)
   }
 
