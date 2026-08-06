@@ -66,3 +66,30 @@ publish:
   # Releases are drafted rather than published outright, so a bad build can be
   # discarded before anyone's updater sees it.
   releaseType: draft
+
+# Written into every release automatically.
+#
+# A release page shows four files and only one of them is for a person: the
+# installer. `latest.yml` is the update feed the app reads, and the two source
+# archives are attached by GitHub whether we like it or not. None of that can be
+# bundled into a single zip — electron-updater fetches `latest.yml` and then the
+# installer as separate URLs, so zipping them breaks updates for everyone —
+# which leaves saying plainly which file to click.
+releaseInfo:
+  releaseNotes: |
+    ### Download
+
+    Grab the **`RunePanel-Setup-….exe`** below. That is the only file you need.
+    Run it.
+
+    Windows will say *"Windows protected your PC"* because the installer is not
+    code-signed. Click **More info** → **Run anyway**. Only happens once;
+    updates after this are handled inside the app.
+
+    The other files are not for you: `latest.yml` is how Rune Panel checks for
+    updates, and the two source archives are added by GitHub automatically.
+
+    ### First launch
+
+    Rune Panel asks to download the wiki's page list — about four minutes, with
+    a progress bar. Nothing works properly until it finishes.
