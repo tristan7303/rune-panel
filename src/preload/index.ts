@@ -13,6 +13,7 @@ import {
   Invoke,
   On,
   type Article,
+  type CrawlState,
   type RuneBuddyApi,
   type SearchResult,
   type Settings,
@@ -51,9 +52,14 @@ const api: RuneBuddyApi = {
     ipcRenderer.invoke(Invoke.GetPage, title, options),
   prefetchPage: (title: string) => ipcRenderer.send(Send.PrefetchPage, title),
 
+  getCrawlState: (): Promise<CrawlState> => ipcRenderer.invoke(Invoke.GetCrawlState),
+  startCrawl: () => ipcRenderer.send(Send.StartCrawl),
+  stopCrawl: () => ipcRenderer.send(Send.StopCrawl),
+
   onShown: (cb) => subscribe(On.Shown, cb),
   onSettings: (cb) => subscribeWith<Settings>(On.Settings, cb),
   onSyncProgress: (cb) => subscribeWith<SyncProgress>(On.SyncProgress, cb),
+  onCrawlProgress: (cb) => subscribeWith<CrawlState>(On.CrawlProgress, cb),
 }
 
 contextBridge.exposeInMainWorld('rb', api)

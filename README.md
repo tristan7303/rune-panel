@@ -15,7 +15,7 @@ agent, the embedded browser, and the WebGL refraction engine are gone.
 | 1 | SQLite storage, throttled wiki client, title index | done |
 | 2 | Shell UI, navigation history, Ctrl+K search | done |
 | 3 | Article renderer and HTML transform | done |
-| 4 | Background sync: recentchanges + seed crawler | |
+| 4 | Background sync: recentchanges + seed crawler | done |
 | 5 | Embedded tool pane: DPS, calculators, RuneProfile | |
 | 6 | Grand Exchange prices | |
 | 7 | Hiscores lookup and compare | |
@@ -172,6 +172,37 @@ the renderer has no `media-src` and the asset protocol serves images only — an
 a dead player control is worse than none. Supporting them is a small separate
 change.
 
+### Staying current
+
+```sh
+npm run crawl        # refresh what is stale, then fill the seed list
+```
+
+Invalidation asks the wiki what changed rather than checking what we hold.
+Polling revision ids across tens of thousands of cached pages would be thousands
+of requests; `list=recentchanges` answers it in one, because the wiki already
+keeps that list. Changed pages are *marked*, never dropped — a stale page still
+renders instantly with a note and refreshes on next view.
+
+The crawler runs on launch and fills a short hand-picked seed list (every skill,
+the raids, the common bosses). It is deliberately not a full mirror: what you
+visit is a better predictor of what you want than any heuristic worth writing.
+It runs at 500ms between pages, and **parks entirely whenever the window is
+visible** — bandwidth and the request queue belong to the page you are actually
+reading. Measured: 46 seed pages in 36s at 1.49 req/s, zero failures.
+
+Two measurements worth knowing before this scales:
+
+- **Articles are large.** 47 cached pages hold 12 MB of HTML — ~255 KB each, and
+  those seeds skew big (Slayer task is 363 KB). Stored uncompressed. Caching the
+  whole wiki this way would run to several GB, which is one more reason the
+  design caches what you read rather than everything.
+- **The crawler caches HTML, not images.** Images are fetched by the renderer
+  when a page is actually displayed, so a crawled page still pulls its icons on
+  first view. That is the right trade — prefetching 183 images per page across
+  the seed list would be tens of thousands of requests — but it does mean this
+  is not an offline mirror.
+
 **Invariant worth relying on:** a redirect's target is either NULL or a title
 that exists locally. A few redirects point off-wiki entirely (`Api` resolves to
 `rsw:Application programming interface` on the RS3 wiki); their targets are
@@ -199,6 +230,7 @@ src/
       page.ts      article fetch + cache
       transform.ts MediaWiki HTML -> our HTML, and the infobox
       images.ts    rbimg:// protocol + on-disk image cache
+      sync.ts      recentchanges invalidation + background crawler
   preload/         the entire renderer-facing API surface
   shared/          types and channel names used by both processes
   renderer/src/

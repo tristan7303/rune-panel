@@ -79,6 +79,10 @@ export const Send = {
   SyncTitles: 'wiki:sync-titles',
   /** Warm the cache for a title the cursor is resting on. */
   PrefetchPage: 'wiki:prefetch',
+  /** Start the background refresh + crawl. No-op if already running. */
+  StartCrawl: 'wiki:crawl-start',
+  /** Ask the crawler to stop after the current page. */
+  StopCrawl: 'wiki:crawl-stop',
 } as const
 
 export interface SearchResult {
@@ -108,6 +112,21 @@ export interface Section {
   anchor: string
 }
 
+export type CrawlPhase = 'idle' | 'refreshing' | 'crawling' | 'paused' | 'done' | 'error'
+
+export interface CrawlState {
+  phase: CrawlPhase
+  /** Pages fetched this run. */
+  done: number
+  /** Pages still queued. */
+  remaining: number
+  /** Pages held in the cache, total. */
+  cached: number
+  /** Pages known to be out of date. */
+  stale: number
+  message?: string
+}
+
 export interface Article {
   title: string
   revid: number
@@ -128,6 +147,7 @@ export const Invoke = {
   GetTitleIndex: 'wiki:title-index',
   Search: 'wiki:search',
   GetPage: 'wiki:page',
+  GetCrawlState: 'wiki:crawl-state',
 } as const
 
 /** Main -> renderer. */
@@ -142,6 +162,8 @@ export const On = {
   Settings: 'settings:changed',
   /** One step of a title-index sync. */
   SyncProgress: 'wiki:sync-progress',
+  /** One step of the background refresh + crawl. */
+  CrawlProgress: 'wiki:crawl-progress',
 } as const
 
 /** The surface exposed on `window.rb` by the preload script. */
@@ -159,9 +181,14 @@ export interface RuneBuddyApi {
   getPage(title: string, options?: { force?: boolean }): Promise<Article | null>
   prefetchPage(title: string): void
 
+  getCrawlState(): Promise<CrawlState>
+  startCrawl(): void
+  stopCrawl(): void
+
   onShown(cb: () => void): () => void
   onSettings(cb: (settings: Settings) => void): () => void
   onSyncProgress(cb: (progress: SyncProgress) => void): () => void
+  onCrawlProgress(cb: (state: CrawlState) => void): () => void
 }
 
 declare global {

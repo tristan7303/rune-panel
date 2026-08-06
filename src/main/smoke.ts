@@ -24,6 +24,7 @@ import * as db from './db'
 import * as client from './wiki/client'
 import * as titles from './wiki/titles'
 import { transform } from './wiki/transform'
+import * as sync from './wiki/sync'
 
 interface Check {
   name: string
@@ -177,6 +178,7 @@ async function checkTitleIndex(wc: Electron.WebContents): Promise<void> {
   await checkSearch(wc)
   checkTransform()
   await checkArticle(wc)
+  await checkCrawl(wc)
 
   // Every redirect target should itself be a known title. A miss means the two
   // passes were joined on the wrong key, which would silently break search.
@@ -374,6 +376,53 @@ async function checkImageProtocol(wc: Electron.WebContents, html: string): Promi
   `)
 
   check('rbimg: serves cached images', String(result).startsWith('ok:'), `${match[0]} -> ${result}`)
+}
+
+/**
+ * Staleness bookkeeping and the crawler's pause behaviour.
+ *
+ * Offline: the marking rule is pure SQL and the pause is pure state, so neither
+ * needs the network. The `revid <` comparison is the part worth pinning down —
+ * `!=` would re-mark a page the crawler had just refreshed, and the crawler
+ * would then chase its own tail forever.
+ */
+async function checkCrawl(wc: Electron.WebContents): Promise<void> {
+  const raw = await wc.executeJavaScript('window.rb.getCrawlState().then(s => JSON.stringify(s))')
+  const state = JSON.parse(raw) as { phase: string; cached: number }
+  check(
+    'IPC round trip (getCrawlState)',
+    typeof state?.cached === 'number' && typeof state.phase === 'string',
+    `${state?.phase}, ${state?.cached} cached`
+  )
+
+  const d = db.get()
+  const probe = '__smoke_stale_probe__'
+  d.prepare(
+    `INSERT INTO pages (title, revid, html, fetched_at, stale) VALUES (?, 100, '<p>x</p>', ?, 0)
+     ON CONFLICT(title) DO UPDATE SET revid = 100, stale = 0`
+  ).run(probe, Date.now())
+
+  const mark = d.prepare('UPDATE pages SET stale = 1 WHERE title = ? AND revid < ?')
+  const isStale = (): boolean =>
+    (d.prepare('SELECT stale FROM pages WHERE title = ?').get(probe) as { stale: number }).stale === 1
+
+  check('crawl: a newer revision marks stale', Number(mark.run(probe, 101).changes) === 1 && isStale())
+
+  d.prepare('UPDATE pages SET stale = 0, revid = 101 WHERE title = ?').run(probe)
+  // The revision we already hold must not re-mark: otherwise every refresh
+  // immediately re-queues the page it just fetched.
+  check(
+    'crawl: the held revision does not',
+    Number(mark.run(probe, 101).changes) === 0 && !isStale()
+  )
+
+  d.prepare('DELETE FROM pages WHERE title = ?').run(probe)
+
+  // Visibility gating: the crawler must yield the request queue to whatever is
+  // on screen. Toggling it here is safe because no crawl is running under SMOKE.
+  sync.setWindowVisible(true)
+  check('crawl: parks while the window is visible', sync.getState().phase !== 'crawling')
+  sync.setWindowVisible(false)
 }
 
 /**

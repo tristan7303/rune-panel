@@ -130,6 +130,23 @@ export function isVisible(): boolean {
   return getWindow()?.isVisible() ?? false
 }
 
+type VisibilityListener = (visible: boolean) => void
+const visibilityListeners = new Set<VisibilityListener>()
+
+/**
+ * Watch show/hide.
+ *
+ * The background crawler subscribes to this so it can park while you are
+ * reading: bandwidth and the request queue belong to whatever is on screen.
+ */
+export function onVisibilityChange(listener: VisibilityListener): void {
+  visibilityListeners.add(listener)
+}
+
+function announceVisibility(visible: boolean): void {
+  for (const listener of visibilityListeners) listener(visible)
+}
+
 export function show(): void {
   const w = getWindow()
   if (!w) return
@@ -140,6 +157,7 @@ export function show(): void {
   w.show()
   w.focus()
   w.webContents.send(On.Shown)
+  announceVisibility(true)
 }
 
 export function hide(): void {
@@ -149,6 +167,7 @@ export function hide(): void {
   // window in the compositor's bookkeeping.
   w.setAlwaysOnTop(false)
   w.hide()
+  announceVisibility(false)
 }
 
 export function toggle(): void {

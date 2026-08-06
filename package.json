@@ -10,7 +10,8 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "sync:titles": "electron out/main/index.js --sync-titles"
+    "sync:titles": "electron out/main/index.js --sync-titles",
+    "crawl": "electron out/main/index.js --crawl"
   },
   "dependencies": {
     "@leeoniya/ufuzzy": "^1.0.19",

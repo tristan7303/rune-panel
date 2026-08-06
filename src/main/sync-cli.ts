@@ -15,6 +15,7 @@ import { app } from 'electron'
 import { writeSync } from 'fs'
 import * as client from './wiki/client'
 import * as titles from './wiki/titles'
+import * as sync from './wiki/sync'
 import * as db from './db'
 
 function out(line: string): void {
@@ -23,6 +24,58 @@ function out(line: string): void {
   } catch {
     /* no console attached; the exit code still reports */
   }
+}
+
+/**
+ * Headless crawl, run with `--crawl`.
+ *
+ * The same code path the app runs while its window is closed, just observable.
+ * There is no window here, so the crawler never sees itself as paused.
+ */
+export async function runCrawlCli(): Promise<void> {
+  const startedAt = Date.now()
+  const before = sync.getState()
+
+  out('')
+  out('══════════════════════════════════════════════════════')
+  out('  BACKGROUND CRAWL  ·  rune-buddy')
+  out('══════════════════════════════════════════════════════')
+  out(`  cached       ${before.cached} pages (${before.stale} stale)`)
+  out('──────────────────────────────────────────────────────')
+
+  let lastPhase = ''
+  const off = sync.onProgress((s) => {
+    if (s.phase !== lastPhase) {
+      if (lastPhase) out('')
+      lastPhase = s.phase
+      out(`  ${s.phase}`)
+    }
+    try {
+      writeSync(1, `\r    ${s.done} fetched · ${s.remaining} queued · ${s.cached} cached   `)
+    } catch {
+      /* ignore */
+    }
+  })
+
+  await sync.run()
+  off()
+
+  const after = sync.getState()
+  const stats = client.getStats()
+  const elapsed = (Date.now() - startedAt) / 1000
+
+  out('')
+  out('──────────────────────────────────────────────────────')
+  out(`  fetched      ${after.done}`)
+  out(`  cached       ${after.cached}  (+${after.cached - before.cached})`)
+  out(`  still stale  ${after.stale}`)
+  out(`  requests     ${stats.sent}  (${stats.retried} retried, ${stats.failed} failed)`)
+  out(`  elapsed      ${elapsed.toFixed(1)}s  ·  ${(stats.sent / elapsed).toFixed(2)} req/s average`)
+  out('══════════════════════════════════════════════════════')
+  out('')
+
+  db.close()
+  app.exit(after.phase === 'error' ? 1 : 0)
 }
 
 export async function runSyncCli(): Promise<void> {

@@ -3,7 +3,15 @@
  */
 
 import { app, BrowserWindow, globalShortcut, ipcMain } from 'electron'
-import { createWindow, getWindow, show, hide, toggle, applySettings } from './window'
+import {
+  createWindow,
+  getWindow,
+  show,
+  hide,
+  toggle,
+  applySettings,
+  onVisibilityChange,
+} from './window'
 import { createTray, destroyTray, setHotkey } from './tray'
 import { Send, Invoke, On } from '../shared/ipc'
 import * as settings from './settings'
@@ -13,6 +21,7 @@ import * as titles from './wiki/titles'
 import * as search from './wiki/search'
 import * as page from './wiki/page'
 import * as images from './wiki/images'
+import * as sync from './wiki/sync'
 
 /**
  * Claim our identity before anything reads it.
@@ -67,6 +76,12 @@ function registerIpc(): void {
   )
   ipcMain.on(Send.PrefetchPage, (_e, title: string) => page.prefetch(title))
 
+  ipcMain.handle(Invoke.GetCrawlState, () => sync.getState())
+  ipcMain.on(Send.StartCrawl, () => void sync.run())
+  ipcMain.on(Send.StopCrawl, () => sync.stop())
+
+  sync.onProgress((state) => getWindow()?.webContents.send(On.CrawlProgress, state))
+
   titles.onProgress((progress) => {
     // A finished sync replaced the rows the in-memory haystack was built from.
     if (progress.phase === 'done') search.invalidate()
@@ -95,10 +110,14 @@ function main(): void {
     client.configure({ contact: initial.contactEmail })
     images.serve()
 
-    // Headless: build the index, print a report, exit. Kept out of the normal
-    // path so it never opens a window or claims the hotkey.
+    // Headless modes: do the work, print a report, exit. Kept out of the normal
+    // path so they never open a window or claim the hotkey.
     if (process.argv.includes('--sync-titles')) {
       await import('./sync-cli').then((m) => m.runSyncCli())
+      return
+    }
+    if (process.argv.includes('--crawl')) {
+      await import('./sync-cli').then((m) => m.runCrawlCli())
       return
     }
 
@@ -122,13 +141,23 @@ function main(): void {
       // first hotkey press is instant rather than paying for renderer startup.
       getWindow()?.once('ready-to-show', show)
 
+      onVisibilityChange(sync.setWindowVisible)
+
       // First launch has no index and search would find nothing, so this runs
       // unprompted — at background priority, so anything the user does while it
       // works jumps ahead of it.
       if (titles.isStale()) {
-        void titles.sync('background').catch((err: unknown) => {
-          console.warn('[titles] sync failed:', err instanceof Error ? err.message : err)
-        })
+        void titles
+          .sync('background')
+          .then(() => sync.run())
+          .catch((err: unknown) => {
+            console.warn('[titles] sync failed:', err instanceof Error ? err.message : err)
+          })
+      } else {
+        // Give the window a moment to finish opening before competing for the
+        // request queue; the crawler parks itself anyway once it sees the
+        // window is visible.
+        setTimeout(() => void sync.run(), 5000)
       }
     }
 
@@ -146,6 +175,7 @@ function main(): void {
   app.on('will-quit', () => {
     globalShortcut.unregisterAll()
     destroyTray()
+    sync.stop()
     // Closing checkpoints the WAL, so the next launch does not start by
     // replaying one.
     db.close()

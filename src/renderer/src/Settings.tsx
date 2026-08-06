@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState, type JSX } from 'react'
-import type { TitleIndexState } from '@shared/ipc'
+import type { CrawlState, TitleIndexState } from '@shared/ipc'
 import { useStore } from './store'
 
 export function SettingsView(): JSX.Element {
@@ -67,6 +67,7 @@ export function SettingsView(): JSX.Element {
       </Field>
 
       <TitleIndexField />
+      <PageCacheField />
     </div>
   )
 }
@@ -107,6 +108,46 @@ function TitleIndexField(): JSX.Element {
         onClick={() => window.rb.syncTitles()}
       >
         {index?.syncing ? 'Building…' : 'Rebuild'}
+      </button>
+    </Field>
+  )
+}
+
+/**
+ * The article cache and the background crawler.
+ *
+ * Worth surfacing rather than hiding: it makes network requests on your behalf
+ * while you are not looking, and anything that does that should be visible and
+ * stoppable.
+ */
+function PageCacheField(): JSX.Element {
+  const [crawl, setCrawl] = useState<CrawlState | null>(null)
+
+  useEffect(() => {
+    void window.rb.getCrawlState().then(setCrawl)
+    return window.rb.onCrawlProgress(setCrawl)
+  }, [])
+
+  const busy = crawl?.phase === 'crawling' || crawl?.phase === 'refreshing' || crawl?.phase === 'paused'
+
+  const hint = !crawl
+    ? 'Checking…'
+    : crawl.phase === 'paused'
+      ? `Paused while the window is open — ${crawl.cached.toLocaleString()} pages cached, ${crawl.remaining} queued.`
+      : crawl.phase === 'refreshing'
+        ? 'Asking the wiki what changed…'
+        : crawl.phase === 'crawling'
+          ? `Filling — ${crawl.done} fetched, ${crawl.remaining} queued, ${crawl.cached.toLocaleString()} cached.`
+          : `${crawl.cached.toLocaleString()} pages cached${crawl.stale > 0 ? `, ${crawl.stale} out of date` : ''}. Pages are cached as you read them and refreshed in the background while the window is closed.`
+
+  return (
+    <Field label="Article cache" hint={hint}>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => (busy ? window.rb.stopCrawl() : window.rb.startCrawl())}
+      >
+        {busy ? 'Stop' : 'Refresh now'}
       </button>
     </Field>
   )
