@@ -12,13 +12,17 @@
 
 import type { JSX } from 'react'
 import { useNav, type Route } from './nav'
+import banner from './assets/banner.png'
+import profileLogo from './assets/logo.png'
 
 interface Card {
   route: Route
   title: string
   blurb: string
   /** Wiki filename, served through the local image cache. */
-  image: string
+  image?: string
+  /** A bundled asset instead, for anything the wiki has no art for. */
+  asset?: string
 }
 
 const CARDS: Card[] = [
@@ -44,7 +48,9 @@ const CARDS: Card[] = [
     route: { kind: 'tool', id: 'profile' },
     title: 'RuneProfile',
     blurb: 'Skills, quests, diaries, combat achievements and the collection log.',
-    image: 'Collection_log.png',
+    // Their own mark: this card leads to a different product, and should look
+    // like it rather than borrowing a wiki sprite.
+    asset: profileLogo,
   },
   {
     route: { kind: 'tool', id: 'calculators' },
@@ -66,7 +72,7 @@ export function Home(): JSX.Element {
   return (
     <div className="home">
       <header className="home-hero">
-        <h1>Rune Panel</h1>
+        <img className="home-banner" src={banner} alt="Rune Panel" draggable={false} />
         <p>
           The whole wiki, a keystroke away — plus prices, calculators and profiles. Press{' '}
           <kbd>Ctrl</kbd> <kbd>F</kbd> to search from anywhere.
@@ -80,7 +86,12 @@ export function Home(): JSX.Element {
               {/* Straight to the cache protocol: main downloads it on first use
                   and serves it from disk after. A miss simply renders nothing,
                   which is why the tile has its own background. */}
-              <img src={`rpimg://img/${card.image}`} alt="" loading="lazy" draggable={false} />
+              <img
+                src={card.asset ?? `rpimg://img/${card.image ?? ''}`}
+                alt=""
+                loading="lazy"
+                draggable={false}
+              />
             </span>
             <span className="home-card-text">
               <strong>{card.title}</strong>

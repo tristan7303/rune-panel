@@ -378,7 +378,9 @@ async function checkArticle(wc: Electron.WebContents): Promise<void> {
     } | null
 
     check('variants: tabs detected', box?.variants.join('/') === 'Uncharged/Charged', box?.variants.join('/') ?? 'none')
-    check('variants: default is the charged form', box?.defaultVariant === 1, String(box?.defaultVariant))
+    // Deliberately against the wiki's own default of Charged: the uncharged form
+    // is the tradeable one, so it is the form with a price to show.
+    check('variants: defaults to the tradeable form', box?.defaultVariant === 0, `${box?.defaultVariant} (${box?.variants[box?.defaultVariant ?? 0]})`)
     check(
       'variants: name differs per tab',
       box?.headerByVariant?.[0] !== box?.headerByVariant?.[1],

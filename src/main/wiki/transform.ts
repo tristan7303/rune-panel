@@ -328,15 +328,10 @@ function extractInfobox($: cheerio.CheerioAPI, switchData: SwitchData): Infobox 
     .map((el) => $(el).text().trim())
     .filter(Boolean)
 
-  const declaredDefault = Number(table.find('.infobox-buttons').attr('data-default-version'))
   const box: Infobox = {
     rows: [],
     variants,
-    // The attribute is 1-based and may be absent or out of range.
-    defaultVariant:
-      Number.isFinite(declaredDefault) && declaredDefault >= 1 && declaredDefault <= variants.length
-        ? declaredDefault - 1
-        : 0,
+    defaultVariant: pickDefaultVariant(table, variants),
   }
 
   /**
@@ -465,6 +460,31 @@ function markSyncedSwitches($: cheerio.CheerioAPI): void {
  */
 function isUnset(html: string): boolean {
   return /action=edit/.test(html) && /<b>\s*\?\s*<\/b>/.test(html)
+}
+
+/**
+ * Which variant to open on.
+ *
+ * The wiki declares its own default — `data-default-version` — and for the
+ * Scythe of vitur that is Charged. We deliberately override it toward the
+ * *tradeable* form instead, because that is the one with a Grand Exchange
+ * price, and the price is usually why an item page is open. A charged Scythe
+ * shows "Not sold"; the uncharged one shows 1.19b.
+ *
+ * Only the recognised tradeable-form names win. Anything else falls back to
+ * whatever the wiki asked for.
+ */
+const TRADEABLE_VARIANT = /^(uncharged|inactive|empty|unpoisoned)$/i
+
+function pickDefaultVariant(table: cheerio.Cheerio<Element>, variants: string[]): number {
+  const tradeable = variants.findIndex((v) => TRADEABLE_VARIANT.test(v.trim()))
+  if (tradeable >= 0) return tradeable
+
+  const declared = Number(table.find('.infobox-buttons').attr('data-default-version'))
+  // The attribute is 1-based and may be absent or out of range.
+  return Number.isFinite(declared) && declared >= 1 && declared <= variants.length
+    ? declared - 1
+    : 0
 }
 
 /** Text content of an HTML fragment, for places that must not carry markup. */
