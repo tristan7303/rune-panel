@@ -66,7 +66,10 @@ export async function runSmoke(initial: Settings): Promise<void> {
       await checkArticle(win.webContents)
       await checkCrawl(win.webContents)
       checkToolRegistry()
-  if (process.env.SMOKE_FETCH) await checkPrices(win.webContents)
+  if (process.env.SMOKE_FETCH) {
+    await checkPrices(win.webContents)
+    await checkProfileLookup(win.webContents)
+  }
       if (process.env.SMOKE_FETCH) await checkToolPane(win)
       await checkShowHide(win)
 
@@ -317,7 +320,7 @@ async function checkArticle(wc: Electron.WebContents): Promise<void> {
     .prepare('SELECT title FROM pages ORDER BY fetched_at DESC LIMIT 1')
     .get() as { title: string } | undefined
 
-  const title = cached?.title ?? (process.env.SMOKE_FETCH ? 'Abyssal whip' : null)
+  const title = process.env.SMOKE_PAGE ?? cached?.title ?? (process.env.SMOKE_FETCH ? 'Abyssal whip' : null)
   if (!title) {
     check('article: renders', true, 'nothing cached — run with SMOKE_FETCH=1 to fetch one')
     return
@@ -357,6 +360,33 @@ async function checkArticle(wc: Electron.WebContents): Promise<void> {
   )
 
   await checkImageProtocol(wc, article?.html ?? '')
+
+  // Variant switching. Items that exist charged and uncharged pack every form's
+  // values into the same infobox, and the alternates live only in a hidden
+  // payload the wiki's own scripts read. If that join breaks, the tabs render
+  // but every tab shows the first variant.
+  if (title === 'Scythe of vitur') {
+    const box = JSON.parse(
+      await wc.executeJavaScript(
+        `window.rp.getPage('Scythe of vitur').then(a => JSON.stringify(a.infobox))`
+      )
+    ) as {
+      variants: string[]
+      defaultVariant: number
+      headerByVariant?: Array<string | null>
+      rows: Array<{ label: string; byVariant?: Array<string | null> }>
+    } | null
+
+    check('variants: tabs detected', box?.variants.join('/') === 'Uncharged/Charged', box?.variants.join('/') ?? 'none')
+    check('variants: default is the charged form', box?.defaultVariant === 1, String(box?.defaultVariant))
+    check(
+      'variants: name differs per tab',
+      box?.headerByVariant?.[0] !== box?.headerByVariant?.[1],
+      `${box?.headerByVariant?.[0]} / ${box?.headerByVariant?.[1]}`
+    )
+    const switched = box?.rows.filter((r) => r.byVariant).length ?? 0
+    check('variants: rows carry per-variant values', switched > 3, `${switched} switched rows`)
+  }
 }
 
 /** The rpimg:// protocol actually serves bytes the renderer can display. */
@@ -551,6 +581,44 @@ async function checkPrices(wc: Electron.WebContents): Promise<void> {
     `window.rp.geFindByName('Twisted bow').then(i => i && i.id)`
   )
   check('ge: name lookup resolves', named === 20997, String(named))
+
+  // Charged items are untradeable; the price feed carries only their uncharged
+  // form, under a different name than the wiki article. Without the fallback
+  // these all report "not tradeable", which is plainly wrong.
+  for (const [article, wanted] of [
+    ['Scythe of vitur', 'Scythe of vitur (uncharged)'],
+    ['Sanguinesti staff', 'Sanguinesti staff (uncharged)'],
+    ['Bow of faerdhinen', 'Bow of faerdhinen (inactive)'],
+  ] as const) {
+    const raw = await wc.executeJavaScript(
+      `window.rp.geFindByName(${JSON.stringify(article)}).then(i => i && i.name)`
+    )
+    check(`ge: "${article}" resolves to its tradeable form`, raw === wanted, String(raw))
+  }
+
+  // A different range must return different buckets, not the previous step's
+  // rows read back off a colliding cache key.
+  const short = JSON.parse(
+    await wc.executeJavaScript(`window.rp.geDetail(4151, '5m').then(d => JSON.stringify(d.series.length))`)
+  ) as number
+  const long = JSON.parse(
+    await wc.executeJavaScript(`window.rp.geDetail(4151, '24h').then(d => JSON.stringify(d.series))`)
+  ) as Array<{ ts: number }>
+  const span = long.length > 1 ? (long.at(-1)!.ts - long[0].ts) / 86400 : 0
+  check('ge: 24h range spans about a year', span > 300, `${Math.round(span)} days, ${long.length} points`)
+  check('ge: 5m range is its own series', short > 0, `${short} points`)
+}
+
+/** RuneProfile lookup, against the live API. */
+async function checkProfileLookup(wc: Electron.WebContents): Promise<void> {
+  const raw = await wc.executeJavaScript(
+    `window.rp.lookupProfile('pgn').then(p => JSON.stringify(p))`
+  )
+  const p = JSON.parse(raw) as { exists: boolean; totalLevel?: number; error?: string }
+  // The bug this replaces: `skills` is an object of totals, not an array, so
+  // calling .filter on it threw on every single lookup.
+  check('profile: lookup succeeds', p.exists === true, p.error ?? 'ok')
+  check('profile: reports a total level', (p.totalLevel ?? 0) > 1000, String(p.totalLevel))
 }
 
 /**
@@ -668,10 +736,13 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
 
   // Navigate by pushing onto the history stack the UI already uses, then wait
   // for the article body to actually exist rather than guessing at a delay.
-  const cached = db
+  // Prefer an item with variants so the tabs are in the shot.
+  const cached = (db
     .get()
-    .prepare('SELECT title FROM pages ORDER BY fetched_at DESC LIMIT 1')
-    .get() as { title: string } | undefined
+    .prepare("SELECT title FROM pages WHERE title = 'Scythe of vitur' LIMIT 1")
+    .get() ?? db.get().prepare('SELECT title FROM pages ORDER BY fetched_at DESC LIMIT 1').get()) as
+    | { title: string }
+    | undefined
 
   let article = true
   if (cached) {

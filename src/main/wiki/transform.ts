@@ -25,14 +25,29 @@ export interface InfoboxRow {
   label: string
   /** Already-transformed HTML: values carry links and item icons worth keeping. */
   value: string
+  /**
+   * Per-variant values, when the row differs between variants. Parallel to
+   * `Infobox.variants`; a missing entry means the row is the same for that one.
+   */
+  byVariant?: Array<string | null>
 }
 
 export interface Infobox {
   /** The bold title row at the top of the box, if present. */
   header?: string
+  /** Per-variant titles, when the item is renamed between variants. */
+  headerByVariant?: Array<string | null>
   /** Transformed HTML for the main image, if the box has one. */
   image?: string
+  imageByVariant?: Array<string | null>
   rows: InfoboxRow[]
+  /**
+   * Variant names, in order — "Uncharged", "Charged". Empty for the ordinary
+   * single-form infobox.
+   */
+  variants: string[]
+  /** Which variant the wiki shows first. */
+  defaultVariant: number
 }
 
 export interface TransformResult {
@@ -58,6 +73,25 @@ const STRIP = [
   '.toc',
   '.mw-jump-link',
   '.noprint',
+
+  // Hidden data payloads. `.infobox-switch-resources` is a dump of every
+  // variant's raw field values that the wiki's JavaScript reads to populate the
+  // switch; its own stylesheet hides it with `.hidden`, and since we strip
+  // stylesheets it would otherwise render as a wall of "Scythe of vitur
+  // (uncharged)Scythe of vitur? (edit) UnchargedChargedfalsetrue" above the
+  // article. Anything else marked `.hidden` is hidden for the same reason.
+  '.infobox-switch-resources',
+  '.hidden',
+  '.navigation-not-searchable.hidden',
+
+  // The wiki's own Grand Exchange chart. Inert here — its scripts never run, so
+  // it renders as "Loading..." forever above an empty box — and redundant,
+  // since this app draws price history from the same feed itself.
+  '.GEChartBox',
+  '.GEdatachart',
+  '.GEdataprices',
+  '.GEChartItems',
+
   'style',
   'script',
   'link',
@@ -69,6 +103,12 @@ const NON_ARTICLE_NS = /^(File|Image|Media|Category|Template|Help|Special|Module
 
 export function transform(html: string, pageTitle: string): TransformResult {
   const $ = cheerio.load(html, null, false)
+
+  // 0 ── harvest the switch payload before the strip below removes it. The
+  //      rendered table only ever contains the first variant's values; every
+  //      other variant lives in this hidden block, which is the only place to
+  //      get them.
+  const switchData = harvestSwitchResources($)
 
   // 1 ── sanitize
   $(STRIP.join(',')).remove()
@@ -95,10 +135,17 @@ export function transform(html: string, pageTitle: string): TransformResult {
   rewriteImages($)
 
   // 3 ── lift the infobox
-  const infobox = extractInfobox($)
+  const infobox = extractInfobox($, switchData)
 
   // 4 ── tag tables so the stylesheet can make them scroll and stripe
   $('table.wikitable').addClass('rp-table')
+
+  // 5 ── body content that follows the infobox tabs
+  markSyncedSwitches($)
+
+  // The variant buttons are drawn natively on the infobox card, so the copies
+  // the wiki puts on every in-body switch table are duplicates.
+  $('.infobox-switch-buttons-caption, .infobox-buttons').remove()
 
   // Unwrap the outer parser div; the renderer supplies its own container.
   const root = $('.mw-parser-output')
@@ -215,24 +262,145 @@ function rewriteImages($: cheerio.CheerioAPI): void {
  * one. Values keep their HTML — a release date is two links, an equipment slot
  * is an icon — so only the layout is replaced, never the content.
  */
-function extractInfobox($: cheerio.CheerioAPI): Infobox | null {
+/**
+ * Values for every variant, pulled out of the hidden switch payload.
+ *
+ * Keyed by the payload's own resource class, then by field name, then by
+ * variant index, exactly as the markup numbers them.
+ *
+ * Index 0 is not a variant: it is the value shared by any variant that has no
+ * entry of its own. The Scythe's `name` field, for instance, lists only index 0
+ * ("Scythe of vitur (uncharged)") and index 2 ("Scythe of vitur") — variant 1
+ * inherits index 0. Where a field is genuinely unset the wiki puts a "? (edit)"
+ * link there instead, which `isUnset` recognises and refuses to inherit.
+ */
+type SwitchData = Map<string, Map<string, Map<number, string>>>
+
+function harvestSwitchResources($: cheerio.CheerioAPI): SwitchData {
+  const data: SwitchData = new Map()
+
+  $('.infobox-switch-resources').each((_, block) => {
+    const $block = $(block)
+    // The class that ties this payload to its table, e.g.
+    // "infobox-resources-Infobox_Item".
+    const key =
+      ($block.attr('class') ?? '')
+        .split(/\s+/)
+        .find((c) => c.startsWith('infobox-resources-')) ?? ''
+    if (!key) return
+
+    const fields = new Map<string, Map<number, string>>()
+    $block.children('[data-attr-param]').each((_, el) => {
+      const param = $(el).attr('data-attr-param')
+      if (!param) return
+      const byIndex = new Map<number, string>()
+      $(el)
+        .children('[data-attr-index]')
+        .each((_, span) => {
+          const idx = Number($(span).attr('data-attr-index'))
+          if (!Number.isFinite(idx) || idx < 0) return
+          byIndex.set(idx, ($(span).html() ?? '').trim())
+        })
+      if (byIndex.size) fields.set(param, byIndex)
+    })
+
+    if (fields.size) data.set(key, fields)
+  })
+
+  return data
+}
+
+function extractInfobox($: cheerio.CheerioAPI, switchData: SwitchData): Infobox | null {
   const table = $('table.infobox').first()
   if (table.length === 0) return null
 
-  const box: Infobox = { rows: [] }
+  // Variant tabs. The wiki renders these as buttons in the table's <caption>
+  // and relies on its own JavaScript to switch them; without that script every
+  // variant's value renders at once, which is why an item like the Scythe of
+  // vitur reads as "Scythe of vitur (uncharged)Scythe of vitur" mashed together.
+  const buttons = table.find('.infobox-buttons [data-switch-index]')
+  const variants = buttons
+    .toArray()
+    .map((el) => $(el).text().trim())
+    .filter(Boolean)
+
+  const declaredDefault = Number(table.find('.infobox-buttons').attr('data-default-version'))
+  const box: Infobox = {
+    rows: [],
+    variants,
+    // The attribute is 1-based and may be absent or out of range.
+    defaultVariant:
+      Number.isFinite(declaredDefault) && declaredDefault >= 1 && declaredDefault <= variants.length
+        ? declaredDefault - 1
+        : 0,
+  }
+
+  /**
+   * Split a cell into its per-variant values.
+   *
+   * A switched cell holds one `<span data-attr-index="N">` per variant; an
+   * unswitched one holds plain content that applies to all of them. Returns
+   * null for the unswitched case so the caller can keep a single value rather
+   * than storing the same HTML N times.
+   */
+  // Which payload block belongs to this table.
+  const resourceKey = (table.attr('data-resource-class') ?? '').replace(/^\./, '')
+  const fields = switchData.get(resourceKey)
+
+  const split = (cell: cheerio.Cheerio<Element>): Array<string | null> | null => {
+    if (variants.length === 0) return null
+
+    // Inline spans first — some cells carry every variant directly.
+    const spans = cell.find('[data-attr-index]')
+    if (spans.length > 0) {
+      const out: Array<string | null> = new Array(variants.length).fill(null)
+      spans.each((_, el) => {
+        const idx = Number($(el).attr('data-attr-index')) - 1
+        if (idx >= 0 && idx < variants.length) out[idx] = ($(el).html() ?? '').trim()
+      })
+      return out
+    }
+
+    // Otherwise the payload, joined on the field name the cell declares.
+    const param = cell.attr('data-attr-param')
+    const byIndex = param ? fields?.get(param) : undefined
+    if (!byIndex) return null
+
+    const shared = byIndex.get(0)
+    const fallback = shared && !isUnset(shared) ? shared : null
+
+    const out: Array<string | null> = new Array(variants.length).fill(fallback)
+    for (const [idx, html] of byIndex) {
+      if (idx >= 1 && idx - 1 < variants.length) out[idx - 1] = isUnset(html) ? null : html
+    }
+    return out.some((v) => v !== null) ? out : null
+  }
 
   table.find('tr').each((_, tr) => {
     const $tr = $(tr)
 
     const header = $tr.find('.infobox-header').first()
     if (header.length) {
-      box.header ??= header.text().trim()
+      if (box.header === undefined) {
+        box.header = header.text().trim()
+        const per = split(header)
+        if (per) {
+          box.headerByVariant = per.map((v) => (v === null ? null : stripTags(v)))
+          // With variants the plain text is every name concatenated; the first
+          // real per-variant name is a better single fallback.
+          box.header = box.headerByVariant.find((v): v is string => !!v) ?? box.header
+        }
+      }
       return
     }
 
     const image = $tr.find('.infobox-image').first()
     if (image.length) {
-      box.image ??= image.html()?.trim() || undefined
+      if (box.image === undefined) {
+        box.image = image.html()?.trim() || undefined
+        const per = split(image)
+        if (per) box.imageByVariant = per
+      }
       return
     }
 
@@ -245,13 +413,59 @@ function extractInfobox($: cheerio.CheerioAPI): Infobox | null {
     const value = (td.html() ?? '').trim()
     if (!label || !value) return
 
-    box.rows.push({ label, value })
+    const per = split(td)
+    box.rows.push(per ? { label, value, byVariant: per } : { label, value })
   })
 
   table.remove()
 
   // A box with no header, no image and no rows is not worth a panel.
   return box.rows.length > 0 || box.image ? box : null
+}
+
+/**
+ * Body blocks that switch along with the infobox tabs.
+ *
+ * The wiki's `.rsw-synced-switch` holds one child per variant — usually the
+ * large detail image — and marks the visible one with `.showing`. That class is
+ * static in the HTML, so without its JavaScript the block is frozen on whichever
+ * variant the page was cached with.
+ *
+ * Rather than freeze it, each item is tagged with a zero-based variant index and
+ * the renderer reveals the matching one with CSS. Selecting "Charged" then
+ * changes the picture as well as the numbers.
+ */
+function markSyncedSwitches($: cheerio.CheerioAPI): void {
+  $('.rsw-synced-switch').each((_, group) => {
+    const items = $(group).children('.rsw-synced-switch-item')
+    items.each((_, el) => {
+      const $el = $(el)
+      // `data-item` is 1-based, and index 0 shows up as an empty placeholder.
+      const raw = Number($el.attr('data-item'))
+      const index = Number.isFinite(raw) && raw >= 1 ? raw - 1 : -1
+      if (index < 0 || $el.html()?.trim() === '') {
+        $el.remove()
+        return
+      }
+      $el.attr('data-variant', String(index))
+      // The wiki's own visibility class would fight the CSS below.
+      $el.removeClass('showing')
+    })
+    $(group).addClass('rp-synced')
+  })
+}
+
+/**
+ * The wiki's marker for a field nobody has filled in: a bold "?" linking to the
+ * edit form. Inheriting it would print a question mark where a value belongs.
+ */
+function isUnset(html: string): boolean {
+  return /action=edit/.test(html) && /<b>\s*\?\s*<\/b>/.test(html)
+}
+
+/** Text content of an HTML fragment, for places that must not carry markup. */
+function stripTags(html: string): string {
+  return cheerio.load(html, null, false).text().trim()
 }
 
 /** Plain-text lead paragraph, for search result previews later. */

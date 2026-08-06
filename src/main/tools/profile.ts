@@ -15,12 +15,22 @@ import type { ProfileSummary } from '../../shared/ipc'
 
 const API = 'https://api.runeprofile.com/v1'
 
+/**
+ * What the API actually returns.
+ *
+ * `skills` is an object of totals, **not** an array of skills — an earlier
+ * version here assumed the latter and called `.filter` on it, which is what
+ * every lookup was failing with. The endpoint also carries account type, clan,
+ * quest and collection-log progress, all of which make a better summary card
+ * than a bare username.
+ */
 interface AccountResponse {
   username?: string
-  skills?: Array<{ name: string; level: number }>
-  // The API has grown over time; anything not read here is deliberately ignored
-  // rather than typed, since none of it drives a decision.
-  [key: string]: unknown
+  accountType?: { key?: string; name?: string } | null
+  clan?: { name?: string } | null
+  skills?: { totalLevel?: number; totalXp?: number } | null
+  quests?: { completed?: number; total?: number } | null
+  collectionLog?: { obtained?: number; total?: number } | null
 }
 
 export async function lookup(username: string): Promise<ProfileSummary> {
@@ -35,17 +45,17 @@ export async function lookup(username: string): Promise<ProfileSummary> {
       'interactive'
     )
 
-    const skills = body.skills ?? []
-    // Overall is reported as a skill alongside the rest; summing every entry
-    // would double-count it.
-    const total = skills
-      .filter((s) => s.name.toLowerCase() !== 'overall')
-      .reduce((sum, s) => sum + (s.level || 0), 0)
-
     return {
       username: body.username ?? name,
       exists: true,
-      totalLevel: total > 0 ? total : undefined,
+      totalLevel: body.skills?.totalLevel ?? undefined,
+      totalXp: body.skills?.totalXp ?? undefined,
+      accountType: body.accountType?.name ?? undefined,
+      clan: body.clan?.name ?? undefined,
+      questsCompleted: body.quests?.completed ?? undefined,
+      questsTotal: body.quests?.total ?? undefined,
+      collectionObtained: body.collectionLog?.obtained ?? undefined,
+      collectionTotal: body.collectionLog?.total ?? undefined,
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

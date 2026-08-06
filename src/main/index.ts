@@ -95,7 +95,9 @@ function registerIpc(): void {
   ipcMain.on(Send.SetPaneBounds, (_e, bounds: PaneBounds) => pane.setBounds(bounds))
   ipcMain.handle(Invoke.LookupProfile, (_e, username: string) => profile.lookup(username))
 
-  ipcMain.handle(Invoke.GeDetail, (_e, itemId: number) => ge.detail(itemId))
+  ipcMain.handle(Invoke.GeDetail, (_e, itemId: number, timestep?: ge.Timestep) =>
+    ge.detail(itemId, timestep)
+  )
   ipcMain.handle(Invoke.GeFindByName, (_e, name: string) => ge.findItemByName(name))
 
   titles.onProgress((progress) => {

@@ -514,3 +514,74 @@
 .article-body .mw-collapsible-toggle {
   display: none;
 }
+
+/* ── Infobox variant tabs ───────────────────────────────────────────── */
+
+/* Charged/uncharged and friends. The wiki packs every variant into the same
+   cells; these make choosing one an actual control. */
+.infobox-tabs {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 10px;
+  padding: 3px;
+  background: var(--surface-sunken);
+  border-radius: 7px;
+}
+
+.infobox-tab {
+  flex: 1;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background var(--duration) ease, color var(--duration) ease;
+}
+
+.infobox-tab:hover {
+  color: var(--text);
+}
+
+.infobox-tab.is-active {
+  color: var(--text);
+  background: var(--surface-raised);
+  box-shadow: inset 0 1px 0 var(--rim-bright);
+}
+
+/* Body blocks that follow the tabs. The transform tags each with its variant
+   index; only the one matching the article's current selection is shown. */
+.article-body .rp-synced .rsw-synced-switch-item {
+  display: none;
+}
+
+.article-body[data-variant='0'] .rp-synced .rsw-synced-switch-item[data-variant='0'],
+.article-body[data-variant='1'] .rp-synced .rsw-synced-switch-item[data-variant='1'],
+.article-body[data-variant='2'] .rp-synced .rsw-synced-switch-item[data-variant='2'],
+.article-body[data-variant='3'] .rp-synced .rsw-synced-switch-item[data-variant='3'] {
+  display: block;
+}
+
+/**
+ * In-body switch tables follow the infobox tabs.
+ *
+ * The combat-stats and bonuses tables carry the same per-variant spans the
+ * infobox does. Without this every variant's value renders at once and a
+ * bonuses cell reads "+0+75" rather than one number. The tab buttons the wiki
+ * puts above them are removed in the transform, since the real control lives on
+ * the infobox card.
+ */
+.article-body [data-attr-index] {
+  display: none;
+}
+
+/* `data-attr-index` is 1-based; the article's variant is 0-based. */
+.article-body[data-variant='0'] [data-attr-index='1'],
+.article-body[data-variant='1'] [data-attr-index='2'],
+.article-body[data-variant='2'] [data-attr-index='3'],
+.article-body[data-variant='3'] [data-attr-index='4'] {
+  display: inline;
+}

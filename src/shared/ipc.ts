@@ -109,12 +109,19 @@ export interface InfoboxRow {
   label: string
   /** Already-transformed HTML: values carry links and item icons worth keeping. */
   value: string
+  /** Per-variant values, parallel to `Infobox.variants`. */
+  byVariant?: Array<string | null>
 }
 
 export interface Infobox {
   header?: string
+  headerByVariant?: Array<string | null>
   image?: string
+  imageByVariant?: Array<string | null>
   rows: InfoboxRow[]
+  /** "Uncharged", "Charged" — empty for an ordinary single-form infobox. */
+  variants: string[]
+  defaultVariant: number
 }
 
 export interface Section {
@@ -141,6 +148,14 @@ export interface ProfileSummary {
   exists: boolean
   /** Combined level, when the API reports one. */
   totalLevel?: number
+  totalXp?: number
+  /** "Ironman", "Hardcore Ironman", … */
+  accountType?: string
+  clan?: string
+  questsCompleted?: number
+  questsTotal?: number
+  collectionObtained?: number
+  collectionTotal?: number
   error?: string
 }
 
@@ -175,6 +190,8 @@ export interface GeSeriesPoint {
   volHigh: number
   volLow: number
 }
+
+export type GeTimestep = '5m' | '1h' | '6h' | '24h'
 
 export interface GeItemDetail {
   item: GeItem
@@ -266,7 +283,7 @@ export interface RunePanelApi {
   setPaneBounds(bounds: PaneBounds): void
   lookupProfile(username: string): Promise<ProfileSummary>
 
-  geDetail(itemId: number): Promise<GeItemDetail | null>
+  geDetail(itemId: number, timestep?: GeTimestep): Promise<GeItemDetail | null>
   geFindByName(name: string): Promise<GeItem | null>
 
   onShown(cb: () => void): () => void

@@ -195,17 +195,31 @@ interface SeriesResponse {
   }>
 }
 
+/**
+ * Rows are keyed by item and timestep together.
+ *
+ * `price_series.item_id` therefore holds a composite: the real id for the
+ * default step, and a derived key for the others. Switching range would
+ * otherwise read back the previous step's buckets, since both land on the same
+ * primary key.
+ */
+function seriesKey(itemId: number, timestep: Timestep): number {
+  const offset: Record<Timestep, number> = { '5m': 0, '1h': 1, '6h': 2, '24h': 3 }
+  return itemId * 10 + offset[timestep]
+}
+
 async function series(itemId: number, timestep: Timestep): Promise<SeriesPoint[]> {
+  const key = seriesKey(itemId, timestep)
   const cached = db
     .get()
     .prepare('SELECT MAX(ts) AS newest, COUNT(*) AS n FROM price_series WHERE item_id = ?')
-    .get(itemId) as { newest: number | null; n: number }
+    .get(key) as { newest: number | null; n: number }
 
   // `ts` is upstream's own bucket timestamp in seconds, so freshness is judged
   // against the newest bucket rather than when we happened to fetch it.
   const freshEnough =
     cached.n > 0 && cached.newest !== null && Date.now() - cached.newest * 1000 < SERIES_MAX_AGE_MS
-  if (freshEnough) return readSeries(itemId)
+  if (freshEnough) return readSeries(key)
 
   const body = await client.getJson<SeriesResponse>(
     `${API}/timeseries?id=${itemId}&timestep=${timestep}`,
@@ -223,7 +237,7 @@ async function series(itemId: number, timestep: Timestep): Promise<SeriesPoint[]
   d.exec('BEGIN')
   try {
     for (const p of body.data) {
-      insert.run(itemId, p.timestamp, p.avgHighPrice, p.avgLowPrice, p.highPriceVolume, p.lowPriceVolume)
+      insert.run(key, p.timestamp, p.avgHighPrice, p.avgLowPrice, p.highPriceVolume, p.lowPriceVolume)
     }
     d.exec('COMMIT')
   } catch (err) {
@@ -231,17 +245,17 @@ async function series(itemId: number, timestep: Timestep): Promise<SeriesPoint[]
     throw err
   }
 
-  return readSeries(itemId)
+  return readSeries(key)
 }
 
-function readSeries(itemId: number): SeriesPoint[] {
+function readSeries(key: number): SeriesPoint[] {
   return (
     db
       .get()
       .prepare(
         'SELECT ts, avg_high, avg_low, vol_high, vol_low FROM price_series WHERE item_id = ? ORDER BY ts'
       )
-      .all(itemId) as Array<{
+      .all(key) as Array<{
       ts: number
       avg_high: number | null
       avg_low: number | null
@@ -259,12 +273,46 @@ function readSeries(itemId: number): SeriesPoint[] {
 
 // ── reads ───────────────────────────────────────────────────────────────────
 
+/**
+ * Suffixes the tradeable form of a charged item carries.
+ *
+ * A charged Scythe of vitur cannot be traded; `Scythe of vitur (uncharged)`
+ * can, and that is the row the price feed holds. The wiki article is titled
+ * after the charged form, so a direct name lookup finds nothing and the item
+ * looks untradeable when it plainly is not. Which word is used varies —
+ * uncharged for the scythe, Sanguinesti staff and Tumeken's shadow; inactive
+ * for the Blade of saeldor and Bow of faerdhinen — so both are tried.
+ */
+const TRADEABLE_FORMS = ['uncharged', 'inactive', 'empty']
+
+/**
+ * Resolve a wiki article title to a tradeable item.
+ *
+ * Exact match first, then the charged-item forms above, then a prefix match as
+ * a last resort — which catches things like "Ring of suffering (i)" where the
+ * tradeable row carries a suffix nothing else predicts.
+ */
 export function findItemByName(name: string): Item | null {
-  const row = db
-    .get()
-    .prepare('SELECT * FROM items WHERE name = ? COLLATE NOCASE')
+  const d = db.get()
+  const exact = d.prepare('SELECT * FROM items WHERE name = ? COLLATE NOCASE')
+
+  const direct = exact.get(name) as ItemRow | undefined
+  if (direct) return toItem(direct)
+
+  for (const form of TRADEABLE_FORMS) {
+    const row = exact.get(`${name} (${form})`) as ItemRow | undefined
+    if (row) return toItem(row)
+  }
+
+  // Prefer the shortest match, which is the plainest variant rather than an
+  // ornamented or corrupted one.
+  const near = d
+    .prepare(
+      `SELECT * FROM items WHERE name LIKE ? || ' (%' COLLATE NOCASE
+       ORDER BY LENGTH(name) LIMIT 1`
+    )
     .get(name) as ItemRow | undefined
-  return row ? toItem(row) : null
+  return near ? toItem(near) : null
 }
 
 /**
@@ -274,7 +322,10 @@ export function findItemByName(name: string): Item | null {
  * moment they matter is when someone is looking, and `/latest` covers every
  * item at once so one view's refresh serves the whole app.
  */
-export async function detail(itemId: number, timestep: Timestep = '6h'): Promise<ItemDetail | null> {
+export async function detail(
+  itemId: number,
+  timestep: Timestep = '6h'
+): Promise<ItemDetail | null> {
   await syncMapping()
 
   const row = db.get().prepare('SELECT * FROM items WHERE id = ?').get(itemId) as ItemRow | undefined
@@ -286,7 +337,7 @@ export async function detail(itemId: number, timestep: Timestep = '6h'): Promise
 
   const item = toItem(row)
   const price = readPrice(itemId)
-  const points = await series(itemId, timestep).catch(() => [] as SeriesPoint[])
+  const points = await series(itemId, timestep ?? '6h').catch(() => [] as SeriesPoint[])
 
   // Margin is quoted before the Grand Exchange's 2% sell tax, matching how the
   // wiki and every flipping site quote it. Tax is applied per-item at sale and

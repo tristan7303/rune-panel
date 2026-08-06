@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useMemo, useState, type JSX } from 'react'
-import type { GeItemDetail, SearchResult } from '@shared/ipc'
+import type { GeItemDetail, GeTimestep, SearchResult } from '@shared/ipc'
 import { useStore } from './store'
 import { useNav } from './nav'
 import { PriceChart, SERIES, fmt } from './PriceChart'
@@ -20,6 +20,7 @@ export function Grand({ itemId }: { itemId?: number }): JSX.Element {
   const [detail, setDetail] = useState<GeItemDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [timestep, setTimestep] = useState<GeTimestep>('6h')
   const theme = useStore((s) => s.settings?.theme ?? 'dark')
   const replace = useNav((s) => s.replace)
 
@@ -28,14 +29,14 @@ export function Grand({ itemId }: { itemId?: number }): JSX.Element {
     setLoading(true)
     setError(null)
     window.rp
-      .geDetail(itemId)
+      .geDetail(itemId, timestep)
       .then((d) => {
         if (!d) setError('That item is not tradeable, or is not in the price list.')
         setDetail(d)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false))
-  }, [itemId])
+  }, [itemId, timestep])
 
   useEffect(() => {
     if (query.trim().length < 2) return setResults([])
@@ -61,14 +62,14 @@ export function Grand({ itemId }: { itemId?: number }): JSX.Element {
     replace({ kind: 'ge', itemId: item.id })
   }
 
-  if (itemId === undefined || (!detail && !loading && !error)) {
-    return (
-      <div className="ge-search">
-        <div className="ge-hero">
-          <CoinsIcon />
-          <h1>Grand Exchange</h1>
-          <p>Live buy and sell prices, margins and history, from the real-time price feed.</p>
-        </div>
+  const showingItem = itemId !== undefined && (detail !== null || loading)
+
+  // The search bar stays mounted above whatever is showing. Having to navigate
+  // back to reach it made switching items feel like leaving the view and
+  // returning to it, when it is really one continuous task.
+  return (
+    <div className="ge">
+      <div className="ge-searchbar">
         <div className="search-field">
           <SearchIcon />
           <input
@@ -77,17 +78,21 @@ export function Grand({ itemId }: { itemId?: number }): JSX.Element {
             placeholder="Find an item…"
             spellCheck={false}
             autoComplete="off"
-            autoFocus
+            autoFocus={!showingItem}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && results[0]) void open(results[0].title)
+              if (e.key === 'Escape' && query) {
+                // Clear the query before the window-level handler closes the app.
+                e.stopPropagation()
+                setQuery('')
+              }
             }}
           />
         </div>
-        {error && <p className="profile-error">{error}</p>}
         {results.length > 0 && (
-          <ul className="results">
+          <ul className="results ge-results">
             {results.map((r) => (
               <li key={r.title} className="result" onClick={() => void open(r.title)}>
                 <span className="result-title">{r.title}</span>
@@ -97,31 +102,44 @@ export function Grand({ itemId }: { itemId?: number }): JSX.Element {
           </ul>
         )}
       </div>
-    )
-  }
 
-  if (loading) return <div className="placeholder">Loading prices…</div>
-  if (error) {
-    return (
-      <div className="placeholder">
-        <h2>Grand Exchange</h2>
-        <p>{error}</p>
-      </div>
-    )
-  }
-  if (!detail) return <div className="placeholder">Nothing to show.</div>
+      {error && <p className="profile-error">{error}</p>}
 
-  return <ItemView detail={detail} theme={theme} onBack={() => replace({ kind: 'ge' })} />
+      {loading && <div className="placeholder">Loading prices…</div>}
+
+      {!loading && detail && (
+        <ItemView detail={detail} theme={theme} timestep={timestep} onTimestep={setTimestep} />
+      )}
+
+      {!loading && !detail && !error && (
+        <div className="ge-hero">
+          <CoinsIcon />
+          <h1>Grand Exchange</h1>
+          <p>Live buy and sell prices, margins and history, from the real-time price feed.</p>
+        </div>
+      )}
+    </div>
+  )
 }
+
+/** Ranges the price API offers, shortest first. */
+const RANGES: Array<{ step: GeTimestep; label: string; hint: string }> = [
+  { step: '5m', label: '1D', hint: '5-minute buckets, about a day' },
+  { step: '1h', label: '2W', hint: 'Hourly buckets, about two weeks' },
+  { step: '6h', label: '3M', hint: '6-hour buckets, about three months' },
+  { step: '24h', label: '1Y', hint: 'Daily buckets, about a year' },
+]
 
 function ItemView({
   detail,
   theme,
-  onBack,
+  timestep,
+  onTimestep,
 }: {
   detail: GeItemDetail
   theme: 'dark' | 'light'
-  onBack: () => void
+  timestep: GeTimestep
+  onTimestep: (t: GeTimestep) => void
 }): JSX.Element {
   const { item, price, margin, potentialProfit } = detail
   const push = useNav((s) => s.push)
@@ -136,9 +154,6 @@ function ItemView({
   return (
     <div className="ge-item">
       <div className="ge-item-head">
-        <button className="btn" onClick={onBack}>
-          ← Another item
-        </button>
         <h1>{item.name}</h1>
         <button className="link-btn" onClick={() => push({ kind: 'page', title: item.name })}>
           wiki article
@@ -159,6 +174,27 @@ function ItemView({
           hint="Margin across a full buy limit, before tax"
         />
         <Stat label="High alch" value={item.highalch ? fmt(item.highalch) : '—'} />
+      </div>
+
+      <div className="chart-head">
+        <h2>Price history</h2>
+        {/* The API returns a fixed number of buckets per step, so the range and
+            the resolution are the same control — a shorter range is finer
+            grained, not a zoom on the same data. */}
+        <div className="range-tabs" role="tablist">
+          {RANGES.map((r) => (
+            <button
+              key={r.step}
+              role="tab"
+              aria-selected={r.step === timestep}
+              title={r.hint}
+              className={`range-tab ${r.step === timestep ? 'is-active' : ''}`}
+              onClick={() => onTimestep(r.step)}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <PriceChart series={detail.series} theme={theme} />

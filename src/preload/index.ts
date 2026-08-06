@@ -16,6 +16,7 @@ import {
   type CrawlState,
   type GeItem,
   type GeItemDetail,
+  type GeTimestep,
   type PaneBounds,
   type ProfileSummary,
   type RunePanelApi,
@@ -67,8 +68,8 @@ const api: RunePanelApi = {
   lookupProfile: (username: string): Promise<ProfileSummary> =>
     ipcRenderer.invoke(Invoke.LookupProfile, username),
 
-  geDetail: (itemId: number): Promise<GeItemDetail | null> =>
-    ipcRenderer.invoke(Invoke.GeDetail, itemId),
+  geDetail: (itemId: number, timestep?: GeTimestep): Promise<GeItemDetail | null> =>
+    ipcRenderer.invoke(Invoke.GeDetail, itemId, timestep),
   geFindByName: (name: string): Promise<GeItem | null> =>
     ipcRenderer.invoke(Invoke.GeFindByName, name),
 

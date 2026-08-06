@@ -19,6 +19,7 @@ export function Article({ title }: { title: string }): JSX.Element {
   const [loading, setLoading] = useState(true)
   /** Bumped by the refresh control to re-run the fetch with force. */
   const [reloads, setReloads] = useState(0)
+  const [variant, setVariant] = useState(0)
   const bodyRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const push = useNav((s) => s.push)
@@ -34,7 +35,10 @@ export function Article({ title }: { title: string }): JSX.Element {
       .then((got) => {
         if (!live) return
         if (!got) setError(`No article named “${title}”.`)
-        else setArticle(got)
+        else {
+          setArticle(got)
+          setVariant(got.infobox?.defaultVariant ?? 0)
+        }
       })
       .catch((err: unknown) => {
         if (live) setError(err instanceof Error ? err.message : String(err))
@@ -129,11 +133,16 @@ export function Article({ title }: { title: string }): JSX.Element {
       <article className="article selectable">
         <h1 className="article-title">{article.title}</h1>
 
-        {article.infobox && <Infobox box={article.infobox} />}
+        {article.infobox && (
+          <Infobox box={article.infobox} variant={variant} onVariant={setVariant} />
+        )}
 
         <div
           className="article-body"
           ref={bodyRef}
+          // Body blocks tagged by the transform reveal only the selected
+          // variant, so the detail image follows the tabs.
+          data-variant={variant}
           // Safe by construction: main strips script, style, event handlers and
           // javascript: URLs before this is ever cached. See wiki/transform.ts.
           dangerouslySetInnerHTML={{ __html: article.html }}
@@ -145,20 +154,63 @@ export function Article({ title }: { title: string }): JSX.Element {
   )
 }
 
-function Infobox({ box }: { box: InfoboxData }): JSX.Element {
+/**
+ * The infobox, drawn natively.
+ *
+ * Variants are the interesting part. Many items exist in more than one form —
+ * charged and uncharged, active and inactive — and the wiki packs every form's
+ * values into the same cells, relying on its own JavaScript to show one at a
+ * time. Here they become real tabs, and a row with nothing to say for the
+ * selected variant is omitted rather than shown empty.
+ */
+function Infobox({
+  box,
+  variant,
+  onVariant,
+}: {
+  box: InfoboxData
+  variant: number
+  onVariant: (v: number) => void
+}): JSX.Element {
+  const pick = (single: string, per?: Array<string | null>): string | null =>
+    per ? per[variant] : single
+
+  const header = box.headerByVariant?.[variant] ?? box.header
+  const image = pick(box.image ?? '', box.imageByVariant)
+
   return (
     <aside className="infobox-card">
-      {box.header && <h2 className="infobox-header">{box.header}</h2>}
-      {box.image && (
-        <div className="infobox-image" dangerouslySetInnerHTML={{ __html: box.image }} />
+      {header && <h2 className="infobox-header">{header}</h2>}
+
+      {box.variants.length > 1 && (
+        <div className="infobox-tabs" role="tablist">
+          {box.variants.map((name, i) => (
+            <button
+              key={name}
+              role="tab"
+              aria-selected={i === variant}
+              className={`infobox-tab ${i === variant ? 'is-active' : ''}`}
+              onClick={() => onVariant(i)}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
       )}
+
+      {image && <div className="infobox-image" dangerouslySetInnerHTML={{ __html: image }} />}
+
       <dl className="infobox-rows">
-        {box.rows.map((row, i) => (
-          <div className="infobox-row" key={`${row.label}-${i}`}>
-            <dt dangerouslySetInnerHTML={{ __html: row.label }} />
-            <dd dangerouslySetInnerHTML={{ __html: row.value }} />
-          </div>
-        ))}
+        {box.rows.map((row, i) => {
+          const value = pick(row.value, row.byVariant)
+          if (!value) return null
+          return (
+            <div className="infobox-row" key={`${row.label}-${i}`}>
+              <dt dangerouslySetInnerHTML={{ __html: row.label }} />
+              <dd dangerouslySetInnerHTML={{ __html: value }} />
+            </div>
+          )
+        })}
       </dl>
     </aside>
   )
