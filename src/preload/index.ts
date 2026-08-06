@@ -14,6 +14,8 @@ import {
   On,
   type Article,
   type CrawlState,
+  type GeItem,
+  type GeItemDetail,
   type PaneBounds,
   type ProfileSummary,
   type RunePanelApi,
@@ -64,6 +66,11 @@ const api: RunePanelApi = {
   setPaneBounds: (bounds: PaneBounds) => ipcRenderer.send(Send.SetPaneBounds, bounds),
   lookupProfile: (username: string): Promise<ProfileSummary> =>
     ipcRenderer.invoke(Invoke.LookupProfile, username),
+
+  geDetail: (itemId: number): Promise<GeItemDetail | null> =>
+    ipcRenderer.invoke(Invoke.GeDetail, itemId),
+  geFindByName: (name: string): Promise<GeItem | null> =>
+    ipcRenderer.invoke(Invoke.GeFindByName, name),
 
   onShown: (cb) => subscribe(On.Shown, cb),
   onSettings: (cb) => subscribeWith<Settings>(On.Settings, cb),

@@ -20,7 +20,7 @@ agent, the embedded browser, and the WebGL refraction engine are gone.
 | 3 | Article renderer and HTML transform | done |
 | 4 | Background sync: recentchanges + seed crawler | done |
 | 5 | Embedded tool pane: DPS, calculators, RuneProfile | done |
-| 6 | Grand Exchange prices | |
+| 6 | Grand Exchange prices | done |
 | 7 | Hiscores lookup and compare | |
 | 8 | Packaging | |
 
@@ -233,6 +233,8 @@ src/
       transform.ts MediaWiki HTML -> our HTML, and the infobox
       images.ts    rpimg:// protocol + on-disk image cache
       sync.ts      recentchanges invalidation + background crawler
+    prices/
+      ge.ts        mapping / latest / timeseries, cached
   preload/         the entire renderer-facing API surface
   shared/          types and channel names used by both processes
   renderer/src/

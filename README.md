@@ -34,7 +34,11 @@ the wiki, so they always match the current game.
 **RuneProfile** for skills, quests, diaries, combat achievements and the full
 collection log. Type a username; Rune Panel remembers the ones you look up.
 
-Grand Exchange prices and hiscores are next.
+**Grand Exchange prices** — live buy and sell, margin, the margin *after* the
+2% sell tax, buy limits, and a year of price history with volume. Search by item
+name, the same way you search the wiki.
+
+Hiscores are next.
 
 ---
 

@@ -24,6 +24,7 @@ import * as images from './wiki/images'
 import * as sync from './wiki/sync'
 import * as pane from './tools/pane'
 import * as profile from './tools/profile'
+import * as ge from './prices/ge'
 import type { PaneBounds, ToolId } from '../shared/ipc'
 
 /**
@@ -93,6 +94,9 @@ function registerIpc(): void {
   ipcMain.on(Send.HideTool, () => pane.hide())
   ipcMain.on(Send.SetPaneBounds, (_e, bounds: PaneBounds) => pane.setBounds(bounds))
   ipcMain.handle(Invoke.LookupProfile, (_e, username: string) => profile.lookup(username))
+
+  ipcMain.handle(Invoke.GeDetail, (_e, itemId: number) => ge.detail(itemId))
+  ipcMain.handle(Invoke.GeFindByName, (_e, name: string) => ge.findItemByName(name))
 
   titles.onProgress((progress) => {
     // A finished sync replaced the rows the in-memory haystack was built from.

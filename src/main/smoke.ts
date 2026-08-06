@@ -66,6 +66,7 @@ export async function runSmoke(initial: Settings): Promise<void> {
       await checkArticle(win.webContents)
       await checkCrawl(win.webContents)
       checkToolRegistry()
+  if (process.env.SMOKE_FETCH) await checkPrices(win.webContents)
       if (process.env.SMOKE_FETCH) await checkToolPane(win)
       await checkShowHide(win)
 
@@ -508,6 +509,51 @@ async function checkToolPane(win: Electron.BrowserWindow): Promise<void> {
 }
 
 /**
+ * Grand Exchange prices, end to end.
+ *
+ * Behind SMOKE_FETCH because it pulls the 862 KB mapping and the full latest
+ * table. What it is really checking is arithmetic and shape: a margin that is
+ * buy-minus-sell, a series that is ordered and non-empty, and the fact that
+ * `/latest` covers every item so one request serves the whole app.
+ */
+async function checkPrices(wc: Electron.WebContents): Promise<void> {
+  // 4151 is the Abyssal whip: always tradeable, always liquid.
+  const raw = await wc.executeJavaScript('window.rp.geDetail(4151).then(d => JSON.stringify(d))')
+  const d = JSON.parse(raw) as {
+    item: { name: string; buyLimit: number | null }
+    price: { high: number | null; low: number | null } | null
+    margin: number | null
+    series: Array<{ ts: number; avgHigh: number | null }>
+  } | null
+
+  check('IPC round trip (geDetail)', d?.item?.name === 'Abyssal whip', d?.item?.name ?? 'null')
+  check(
+    'ge: has live prices',
+    (d?.price?.high ?? 0) > 0 && (d?.price?.low ?? 0) > 0,
+    `buy ${d?.price?.high} / sell ${d?.price?.low}`
+  )
+  check(
+    'ge: margin is buy minus sell',
+    d?.margin === (d?.price?.high ?? 0) - (d?.price?.low ?? 0),
+    String(d?.margin)
+  )
+  check('ge: has price history', (d?.series.length ?? 0) > 50, `${d?.series.length} points`)
+
+  const ordered = (d?.series ?? []).every((p, i, a) => i === 0 || p.ts > a[i - 1].ts)
+  check('ge: series is ordered by time', ordered)
+
+  // One /latest request populates every item, which is the whole reason it is
+  // fetched wholesale rather than per item.
+  const priced = db.get().prepare('SELECT COUNT(*) AS n FROM prices').get() as { n: number }
+  check('ge: latest covers the whole table', priced.n > 3000, `${priced.n} items priced`)
+
+  const named = await wc.executeJavaScript(
+    `window.rp.geFindByName('Twisted bow').then(i => i && i.id)`
+  )
+  check('ge: name lookup resolves', named === 20997, String(named))
+}
+
+/**
  * The article never scrolls sideways.
  *
  * Worth a permanent check rather than an eyeball. The wiki ships content that
@@ -598,6 +644,16 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
   }
 
   const search = await shoot('smoke-search.png')
+
+  // The Grand Exchange view, so the chart gets an eye on it too.
+  await win.webContents.executeJavaScript(
+    `window.__rpNav.getState().push({ kind: 'ge', itemId: 4151 }); true`
+  )
+  await waitFor(win.webContents, '.chart-svg', 12000)
+  await settle(800)
+  await shoot('smoke-ge.png')
+  await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
+  await settle(300)
 
   // Both themes, so a light-mode regression shows up without a manual pass.
   if (process.env.SMOKE_THEMES) {

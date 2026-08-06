@@ -732,3 +732,227 @@ input[type='text']:focus {
     transition-duration: 1ms !important;
   }
 }
+
+/* ── Grand Exchange ─────────────────────────────────────────────────── */
+
+.ge-search {
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.ge-hero {
+  text-align: center;
+  margin-bottom: 22px;
+  color: var(--text-dim);
+}
+
+.ge-hero svg {
+  width: 30px;
+  height: 30px;
+  color: var(--accent-b);
+}
+
+.ge-hero h1 {
+  margin: 8px 0 6px;
+  font-size: 20px;
+  font-weight: 620;
+  color: var(--text);
+}
+
+.ge-hero p {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.ge-item {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.ge-item-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+
+.ge-item-head h1 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 620;
+}
+
+.ge-examine {
+  margin: 0 0 18px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+/* Stat tiles: the headline numbers are not a chart, so they are not drawn as
+   one. Auto-fit so they reflow rather than scroll. */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.stat {
+  padding: 9px 12px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+}
+
+.stat-label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* The number wears a text token. Buy and sell get a rule in the series colour
+   beside them rather than coloured text, so the value stays legible and the
+   identity cue is separable from it. */
+.stat-value {
+  display: block;
+  margin-top: 3px;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.stat-value.has-rule {
+  padding-left: 8px;
+  /* Colour supplied inline from the chart's validated palette. */
+  border-left: 2px solid transparent;
+}
+
+.ge-updated {
+  margin-top: 14px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* ── Chart ──────────────────────────────────────────────────────────── */
+
+.chart {
+  position: relative;
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+}
+
+.chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.chart-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chart-legend i {
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.chart-range {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-svg {
+  display: block;
+  overflow: visible;
+}
+
+/* Recessive by design: the data is the figure, the grid is the ground. */
+.chart-grid {
+  stroke: var(--rim);
+  stroke-width: 1;
+}
+
+.chart-tick {
+  fill: var(--text-faint);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-volume {
+  fill: var(--text-faint);
+  opacity: 0.32;
+}
+
+.chart-hover line {
+  stroke: var(--text-dim);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.chart-tip {
+  position: absolute;
+  top: 30px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.chart-tip strong {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.chart-tip span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chart-tip i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.chart-tip-vol {
+  color: var(--text-faint);
+}
+
+.chart-empty {
+  margin: 0;
+  padding: 26px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-faint);
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+}

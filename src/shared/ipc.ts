@@ -144,6 +144,47 @@ export interface ProfileSummary {
   error?: string
 }
 
+// ── Grand Exchange ──────────────────────────────────────────────────────────
+
+export interface GeItem {
+  id: number
+  name: string
+  examine: string | null
+  members: boolean
+  buyLimit: number | null
+  value: number | null
+  highalch: number | null
+  icon: string | null
+}
+
+export interface GePrice {
+  itemId: number
+  /** Instant-buy: what someone just paid. */
+  high: number | null
+  highTime: number | null
+  /** Instant-sell: what someone just accepted. */
+  low: number | null
+  lowTime: number | null
+  updatedAt: number
+}
+
+export interface GeSeriesPoint {
+  ts: number
+  avgHigh: number | null
+  avgLow: number | null
+  volHigh: number
+  volLow: number
+}
+
+export interface GeItemDetail {
+  item: GeItem
+  price: GePrice | null
+  /** Buy minus sell, before the 2% sell tax. */
+  margin: number | null
+  potentialProfit: number | null
+  series: GeSeriesPoint[]
+}
+
 export type CrawlPhase = 'idle' | 'refreshing' | 'crawling' | 'paused' | 'done' | 'error'
 
 export interface CrawlState {
@@ -181,6 +222,8 @@ export const Invoke = {
   GetPage: 'wiki:page',
   GetCrawlState: 'wiki:crawl-state',
   LookupProfile: 'profile:lookup',
+  GeDetail: 'ge:detail',
+  GeFindByName: 'ge:find',
 } as const
 
 /** Main -> renderer. */
@@ -222,6 +265,9 @@ export interface RunePanelApi {
   hideTool(): void
   setPaneBounds(bounds: PaneBounds): void
   lookupProfile(username: string): Promise<ProfileSummary>
+
+  geDetail(itemId: number): Promise<GeItemDetail | null>
+  geFindByName(name: string): Promise<GeItem | null>
 
   onShown(cb: () => void): () => void
   onSettings(cb: (settings: Settings) => void): () => void

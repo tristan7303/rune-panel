@@ -16,6 +16,7 @@ import { Article } from './Article'
 import { ToolPane } from './ToolPane'
 import { Profile } from './Profile'
 import { Calculators } from './Calculators'
+import { Grand } from './Grand'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
 import {
@@ -204,6 +205,8 @@ function Body({ route }: { route: Route }): JSX.Element {
       // Keyed so switching articles remounts rather than reusing state that
       // belongs to the previous page.
       return <Article title={route.title} key={route.title} />
+    case 'ge':
+      return <Grand itemId={route.itemId} key={route.itemId ?? 'search'} />
     case 'tool':
       return <Tool id={route.id} />
     default:
