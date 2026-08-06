@@ -189,8 +189,11 @@
  * on every image it emits.
  */
 .article-body img {
-  max-width: 100% !important;
-  max-height: 300px !important;
+  /* A hard pixel ceiling as well as the percentage. Strategy pages carry
+     1050x500 banners and 600px-tall screenshots; bounded only by the column
+     they still swamp the text around them. */
+  max-width: min(100%, 540px) !important;
+  max-height: 260px !important;
   width: auto !important;
   height: auto !important;
   object-fit: contain;
@@ -766,4 +769,121 @@
 .article-body .mainpage-body > div:not(.tile-row),
 .article-body .mp-popular-page-light {
   margin-bottom: 14px;
+}
+
+/* ── Gear-setup tabs ────────────────────────────────────────────────── */
+
+/**
+ * MediaWiki's Tabber, rebuilt.
+ *
+ * The extension ships the tab strip and the switching script; we have neither,
+ * so the transform numbers the panels and injects a strip, and this reveals one
+ * at a time. Without it a strategy page stacks every loadout in sequence.
+ */
+.article-body .rp-tabber {
+  margin: 0 0 20px;
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+
+.article-body .rp-tabbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--rim);
+}
+
+.article-body .rp-tab {
+  padding: 6px 13px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background var(--duration) ease, color var(--duration) ease;
+}
+
+.article-body .rp-tab:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.article-body .rp-tab.is-active {
+  color: var(--text);
+  background: var(--surface-sunken);
+  box-shadow: inset 0 -2px 0 var(--accent-a);
+}
+
+.article-body .tabbertab {
+  display: none;
+  padding: 14px;
+}
+
+.article-body .rp-tabber[data-active-tab='0'] .tabbertab[data-tab-index='0'],
+.article-body .rp-tabber[data-active-tab='1'] .tabbertab[data-tab-index='1'],
+.article-body .rp-tabber[data-active-tab='2'] .tabbertab[data-tab-index='2'],
+.article-body .rp-tabber[data-active-tab='3'] .tabbertab[data-tab-index='3'],
+.article-body .rp-tabber[data-active-tab='4'] .tabbertab[data-tab-index='4'],
+.article-body .rp-tabber[data-active-tab='5'] .tabbertab[data-tab-index='5'],
+.article-body .rp-tabber[data-active-tab='6'] .tabbertab[data-tab-index='6'],
+.article-body .rp-tabber[data-active-tab='7'] .tabbertab[data-tab-index='7'] {
+  display: block;
+}
+
+.article-body .tabbertab > :first-child {
+  margin-top: 0;
+}
+
+/* ── Inventory and equipment grids ──────────────────────────────────── */
+
+/**
+ * The game's own 4-wide inventory, as a grid.
+ *
+ * `.inventorytable` is a plain table of item sprites with no styling of its
+ * own here, so the cells collapse to whatever each icon measures and the grid
+ * reads as a ragged pile. Fixed cells restore the alignment, and a frame makes
+ * it legible as an inventory rather than a run of loose icons.
+ */
+.article-body table.inventorytable,
+.article-body table.equipmenttable {
+  display: inline-block;
+  margin: 6px 10px 6px 0;
+  padding: 5px;
+  border-collapse: separate;
+  border-spacing: 2px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+  vertical-align: top;
+}
+
+.article-body table.inventorytable td,
+.article-body table.equipmenttable td {
+  width: 36px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  text-align: center;
+  vertical-align: middle;
+  background: var(--surface);
+  border-radius: 4px;
+}
+
+.article-body table.inventorytable td:empty,
+.article-body table.equipmenttable td:empty {
+  background: transparent;
+}
+
+.article-body table.inventorytable img,
+.article-body table.equipmenttable img {
+  max-width: 32px !important;
+  max-height: 30px !important;
+  vertical-align: middle;
 }

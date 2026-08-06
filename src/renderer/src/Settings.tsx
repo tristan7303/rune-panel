@@ -32,6 +32,30 @@ export function SettingsView(): JSX.Element {
       </Field>
 
       <Field
+        label="Quick search"
+        hint="Focuses the wiki search box in the title bar. In-app only, so it cannot collide with another program's shortcut. Ctrl+K always works too."
+      >
+        <input
+          type="text"
+          value={settings.searchKey}
+          spellCheck={false}
+          placeholder="Ctrl+F"
+          onChange={(e) => patch({ searchKey: e.target.value })}
+        />
+      </Field>
+
+      <Field
+        label="Stay on top"
+        hint="Keeps the window above other windows while it is open, including a borderless-fullscreen game client. On by default — that is what it is for."
+      >
+        <Switch
+          checked={settings.alwaysOnTop}
+          onChange={(alwaysOnTop) => patch({ alwaysOnTop })}
+          label="Stay on top"
+        />
+      </Field>
+
+      <Field
         label="Close when it loses focus"
         hint="Off by default. You will click into the game while reading, and vanishing mid-sentence is worse than pressing Escape."
       >

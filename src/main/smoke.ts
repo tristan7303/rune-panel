@@ -361,6 +361,7 @@ async function checkArticle(wc: Electron.WebContents): Promise<void> {
 
   await checkImageProtocol(wc, article?.html ?? '')
 
+
   // Variant switching. Items that exist charged and uncharged pack every form's
   // values into the same infobox, and the alternates live only in a hidden
   // payload the wiki's own scripts read. If that join breaks, the tabs render
@@ -624,6 +625,35 @@ async function checkProfileLookup(wc: Electron.WebContents): Promise<void> {
 }
 
 /**
+ * Gear-setup tabs, in the rendered page.
+ *
+ * Has to run against the DOM rather than the cached HTML, because "exactly one
+ * panel visible" is a CSS outcome — the markup deliberately contains all of
+ * them. Skips silently on pages that carry no tabber, which is most of them.
+ */
+async function checkTabber(wc: Electron.WebContents): Promise<void> {
+  const raw = await wc.executeJavaScript(`
+    (() => {
+      const t = document.querySelector('.rp-tabber')
+      if (!t) return JSON.stringify({ found: false })
+      const panels = t.querySelectorAll('.tabbertab')
+      const visible = [...panels].filter((p) => getComputedStyle(p).display !== 'none')
+      return JSON.stringify({
+        found: true,
+        buttons: t.querySelectorAll('.rp-tab').length,
+        panels: panels.length,
+        visible: visible.length,
+      })
+    })()
+  `)
+  const tabs = JSON.parse(raw) as { found: boolean; buttons?: number; panels?: number; visible?: number }
+  if (!tabs.found) return
+
+  check('tabber: built a tab strip', (tabs.buttons ?? 0) > 1, `${tabs.buttons} tabs`)
+  check('tabber: shows exactly one panel', tabs.visible === 1, `${tabs.visible} of ${tabs.panels} visible`)
+}
+
+/**
  * The article never scrolls sideways.
  *
  * Worth a permanent check rather than an eyeball. The wiki ships content that
@@ -779,6 +809,7 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
       console.log('[images] ' + report)
     }
     await checkNoHorizontalOverflow(win.webContents)
+    await checkTabber(win.webContents)
   }
 
   check(

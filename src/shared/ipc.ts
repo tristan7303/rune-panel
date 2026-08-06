@@ -18,6 +18,16 @@ export interface Settings {
   theme: Theme
   /** Global accelerator that opens and closes the window. */
   hotkey: string
+  /**
+   * Focuses the wiki search box. In-app only, so it needs no global
+   * registration and cannot collide with another program's shortcut.
+   */
+  searchKey: string
+  /**
+   * Keep the window above other windows while it is open. On by default: it is
+   * meant to be read beside a game client.
+   */
+  alwaysOnTop: boolean
   /** Close the window as soon as it loses focus. Off by default: you will click
    *  into the game while reading, and vanishing mid-sentence is worse than an
    *  extra Escape. */

@@ -1180,16 +1180,21 @@ input[type='text']:focus {
 }
 
 .search-field.is-header {
-  /* Extra left padding: the icon and the text were both crowding the border. */
-  padding: 0 8px 0 12px;
-  gap: 9px;
+  /* The icon needs clearance from the rounded edge, and the text needs
+     clearance from the icon; both were touching before. */
+  padding: 0 8px 0 14px;
+  gap: 11px;
   border-radius: 9px;
   background: var(--surface-sunken);
 }
 
 .search-field.is-header .search-input {
-  padding: 8px 0;
+  padding: 8px 0 8px 1px;
   font-size: 13.5px;
+}
+
+.search-field.is-header > svg {
+  flex: none;
 }
 
 .search-hint {
@@ -1227,15 +1232,23 @@ input[type='text']:focus {
   margin-bottom: 30px;
 }
 
-/* The banner already says the name, so no heading beside it. Capped by height
-   rather than width so it keeps its proportions in a narrow window. */
-.home-banner {
+/* The mark on its own, with the name as text. The banner carried a tiled floor
+   that fought every theme it sat on. */
+.home-mark {
   display: block;
-  width: 100%;
-  max-width: 520px;
-  height: auto;
-  margin: 0 auto 12px;
-  border-radius: 10px;
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 14px;
+  border-radius: 18px;
+  object-fit: contain;
+  box-shadow: 0 0 26px rgba(140, 110, 255, 0.24);
+}
+
+.home-hero h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
 }
 
 .home-hero p {

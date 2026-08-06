@@ -12,7 +12,7 @@
 
 import type { JSX } from 'react'
 import { useNav, type Route } from './nav'
-import banner from './assets/banner.png'
+import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
 
 interface Card {
@@ -72,7 +72,8 @@ export function Home(): JSX.Element {
   return (
     <div className="home">
       <header className="home-hero">
-        <img className="home-banner" src={banner} alt="Rune Panel" draggable={false} />
+        <img className="home-mark" src={mark} alt="Rune Panel" draggable={false} />
+        <h1>Rune Panel</h1>
         <p>
           The whole wiki, a keystroke away — plus prices, calculators and profiles. Press{' '}
           <kbd>Ctrl</kbd> <kbd>F</kbd> to search from anywhere.

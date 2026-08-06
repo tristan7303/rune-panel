@@ -96,6 +96,12 @@ does not rate limit; being identifiable is simply how you stay a good guest.
 (`Control+Shift+Space`, `Alt+R`). If another program already owns the
 combination, Rune Panel silently gets nothing, so pick another.
 
+**Quick search** — the key that focuses the search box. In-app only, so it
+cannot collide with another program's shortcut. Ctrl+K always works too.
+
+**Stay on top** — keeps the window above others while open, including a
+borderless-fullscreen client. On by default.
+
 **Close when it loses focus** — off by default.
 
 **Appearance** — three surfaces, picked from the button above settings: **dark**

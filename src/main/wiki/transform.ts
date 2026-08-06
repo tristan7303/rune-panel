@@ -146,6 +146,7 @@ export function transform(html: string, pageTitle: string): TransformResult {
 
   // 7 ── body content that follows the infobox tabs
   markSyncedSwitches($)
+  buildTabbers($)
 
   // The variant buttons are drawn natively on the infobox card, so the copies
   // the wiki puts on every in-body switch table are duplicates.
@@ -420,6 +421,49 @@ function extractInfobox($: cheerio.CheerioAPI, switchData: SwitchData): Infobox 
 
   // A box with no header, no image and no rows is not worth a panel.
   return box.rows.length > 0 || box.image ? box : null
+}
+
+/**
+ * Gear-setup tabs.
+ *
+ * Strategy pages present alternative loadouts through MediaWiki's Tabber
+ * extension: a `.tabber` wrapping several `.tabbertab`, each naming itself in
+ * `data-title`. The extension supplies both the tab strip and the script that
+ * switches them, and we have neither — so the Fortis Colosseum strategy page
+ * arrives with all six loadouts stacked one after another, which reads as one
+ * enormous contradictory recommendation.
+ *
+ * A real tab strip is built here instead, driven by a click handler in the
+ * article view. Numbering the panels lets CSS reveal exactly one.
+ */
+function buildTabbers($: cheerio.CheerioAPI): void {
+  $('.tabber').each((_, el) => {
+    const $tabber = $(el)
+    const tabs = $tabber.children('.tabbertab')
+    if (tabs.length < 2) return
+
+    const titles: string[] = []
+    tabs.each((i, tab) => {
+      const $tab = $(tab)
+      titles.push($tab.attr('data-title')?.trim() || `Option ${i + 1}`)
+      $tab.attr('data-tab-index', String(i))
+    })
+
+    const bar = titles
+      .map(
+        (title, i) =>
+          `<button type="button" class="rp-tab${i === 0 ? ' is-active' : ''}" data-tab="${i}">${escapeHtml(title)}</button>`
+      )
+      .join('')
+
+    $tabber.addClass('rp-tabber').attr('data-active-tab', '0')
+    $tabber.prepend(`<div class="rp-tabbar" role="tablist">${bar}</div>`)
+  })
+}
+
+/** Minimal escaping for text taken from a wiki attribute. */
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c)
 }
 
 /**

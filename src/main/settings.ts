@@ -18,6 +18,8 @@ export const DEFAULTS: Settings = {
   // first wins, and the loser gets no hotkey at all with only a console warning
   // to say so. Nothing else on this machine should claim this one.
   hotkey: 'Control+Shift+Space',
+  searchKey: 'Ctrl+F',
+  alwaysOnTop: true,
   hideOnBlur: false,
   contactEmail: '',
   acrylic: true,
@@ -67,6 +69,11 @@ function sanitize(s: Settings): Settings {
   return {
     theme: s.theme === 'light' || s.theme === 'parchment' ? s.theme : 'dark',
     hotkey: typeof s.hotkey === 'string' && s.hotkey.trim() ? s.hotkey.trim() : DEFAULTS.hotkey,
+    searchKey:
+      typeof s.searchKey === 'string' && s.searchKey.trim()
+        ? s.searchKey.trim().slice(0, 40)
+        : DEFAULTS.searchKey,
+    alwaysOnTop: s.alwaysOnTop !== false,
     hideOnBlur: Boolean(s.hideOnBlur),
     contactEmail: typeof s.contactEmail === 'string' ? s.contactEmail.trim().slice(0, 200) : '',
     acrylic: Boolean(s.acrylic),

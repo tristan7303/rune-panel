@@ -152,10 +152,11 @@ function announceVisibility(visible: boolean): void {
 export function show(): void {
   const w = getWindow()
   if (!w) return
-  // 'screen-saver' is the level that clears a borderless-fullscreen game client.
-  // Re-asserted on every show because another app can steal the top slot while
-  // we are hidden.
-  w.setAlwaysOnTop(true, 'screen-saver')
+  // 'screen-saver' is the level that clears a borderless-fullscreen game
+  // client. Re-asserted on every show because another app can steal the top
+  // slot while we are hidden.
+  if (settings.get().alwaysOnTop) w.setAlwaysOnTop(true, 'screen-saver')
+  else w.setAlwaysOnTop(false)
   w.show()
   w.focus()
   w.webContents.send(On.Shown)
@@ -179,7 +180,14 @@ export function toggle(): void {
 
 /** Apply a settings change that the window itself owns. */
 export function applySettings(next: Settings): void {
-  getWindow()?.setBackgroundMaterial(next.acrylic ? 'acrylic' : 'none')
+  const w = getWindow()
+  if (!w) return
+  w.setBackgroundMaterial(next.acrylic ? 'acrylic' : 'none')
+  // Only while visible: pinning a hidden window leaves the flag set in the
+  // compositor's bookkeeping with nothing to apply it to.
+  if (w.isVisible()) {
+    w.setAlwaysOnTop(next.alwaysOnTop, next.alwaysOnTop ? 'screen-saver' : 'normal')
+  }
 }
 
 function scheduleSaveBounds(): void {

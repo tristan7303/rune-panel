@@ -13,7 +13,60 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { SearchResult } from '@shared/ipc'
 import { useNav } from './nav'
+import { useStore } from './store'
 import { SearchIcon } from './icons'
+
+/**
+ * A keybind written the way people write them — "Ctrl+F", "Alt+S" — turned into
+ * something comparable against a KeyboardEvent.
+ *
+ * Deliberately forgiving about separators and case, and deliberately narrow
+ * about what counts: a single character or a function key, with any of the
+ * three usual modifiers. Anything it cannot parse yields null and the caller
+ * falls back, so a mistyped setting loses the shortcut rather than the app.
+ */
+interface Combo {
+  ctrl: boolean
+  alt: boolean
+  shift: boolean
+  key: string
+}
+
+function parseCombo(spec: string): Combo | null {
+  const parts = spec
+    .split(/[+\-\s]+/)
+    .map((p) => p.trim().toLowerCase())
+    .filter(Boolean)
+  if (parts.length === 0) return null
+
+  const combo: Combo = { ctrl: false, alt: false, shift: false, key: '' }
+  for (const part of parts) {
+    if (part === 'ctrl' || part === 'control' || part === 'cmd' || part === 'meta') combo.ctrl = true
+    else if (part === 'alt' || part === 'option') combo.alt = true
+    else if (part === 'shift') combo.shift = true
+    else combo.key = part
+  }
+  if (!combo.key || (combo.key.length > 1 && !/^f\d{1,2}$/.test(combo.key))) return null
+  return combo
+}
+
+function matches(combo: Combo, e: KeyboardEvent): boolean {
+  return (
+    combo.ctrl === (e.ctrlKey || e.metaKey) &&
+    combo.alt === e.altKey &&
+    combo.shift === e.shiftKey &&
+    e.key.toLowerCase() === combo.key
+  )
+}
+
+/** "Ctrl+F" -> "Ctrl F", for the hint chip. */
+function prettyCombo(spec: string): string {
+  return spec
+    .split(/[+\-\s]+/)
+    .filter(Boolean)
+    .map((p) => (p.length === 1 ? p.toUpperCase() : p[0].toUpperCase() + p.slice(1)))
+    .join(' ')
+}
 
 export function HeaderSearch(): JSX.Element {
   const [query, setQuery] = useState('')
@@ -28,19 +81,23 @@ export function HeaderSearch(): JSX.Element {
   // 10ms but IPC replies can still land out of order.
   const latest = useRef(0)
 
+  const searchKey = useStore((s) => s.settings?.searchKey ?? 'Ctrl+F')
+
   useEffect(() => {
+    const combo = parseCombo(searchKey)
     const onKey = (e: KeyboardEvent): void => {
-      const mod = e.ctrlKey || e.metaKey
-      if (mod && (e.key === 'f' || e.key === 'k')) {
-        e.preventDefault()
-        inputRef.current?.focus()
-        inputRef.current?.select()
-        setOpen(true)
-      }
+      // Ctrl+K stays wired regardless of the configured key: it is the near
+      // universal palette shortcut and costs nothing to keep.
+      const isDefault = (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k'
+      if (!isDefault && !(combo && matches(combo, e))) return
+      e.preventDefault()
+      inputRef.current?.focus()
+      inputRef.current?.select()
+      setOpen(true)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [searchKey])
 
   useEffect(() => {
     const onDown = (e: MouseEvent): void => {
@@ -114,7 +171,7 @@ export function HeaderSearch(): JSX.Element {
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
         />
-        {!query && <kbd className="search-hint">Ctrl F</kbd>}
+        {!query && <kbd className="search-hint">{prettyCombo(searchKey)}</kbd>}
       </div>
 
       {showing && (

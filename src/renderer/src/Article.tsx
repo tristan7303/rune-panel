@@ -72,6 +72,22 @@ export function Article({ title }: { title: string }): JSX.Element {
     if (!root) return
 
     const onClick = (e: MouseEvent): void => {
+      // Gear-setup tabs, built by the transform out of MediaWiki's Tabber
+      // markup. Handled here rather than with per-button listeners because the
+      // body is replaced wholesale on every navigation.
+      const tab = (e.target as HTMLElement).closest<HTMLElement>('.rp-tab')
+      if (tab) {
+        const tabber = tab.closest<HTMLElement>('.rp-tabber')
+        const index = tab.dataset.tab
+        if (tabber && index !== undefined) {
+          tabber.dataset.activeTab = index
+          for (const b of tabber.querySelectorAll('.rp-tab')) {
+            b.classList.toggle('is-active', (b as HTMLElement).dataset.tab === index)
+          }
+        }
+        return
+      }
+
       const anchor = (e.target as HTMLElement).closest('a')
       if (!anchor) return
 
