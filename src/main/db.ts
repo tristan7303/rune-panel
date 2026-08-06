@@ -98,12 +98,25 @@ const MIGRATIONS: string[] = [
     value TEXT NOT NULL
   ) WITHOUT ROWID;
   `,
+
+  // The internal URL scheme changed, so every cached page holds links and image
+  // sources the app no longer answers to. The HTML has to be rebuilt from the
+  // wiki rather than patched — the transform is the only thing that knows the
+  // full shape of what it emits.
+  //
+  // Only `pages` and `images` are dropped. `titles` survives deliberately: it
+  // holds no URLs, and rebuilding it is ~880 requests over four minutes.
+  `
+  DELETE FROM pages;
+  DELETE FROM images;
+  DELETE FROM kv WHERE key = 'sync.recentchanges_at';
+  `,
 ]
 
 export function open(): DatabaseSync {
   if (db) return db
 
-  db = new DatabaseSync(join(app.getPath('userData'), 'rune-buddy.db'))
+  db = new DatabaseSync(join(app.getPath('userData'), 'rune-panel.db'))
 
   // WAL so a background crawl writing pages never blocks a read the UI is
   // waiting on. NORMAL synchronous is the standard companion: under WAL it

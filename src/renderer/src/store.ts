@@ -24,6 +24,6 @@ export const useStore = create<State>((set, get) => ({
     // round trip. Main broadcasts the sanitized result, which overwrites this.
     const current = get().settings
     if (current) set({ settings: { ...current, ...patch } })
-    window.rb.setSettings(patch)
+    window.rp.setSettings(patch)
   },
 }))

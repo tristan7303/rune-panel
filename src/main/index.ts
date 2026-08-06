@@ -22,6 +22,9 @@ import * as search from './wiki/search'
 import * as page from './wiki/page'
 import * as images from './wiki/images'
 import * as sync from './wiki/sync'
+import * as pane from './tools/pane'
+import * as profile from './tools/profile'
+import type { PaneBounds, ToolId } from '../shared/ipc'
 
 /**
  * Claim our identity before anything reads it.
@@ -36,7 +39,7 @@ import * as sync from './wiki/sync'
  * This has to run before `requestSingleInstanceLock` and before the first
  * `getPath('userData')`, which is why it sits at module scope.
  */
-app.setName('rune-buddy')
+app.setName('rune-panel')
 
 // Privileged schemes must be declared before the protocol registry locks at
 // app.ready, so this cannot wait for main().
@@ -82,6 +85,15 @@ function registerIpc(): void {
 
   sync.onProgress((state) => getWindow()?.webContents.send(On.CrawlProgress, state))
 
+  ipcMain.on(Send.ShowTool, (_e, id: ToolId, arg?: string) => {
+    void pane.show(id, arg).catch((err: unknown) => {
+      console.warn('[tools] show failed:', err instanceof Error ? err.message : err)
+    })
+  })
+  ipcMain.on(Send.HideTool, () => pane.hide())
+  ipcMain.on(Send.SetPaneBounds, (_e, bounds: PaneBounds) => pane.setBounds(bounds))
+  ipcMain.handle(Invoke.LookupProfile, (_e, username: string) => profile.lookup(username))
+
   titles.onProgress((progress) => {
     // A finished sync replaced the rows the in-memory haystack was built from.
     if (progress.phase === 'done') search.invalidate()
@@ -121,7 +133,8 @@ function main(): void {
       return
     }
 
-    createWindow(initial)
+    const win = createWindow(initial)
+    pane.attach(win)
     createTray(initial.hotkey)
     registerIpc()
     registerHotkey(initial.hotkey)
@@ -176,6 +189,7 @@ function main(): void {
     globalShortcut.unregisterAll()
     destroyTray()
     sync.stop()
+    pane.destroy()
     // Closing checkpoints the WAL, so the next launch does not start by
     // replaying one.
     db.close()

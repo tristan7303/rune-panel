@@ -1,5 +1,5 @@
 /**
- * MediaWiki HTML -> Rune Buddy HTML.
+ * MediaWiki HTML -> Rune Panel HTML.
  *
  * This is what separates "a wiki in a window" from a native-feeling reader. It
  * runs once per page in main, before the row is cached, so the renderer only
@@ -11,9 +11,9 @@
  *     style, event handlers and javascript: URLs have to be gone. The wiki is
  *     not hostile, but "trusted source" is not a security model.
  *  2. Lift the infobox out into structured data the renderer draws natively.
- *  3. Rewrite links: internal ones to rb:// routes, external ones marked so
+ *  3. Rewrite links: internal ones to rp:// routes, external ones marked so
  *     they can open in a real browser.
- *  4. Rewrite images to the rbimg:// cache protocol.
+ *  4. Rewrite images to the rpimg:// cache protocol.
  *  5. Strip chrome that only makes sense on the website — navboxes, the
  *     cross-wiki header, parser-cache comments.
  */
@@ -98,7 +98,7 @@ export function transform(html: string, pageTitle: string): TransformResult {
   const infobox = extractInfobox($)
 
   // 4 ── tag tables so the stylesheet can make them scroll and stripe
-  $('table.wikitable').addClass('rb-table')
+  $('table.wikitable').addClass('rp-table')
 
   // Unwrap the outer parser div; the renderer supplies its own container.
   const root = $('.mw-parser-output')
@@ -108,7 +108,7 @@ export function transform(html: string, pageTitle: string): TransformResult {
 }
 
 /**
- * `/w/Title` becomes `rb://page/Title`; everything else is marked external.
+ * `/w/Title` becomes `rp://page/Title`; everything else is marked external.
  *
  * Anchors within the page are left alone so the table of contents and citation
  * jumps keep working. Links into File:, Category: and friends are unwrapped
@@ -138,9 +138,9 @@ function rewriteLinks($: cheerio.CheerioAPI, pageTitle: string): void {
         return
       }
 
-      $a.attr('href', `rb://page/${encodeURIComponent(raw)}${fragment}`)
+      $a.attr('href', `rp://page/${encodeURIComponent(raw)}${fragment}`)
       $a.attr('data-title', raw)
-      $a.addClass('rb-link')
+      $a.addClass('rp-link')
       $a.removeAttr('title')
       return
     }
@@ -148,7 +148,7 @@ function rewriteLinks($: cheerio.CheerioAPI, pageTitle: string): void {
     // Protocol-relative and absolute URLs both leave the app.
     if (/^(https?:)?\/\//.test(href)) {
       $a.attr('href', href.startsWith('//') ? `https:${href}` : href)
-      $a.addClass('rb-external')
+      $a.addClass('rp-external')
       $a.attr('target', '_blank')
       $a.attr('rel', 'noreferrer')
       return
@@ -160,12 +160,12 @@ function rewriteLinks($: cheerio.CheerioAPI, pageTitle: string): void {
 }
 
 /**
- * `/images/Name.png?hash` becomes `rbimg://img/Name.png`.
+ * `/images/Name.png?hash` becomes `rpimg://img/Name.png`.
  *
  * Two details that each cost a bug to find.
  *
- * The constant `img` host is load-bearing. `rbimg` is registered as a
- * `standard` scheme, so `rbimg://thumb/X.png/130px-X.png` parses with `thumb`
+ * The constant `img` host is load-bearing. `rpimg` is registered as a
+ * `standard` scheme, so `rpimg://thumb/X.png/130px-X.png` parses with `thumb`
  * as the *host* — which Chromium then lowercases, and which the path loses
  * entirely. Pinning a dummy host keeps the whole filename, thumbnail
  * subdirectories and all, inside the pathname where case is preserved.
@@ -185,7 +185,7 @@ function rewriteImages($: cheerio.CheerioAPI): void {
       $img.remove()
       return
     }
-    $img.attr('src', `rbimg://img/${match[1]}`)
+    $img.attr('src', `rpimg://img/${match[1]}`)
     $img.attr('loading', 'lazy')
     // srcset points at the same origin in other sizes; the cache serves one.
     $img.removeAttr('srcset')

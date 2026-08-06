@@ -1,7 +1,7 @@
 /**
  * The window.
  *
- * Rune Buddy is either open or closed — there is no ambient resting state. That
+ * Rune Panel is either open or closed — there is no ambient resting state. That
  * one decision removes most of what a transparent HUD normally needs: no
  * click-through hit testing, no z-order sinking below the desktop, no custom
  * cursor, and no `setContentProtection`. The window is a normal top-level
@@ -19,6 +19,7 @@
 import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'path'
 import { WINDOW, On, type Settings, type WindowBounds } from '../shared/ipc'
+import { appIcon } from './icon'
 import * as settings from './settings'
 
 let win: BrowserWindow | null = null
@@ -82,7 +83,8 @@ export function createWindow(initial: Settings): BrowserWindow {
     backgroundColor: '#00000000',
     roundedCorners: true,
     skipTaskbar: true,
-    title: 'Rune Buddy',
+    title: 'Rune Panel',
+    icon: appIcon(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

@@ -25,6 +25,9 @@ import * as client from './wiki/client'
 import * as titles from './wiki/titles'
 import { transform } from './wiki/transform'
 import * as sync from './wiki/sync'
+import * as pane from './tools/pane'
+import { TOOLS } from './tools/registry'
+import type { ToolId } from '../shared/ipc'
 
 interface Check {
   name: string
@@ -51,13 +54,19 @@ export async function runSmoke(initial: Settings): Promise<void> {
 
       check('window starts hidden', !win.isVisible(), 'nothing shows until asked for')
 
-      const bridge = await win.webContents.executeJavaScript('typeof window.rb')
-      check('preload bridge exposed', bridge === 'object', `typeof window.rb = ${bridge}`)
+      const bridge = await win.webContents.executeJavaScript('typeof window.rp')
+      check('preload bridge exposed', bridge === 'object', `typeof window.rp = ${bridge}`)
 
       checkDatabase()
       checkClient()
       await checkSettingsRoundTrip(win.webContents, initial)
       await checkTitleIndex(win.webContents)
+      await checkSearch(win.webContents)
+      checkTransform()
+      await checkArticle(win.webContents)
+      await checkCrawl(win.webContents)
+      checkToolRegistry()
+      if (process.env.SMOKE_FETCH) await checkToolPane(win)
       await checkShowHide(win)
 
       if (process.env.SMOKE_SHOT) await screenshot(win)
@@ -80,7 +89,7 @@ async function checkSettingsRoundTrip(
   wc: Electron.WebContents,
   initial: Settings
 ): Promise<void> {
-  const raw = await wc.executeJavaScript('window.rb.getSettings().then(s => JSON.stringify(s))')
+  const raw = await wc.executeJavaScript('window.rp.getSettings().then(s => JSON.stringify(s))')
   const got = JSON.parse(raw) as Settings
 
   check(
@@ -94,10 +103,10 @@ async function checkSettingsRoundTrip(
   const echoed = await wc.executeJavaScript(`
     new Promise((resolve) => {
       const timer = setTimeout(() => { off(); resolve('timeout') }, 3000)
-      const off = window.rb.onSettings((s) => {
+      const off = window.rp.onSettings((s) => {
         clearTimeout(timer); off(); resolve(s.contactEmail)
       })
-      window.rb.setSettings({ contactEmail: 'smoke@test' })
+      window.rp.setSettings({ contactEmail: 'smoke@test' })
     })
   `)
   check('settings write echoes back', echoed === 'smoke@test', String(echoed))
@@ -105,7 +114,7 @@ async function checkSettingsRoundTrip(
   // Leave no trace: the smoke run must not overwrite a real contact address.
   wc.send('noop')
   await wc.executeJavaScript(
-    `window.rb.setSettings({ contactEmail: ${JSON.stringify(initial.contactEmail)} })`
+    `window.rp.setSettings({ contactEmail: ${JSON.stringify(initial.contactEmail)} })`
   )
 }
 
@@ -139,7 +148,7 @@ function checkClient(): void {
   const ua = client.userAgent()
   check(
     'client: descriptive user-agent',
-    ua.startsWith('rune-buddy/') && ua.includes('OSRS'),
+    ua.startsWith('rune-panel/') && ua.includes('OSRS'),
     ua
   )
   // The wiki pre-emptively blocks library defaults; ours must not resemble one.
@@ -159,7 +168,7 @@ function checkClient(): void {
  * article titles.
  */
 async function checkTitleIndex(wc: Electron.WebContents): Promise<void> {
-  const raw = await wc.executeJavaScript('window.rb.getTitleIndex().then(s => JSON.stringify(s))')
+  const raw = await wc.executeJavaScript('window.rp.getTitleIndex().then(s => JSON.stringify(s))')
   const state = JSON.parse(raw) as ReturnType<typeof titles.state>
 
   check(
@@ -174,11 +183,6 @@ async function checkTitleIndex(wc: Electron.WebContents): Promise<void> {
   }
 
   check('titles: has articles', state.count - state.redirects > 1000, `${state.count - state.redirects}`)
-
-  await checkSearch(wc)
-  checkTransform()
-  await checkArticle(wc)
-  await checkCrawl(wc)
 
   // Every redirect target should itself be a known title. A miss means the two
   // passes were joined on the wrong key, which would silently break search.
@@ -204,7 +208,7 @@ async function checkTitleIndex(wc: Electron.WebContents): Promise<void> {
 async function checkSearch(wc: Electron.WebContents): Promise<void> {
   const run = async (q: string): Promise<Array<{ title: string; matchedVia?: string }>> =>
     JSON.parse(
-      await wc.executeJavaScript(`window.rb.search(${JSON.stringify(q)}).then(r => JSON.stringify(r))`)
+      await wc.executeJavaScript(`window.rp.search(${JSON.stringify(q)}).then(r => JSON.stringify(r))`)
     )
 
   const started = Date.now()
@@ -274,9 +278,9 @@ function checkTransform(): void {
   check('transform: strips comments', !html.includes('parser cache noise'))
   check('transform: strips navboxes', !html.includes('nav junk'))
 
-  check('transform: rewrites internal links', html.includes('rb://page/Abyssal%20whip'), '')
+  check('transform: rewrites internal links', html.includes('rp://page/Abyssal%20whip'), '')
   check('transform: carries data-title', html.includes('data-title="Abyssal whip"'))
-  check('transform: marks external links', /rb-external/.test(html))
+  check('transform: marks external links', /rp-external/.test(html))
   // A File: link resolves to a page this app cannot render, so the anchor goes
   // and the text stays.
   check(
@@ -284,16 +288,16 @@ function checkTransform(): void {
     !html.includes('File:Thing.png') && html.includes('file link')
   )
 
-  check('transform: rewrites images', html.includes('rbimg://img/Abyssal_whip.png'), '')
+  check('transform: rewrites images', html.includes('rpimg://img/Abyssal_whip.png'), '')
   check('transform: drops srcset', !/srcset/i.test(html))
-  check('transform: tags wikitables', html.includes('rb-table'))
+  check('transform: tags wikitables', html.includes('rp-table'))
 
   check('transform: extracts infobox', infobox !== null)
   check('transform: infobox header', infobox?.header === 'Abyssal whip', infobox?.header ?? '')
   check('transform: infobox rows', infobox?.rows.length === 2, `${infobox?.rows.length} rows`)
   check(
     'transform: infobox values keep links',
-    infobox?.rows[1]?.value.includes('rb://page/2005') ?? false
+    infobox?.rows[1]?.value.includes('rp://page/2005') ?? false
   )
   // Lifted, not copied: leaving it in the body would render it twice.
   check('transform: infobox removed from body', !html.includes('infobox-header'))
@@ -319,7 +323,7 @@ async function checkArticle(wc: Electron.WebContents): Promise<void> {
   }
 
   const raw = await wc.executeJavaScript(
-    `window.rb.getPage(${JSON.stringify(title)}).then(a => JSON.stringify(a))`
+    `window.rp.getPage(${JSON.stringify(title)}).then(a => JSON.stringify(a))`
   )
   const article = JSON.parse(raw) as {
     title: string
@@ -337,12 +341,12 @@ async function checkArticle(wc: Electron.WebContents): Promise<void> {
     `${article?.html.length ?? 0} bytes${article?.cached ? ', from cache' : ', fetched'}`
   )
   check(
-    'article: links point at rb://',
-    (article?.html.includes('rb://page/') ?? false) && !/href="\/w\//.test(article?.html ?? '')
+    'article: links point at rp://',
+    (article?.html.includes('rp://page/') ?? false) && !/href="\/w\//.test(article?.html ?? '')
   )
   check(
-    'article: images point at rbimg://',
-    (article?.html.includes('rbimg://') ?? false) && !article?.html.includes('/images/')
+    'article: images point at rpimg://',
+    (article?.html.includes('rpimg://') ?? false) && !article?.html.includes('/images/')
   )
   check('article: has sections', (article?.sections.length ?? 0) > 0, `${article?.sections.length}`)
   check(
@@ -354,11 +358,11 @@ async function checkArticle(wc: Electron.WebContents): Promise<void> {
   await checkImageProtocol(wc, article?.html ?? '')
 }
 
-/** The rbimg:// protocol actually serves bytes the renderer can display. */
+/** The rpimg:// protocol actually serves bytes the renderer can display. */
 async function checkImageProtocol(wc: Electron.WebContents, html: string): Promise<void> {
-  const match = /rbimg:\/\/([^"']+)/.exec(html)
+  const match = /rpimg:\/\/([^"']+)/.exec(html)
   if (!match) {
-    check('rbimg: serves cached images', false, 'no rbimg url found in article html')
+    check('rpimg: serves cached images', false, 'no rpimg url found in article html')
     return
   }
 
@@ -375,7 +379,7 @@ async function checkImageProtocol(wc: Electron.WebContents, html: string): Promi
     })
   `)
 
-  check('rbimg: serves cached images', String(result).startsWith('ok:'), `${match[0]} -> ${result}`)
+  check('rpimg: serves cached images', String(result).startsWith('ok:'), `${match[0]} -> ${result}`)
 }
 
 /**
@@ -387,7 +391,7 @@ async function checkImageProtocol(wc: Electron.WebContents, html: string): Promi
  * would then chase its own tail forever.
  */
 async function checkCrawl(wc: Electron.WebContents): Promise<void> {
-  const raw = await wc.executeJavaScript('window.rb.getCrawlState().then(s => JSON.stringify(s))')
+  const raw = await wc.executeJavaScript('window.rp.getCrawlState().then(s => JSON.stringify(s))')
   const state = JSON.parse(raw) as { phase: string; cached: number }
   check(
     'IPC round trip (getCrawlState)',
@@ -425,10 +429,88 @@ async function checkCrawl(wc: Electron.WebContents): Promise<void> {
   sync.setWindowVisible(false)
 }
 
+/** The tool definitions are internally consistent. Offline. */
+function checkToolRegistry(): void {
+  const ids: ToolId[] = ['dps', 'calculators', 'profile']
+  check(
+    'tools: all three defined',
+    ids.every((id) => TOOLS[id]?.url !== undefined),
+    ids.join(', ')
+  )
+
+  // Each tool's own URL must satisfy its navigation guard, or the very first
+  // load would be bounced out to the system browser.
+  const mismatched = ids.filter((id) => !TOOLS[id].allowNavigation.test(TOOLS[id].url('x')))
+  check('tools: urls satisfy their own nav guard', mismatched.length === 0, mismatched.join(', '))
+
+  check(
+    'tools: profile url carries the username',
+    TOOLS.profile.url('Zezima').endsWith('/Zezima')
+  )
+  // The wiki renders light by default; without this the pane is a white slab.
+  check(
+    'tools: wiki calculators force dark',
+    TOOLS.calculators.cookies?.some((c) => c.name === 'theme' && c.value === 'dark') ?? false
+  )
+}
+
+/**
+ * Load a tool for real and confirm the chrome-hiding CSS matched something.
+ *
+ * Gated behind SMOKE_FETCH because it hits three third-party sites. It is also
+ * the check most likely to fail one day for reasons outside this repo — these
+ * are other people's pages and they get redeployed — which is exactly why the
+ * selectors are asserted rather than assumed.
+ */
+async function checkToolPane(win: Electron.BrowserWindow): Promise<void> {
+  pane.attach(win)
+  pane.setBounds({ x: 60, y: 50, width: 900, height: 600 })
+
+  const probe = async (
+    id: ToolId,
+    arg: string | undefined,
+    expression: string
+  ): Promise<unknown> => {
+    await pane.show(id, arg)
+    const wc = pane.debugWebContents()
+    if (!wc) return 'no pane'
+    // insertCSS runs on did-finish-load; give the injection a beat to land.
+    await settle(600)
+    return wc.executeJavaScript(expression)
+  }
+
+  const dpsHidden = await probe(
+    'dps',
+    undefined,
+    `(() => {
+       const h = document.querySelector('main > div:first-child:has(h1)')
+       return h ? getComputedStyle(h).display : 'no-match'
+     })()`
+  )
+  check('tools: dps header hidden', dpsHidden === 'none', String(dpsHidden))
+
+  const calcDark = await probe(
+    'calculators',
+    'Calculator:Smithing',
+    `(() => {
+       const nav = document.querySelector('#mw-navigation')
+       return JSON.stringify({
+         dark: document.body.className.includes('wgl-theme-dark'),
+         navHidden: nav ? getComputedStyle(nav).display === 'none' : 'no-match',
+       })
+     })()`
+  )
+  const calc = JSON.parse(String(calcDark)) as { dark: boolean; navHidden: boolean | string }
+  check('tools: wiki calculator renders dark', calc.dark === true, `dark=${calc.dark}`)
+  check('tools: wiki skin chrome hidden', calc.navHidden === true, `navHidden=${calc.navHidden}`)
+
+  pane.hide()
+}
+
 /**
  * The core interaction: hotkey opens, Escape closes, nothing in between.
  *
- * The hide leg is driven from the renderer through `window.rb.hide()` rather
+ * The hide leg is driven from the renderer through `window.rp.hide()` rather
  * than by calling `hide()` here, because the renderer's Escape handler is the
  * path that actually ships.
  */
@@ -440,7 +522,7 @@ async function checkShowHide(win: Electron.BrowserWindow): Promise<void> {
   await win.webContents.executeJavaScript(`
     window.__shown = new Promise((r) => {
       const timer = setTimeout(() => r(false), 3000)
-      const off = window.rb.onShown(() => { clearTimeout(timer); off(); r(true) })
+      const off = window.rp.onShown(() => { clearTimeout(timer); off(); r(true) })
     }); true
   `)
 
@@ -452,7 +534,7 @@ async function checkShowHide(win: Electron.BrowserWindow): Promise<void> {
     (await win.webContents.executeJavaScript('window.__shown')) === true
   )
 
-  await win.webContents.executeJavaScript('window.rb.hide()')
+  await win.webContents.executeJavaScript('window.rp.hide()')
   await settle()
   check('renderer can close the window', !win.isVisible())
   check('hidden window drops always-on-top', !win.isAlwaysOnTop())
@@ -490,7 +572,7 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
   let article = true
   if (cached) {
     await win.webContents.executeJavaScript(`
-      window.__rbNav.getState().push({ kind: 'page', title: ${JSON.stringify(cached.title)} }); true
+      window.__rpNav.getState().push({ kind: 'page', title: ${JSON.stringify(cached.title)} }); true
     `)
     await waitFor(win.webContents, '.article-body', 8000)
     // Images resolve through the protocol handler; give them a moment to paint.
@@ -542,7 +624,7 @@ function report(): void {
   const lines = [
     '',
     '══════════════════════════════════════════════════════',
-    '  SMOKE  ·  rune-buddy',
+    '  SMOKE  ·  rune-panel',
     '══════════════════════════════════════════════════════',
     ...checks.map((c) => `  ${c.pass ? 'ok  ' : 'FAIL'}  ${c.name.padEnd(pad)}  ${c.detail}`),
     '──────────────────────────────────────────────────────',

@@ -61,7 +61,7 @@ export function configure(options: { contact: string }): void {
 export function userAgent(): string {
   // An unset contact is still identifiable — the wiki's actual objection is to
   // anonymous library defaults like `python-requests`, not to missing email.
-  return `rune-buddy/0.1 (personal OSRS desktop tool; ${contact ? `contact: ${contact}` : 'no contact configured'})`
+  return `rune-panel/0.1 (personal OSRS desktop tool; ${contact ? `contact: ${contact}` : 'no contact configured'})`
 }
 
 export function getStats(): ClientStats {

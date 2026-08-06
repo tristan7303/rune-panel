@@ -6,4 +6,3 @@ out/
 config.local.json
 *.log
 *.tsbuildinfo
-resources/tray.png

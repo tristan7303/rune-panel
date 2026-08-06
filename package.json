@@ -1,11 +1,10 @@
 {
-  "name": "rune-buddy",
+  "name": "rune-panel",
   "version": "0.1.0",
   "private": true,
   "description": "An all-in-one Old School RuneScape desktop tool",
   "main": "./out/main/index.js",
   "scripts": {
-    "icon": "node scripts/make-icon.js",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",

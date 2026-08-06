@@ -21,7 +21,7 @@ export function SettingsView(): JSX.Element {
 
       <Field
         label="Hotkey"
-        hint="Global shortcut that opens and closes Rune Buddy. Electron accelerator syntax, e.g. Control+Shift+Space."
+        hint="Global shortcut that opens and closes Rune Panel. Electron accelerator syntax, e.g. Control+Shift+Space."
       >
         <input
           type="text"
@@ -83,11 +83,11 @@ function TitleIndexField(): JSX.Element {
   const [index, setIndex] = useState<TitleIndexState | null>(null)
 
   useEffect(() => {
-    void window.rb.getTitleIndex().then(setIndex)
+    void window.rp.getTitleIndex().then(setIndex)
     // Progress events arrive per batch, which is also the cheapest cue to
     // re-read the counts.
-    return window.rb.onSyncProgress(() => {
-      void window.rb.getTitleIndex().then(setIndex)
+    return window.rp.onSyncProgress(() => {
+      void window.rp.getTitleIndex().then(setIndex)
     })
   }, [])
 
@@ -105,7 +105,7 @@ function TitleIndexField(): JSX.Element {
         type="button"
         className="btn"
         disabled={index?.syncing ?? true}
-        onClick={() => window.rb.syncTitles()}
+        onClick={() => window.rp.syncTitles()}
       >
         {index?.syncing ? 'Building…' : 'Rebuild'}
       </button>
@@ -124,8 +124,8 @@ function PageCacheField(): JSX.Element {
   const [crawl, setCrawl] = useState<CrawlState | null>(null)
 
   useEffect(() => {
-    void window.rb.getCrawlState().then(setCrawl)
-    return window.rb.onCrawlProgress(setCrawl)
+    void window.rp.getCrawlState().then(setCrawl)
+    return window.rp.onCrawlProgress(setCrawl)
   }, [])
 
   const busy = crawl?.phase === 'crawling' || crawl?.phase === 'refreshing' || crawl?.phase === 'paused'
@@ -145,7 +145,7 @@ function PageCacheField(): JSX.Element {
       <button
         type="button"
         className="btn"
-        onClick={() => (busy ? window.rb.stopCrawl() : window.rb.startCrawl())}
+        onClick={() => (busy ? window.rp.stopCrawl() : window.rp.startCrawl())}
       >
         {busy ? 'Stop' : 'Refresh now'}
       </button>

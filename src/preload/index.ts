@@ -14,11 +14,14 @@ import {
   On,
   type Article,
   type CrawlState,
-  type RuneBuddyApi,
+  type PaneBounds,
+  type ProfileSummary,
+  type RunePanelApi,
   type SearchResult,
   type Settings,
   type SyncProgress,
   type TitleIndexState,
+  type ToolId,
 } from '../shared/ipc'
 
 function subscribe(channel: string, cb: () => void): () => void {
@@ -37,7 +40,7 @@ function subscribeWith<T>(channel: string, cb: (payload: T) => void): () => void
   }
 }
 
-const api: RuneBuddyApi = {
+const api: RunePanelApi = {
   hide: () => ipcRenderer.send(Send.Hide),
   log: (message: string) => ipcRenderer.send(Send.Log, message),
   quit: () => ipcRenderer.send(Send.Quit),
@@ -56,10 +59,16 @@ const api: RuneBuddyApi = {
   startCrawl: () => ipcRenderer.send(Send.StartCrawl),
   stopCrawl: () => ipcRenderer.send(Send.StopCrawl),
 
+  showTool: (id: ToolId, arg?: string) => ipcRenderer.send(Send.ShowTool, id, arg),
+  hideTool: () => ipcRenderer.send(Send.HideTool),
+  setPaneBounds: (bounds: PaneBounds) => ipcRenderer.send(Send.SetPaneBounds, bounds),
+  lookupProfile: (username: string): Promise<ProfileSummary> =>
+    ipcRenderer.invoke(Invoke.LookupProfile, username),
+
   onShown: (cb) => subscribe(On.Shown, cb),
   onSettings: (cb) => subscribeWith<Settings>(On.Settings, cb),
   onSyncProgress: (cb) => subscribeWith<SyncProgress>(On.SyncProgress, cb),
   onCrawlProgress: (cb) => subscribeWith<CrawlState>(On.CrawlProgress, cb),
 }
 
-contextBridge.exposeInMainWorld('rb', api)
+contextBridge.exposeInMainWorld('rp', api)

@@ -2,7 +2,7 @@
  * The article view.
  *
  * The body arrives already sanitized and rewritten by main's transform, so this
- * only has to place it, intercept clicks on `rb://` links, and draw the infobox
+ * only has to place it, intercept clicks on `rp://` links, and draw the infobox
  * natively. Everything expensive happened before the HTML crossed the bridge.
  */
 
@@ -29,7 +29,7 @@ export function Article({ title }: { title: string }): JSX.Element {
     setError(null)
     setArticle(null)
 
-    window.rb
+    window.rp
       .getPage(title, { force: reloads > 0 })
       .then((got) => {
         if (!live) return
@@ -79,7 +79,7 @@ export function Article({ title }: { title: string }): JSX.Element {
       }
       // External links are already target=_blank; main's window-open handler
       // sends them to the real browser.
-      if (anchor.classList.contains('rb-external')) return
+      if (anchor.classList.contains('rp-external')) return
 
       // In-page anchors: scroll rather than navigate.
       const href = anchor.getAttribute('href') ?? ''
@@ -98,7 +98,7 @@ export function Article({ title }: { title: string }): JSX.Element {
       window.clearTimeout(timer)
       // Dwell first: sweeping the cursor across a paragraph crosses a dozen
       // links, and prefetching each one would be the opposite of polite.
-      timer = window.setTimeout(() => window.rb.prefetchPage(target), HOVER_MS)
+      timer = window.setTimeout(() => window.rp.prefetchPage(target), HOVER_MS)
     }
     const onOut = (): void => window.clearTimeout(timer)
 
@@ -192,7 +192,7 @@ function Footer({
       )}
       <p>
         From the{' '}
-        <a href={url} target="_blank" rel="noreferrer" className="rb-external">
+        <a href={url} target="_blank" rel="noreferrer" className="rp-external">
           Old School RuneScape Wiki
         </a>
         , licensed{' '}
@@ -200,7 +200,7 @@ function Footer({
           href="https://creativecommons.org/licenses/by-nc-sa/3.0/"
           target="_blank"
           rel="noreferrer"
-          className="rb-external"
+          className="rp-external"
         >
           CC BY-NC-SA 3.0
         </a>

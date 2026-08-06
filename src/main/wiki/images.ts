@@ -1,5 +1,5 @@
 /**
- * The wiki image cache, served over the `rbimg://` protocol.
+ * The wiki image cache, served over the `rpimg://` protocol.
  *
  * Articles are image-dense in a way that surprises: the Abyssal whip page
  * references 183 of them, nearly all tiny inline item icons. Two consequences
@@ -24,7 +24,7 @@ import { join, dirname } from 'path'
 import * as db from '../db'
 import { userAgent } from './client'
 
-export const SCHEME = 'rbimg'
+export const SCHEME = 'rpimg'
 
 const ORIGIN = 'https://oldschool.runescape.wiki/images/'
 /** Roughly what a browser opens to one host. */
@@ -42,7 +42,7 @@ const inFlight = new Map<string, Promise<Buffer | null>>()
  *
  * Must happen before `app.ready`, which is why it is separate from `serve()` —
  * Electron cannot upgrade a scheme's privileges after the protocol registry is
- * locked. Without `standard`, relative resolution and CSP `img-src rbimg:`
+ * locked. Without `standard`, relative resolution and CSP `img-src rpimg:`
  * both misbehave.
  */
 export function registerScheme(): void {
@@ -80,11 +80,11 @@ export function serve(): void {
 }
 
 /**
- * `rbimg://img/Abyssal_whip.png` -> `Abyssal_whip.png`.
+ * `rpimg://img/Abyssal_whip.png` -> `Abyssal_whip.png`.
  *
  * The `img` host is a constant placeholder, and everything after it is the
  * name. That indirection exists because a `standard` scheme parses as
- * `scheme://host/path`: without a fixed host, `rbimg://thumb/X.png/130px-X.png`
+ * `scheme://host/path`: without a fixed host, `rpimg://thumb/X.png/130px-X.png`
  * would put `thumb` in the host, where Chromium lowercases it and the path
  * silently loses a segment. Thumbnails are exactly the case that breaks.
  */

@@ -110,8 +110,8 @@
 
 /* External links earn a marker precisely because they behave differently:
    they leave the app. */
-.article-body a.rb-external::after,
-.article-footer a.rb-external::after {
+.article-body a.rp-external::after,
+.article-footer a.rp-external::after {
   content: '↗';
   font-size: 0.8em;
   margin-left: 2px;
@@ -156,7 +156,7 @@
 /* Every table gets its own horizontal scroll container. Combat-stat and
    drop-rate tables are routinely wider than the window, and the one thing the
    page must never do is scroll sideways as a whole. */
-.article-body .rb-table,
+.article-body .rp-table,
 .article-body table.wikitable {
   display: block;
   width: max-content;
@@ -170,8 +170,8 @@
   border-radius: var(--radius);
 }
 
-.article-body .rb-table th,
-.article-body .rb-table td,
+.article-body .rp-table th,
+.article-body .rp-table td,
 .article-body table.wikitable th,
 .article-body table.wikitable td {
   padding: 6px 10px;
@@ -180,7 +180,7 @@
   vertical-align: middle;
 }
 
-.article-body .rb-table th,
+.article-body .rp-table th,
 .article-body table.wikitable th {
   background: var(--surface-raised);
   font-weight: 580;
@@ -188,7 +188,7 @@
   white-space: nowrap;
 }
 
-.article-body .rb-table tr:hover td {
+.article-body .rp-table tr:hover td {
   background: var(--surface-hover);
 }
 

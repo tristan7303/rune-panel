@@ -1,249 +1,147 @@
-# Rune Buddy
+![Rune Panel](images/rune-panel-banner.png)
 
-An all-in-one Old School RuneScape desktop tool for Windows: a hotkey-summoned
-window that is, mostly, a fast private UI over the OSRS Wiki — plus the DPS
-calculator, Grand Exchange prices, hiscores, and RuneProfile.
+# Rune Panel
 
-Forked from `glass-agent` for its shell, IPC contract, and visual language. The
-agent, the embedded browser, and the WebGL refraction engine are gone.
+An all-in-one Old School RuneScape companion for Windows. Press a hotkey and the
+whole wiki is there — over your game, over your browser, wherever you are — plus
+the DPS calculator, skill calculators and RuneProfile.
 
-## Status
+It is built to be **fast** and to **stay out of the way**. Pages you have read
+open instantly from your own machine. The window is either open or closed; there
+is no widget sitting on your desktop waiting for you.
 
-| Phase | | |
-|---|---|---|
-| 0 | Fork, acrylic window, hotkey, tray, settings | done |
-| 1 | SQLite storage, throttled wiki client, title index | done |
-| 2 | Shell UI, navigation history, Ctrl+K search | done |
-| 3 | Article renderer and HTML transform | done |
-| 4 | Background sync: recentchanges + seed crawler | done |
-| 5 | Embedded tool pane: DPS, calculators, RuneProfile | |
-| 6 | Grand Exchange prices | |
-| 7 | Hiscores lookup and compare | |
-| 8 | Packaging | |
+---
 
-Plan lives in `~/.claude/plans/please-copy-glass-agent-vast-rabin.md`.
+## What it does
 
-## Running
+**Search the whole wiki.** Every article and every alias the wiki knows — about
+36,000 pages and 200,000 nicknames — searchable from your own machine in about
+ten milliseconds. Type `bowfa` and you get *Bow of faerdhinen*. Type `tbow` and
+you get *Twisted bow*. Misspell it entirely — `dragn scim` — and you still get
+*Dragon scimitar*.
+
+**Read articles without the website.** Pages render in Rune Panel's own layout:
+dark, quiet, and with the item box redrawn as a proper panel instead of a wiki
+table. Links work the way you expect, and hovering one for a moment loads it in
+the background so the click is instant.
+
+**The DPS calculator** — the wiki's own, embedded and stripped of its site
+chrome.
+
+**Skill calculators** — Smithing, Herblore, Crafting and the rest — live from
+the wiki, so they always match the current game.
+
+**RuneProfile** for skills, quests, diaries, combat achievements and the full
+collection log. Type a username; Rune Panel remembers the ones you look up.
+
+Grand Exchange prices and hiscores are next.
+
+---
+
+## Getting it running
+
+You need [Node.js](https://nodejs.org) 20 or newer.
 
 ```sh
 npm install
-npm run icon      # generates resources/tray.png
-npm run dev       # HMR
-```
-
-Or build and run the real thing:
-
-```sh
 npm run build
 npx electron out/main/index.js
 ```
 
-**Ctrl+Shift+Space** opens and closes it. Escape closes it too. The tray icon
-opens it and is the only way to quit.
+**Ctrl+Shift+Space** opens and closes it. So does the tray icon, which is also
+the only way to quit.
 
-Global accelerators are first-come-first-served: if another app already holds
-the binding, registration fails with nothing but a console warning and the
-hotkey silently does nothing. Change it in settings if that happens.
+The first launch spends about four minutes in the background learning every page
+name on the wiki. Search works while it fills.
 
-## Verifying
+---
 
-```sh
-npm run build && SMOKE=1 npx electron out/main/index.js
-```
-
-Asserts the acceptance criteria and exits non-zero on failure. A frameless
-window shows nothing useful in a terminal and a screenshot cannot tell you
-whether the preload bridge connected, so the checks assert behaviour directly —
-including a settings write driven through the real IPC bridge and a full
-show/hide cycle closed from the renderer.
-
-`SMOKE_SHOT=1` also writes `out/smoke-search.png` and `out/smoke-article.png`,
-driven through the renderer's own navigation store. Deliberately not synthetic
-keystrokes: global input automation types into whatever window happens to have
-focus, which is not reliably this one.
-
-`SMOKE_FETCH=1` lets the article checks fetch one page when nothing is cached
-yet. Off by default — a smoke run should not make wiki requests every time.
-
-## Two things that shape the architecture
-
-**Open or closed, never idling.** There is no ambient orb. That one decision
-removes the click-through hit testing, the z-order sinking, the custom cursor,
-and `setContentProtection` that a persistent transparent HUD needs — and it is
-why Rune Buddy stays visible in OBS and Discord, unlike its parent.
-
-**Nothing depends on the blur.** The frosted look is `backgroundMaterial:
-'acrylic'`, the DWM system backdrop, which needs `transparent: false` and a
-zero-alpha `backgroundColor` and is only available on Windows 11 22H2+. The
-surface colours in `styles.css` are near-opaque on their own, so a machine where
-DWM declines still gets a correct-looking window — and dense wiki text stays
-legible over any wallpaper or game client. Acrylic adds depth; it never carries
-the design.
-
-The smoke test cannot confirm the backdrop: Electron exposes no getter, and
-`capturePage` renders the web contents only — the system backdrop lives behind
-them and never appears in the capture. Confirming it means capturing the
-*screen* while the window is up and looking for the blur. Verified working on a
-frameless window here; the fallback exists for machines where it is not.
-
-## Data sources
+## Using it
 
 | | |
 |---|---|
-| Wiki content | `oldschool.runescape.wiki/api.php` — CC BY-NC-SA 3.0, **non-commercial** |
-| Item metadata and prices | `prices.runescape.wiki/api/v1/osrs` |
-| DPS calculator | `tools.runescape.wiki/osrs-dps` (embedded) |
-| Hiscores | `secure.runescape.com/m=hiscore_oldschool` |
-| Profiles | `runeprofile.com` (embedded) and `api.runeprofile.com/v1` |
+| **Ctrl+Shift+Space** | Open or close, from anywhere |
+| **Ctrl+K** | Jump back to search |
+| **Esc** | Go back a step, then close |
+| **Alt+←** / **Alt+→** | Back and forward |
+| Mouse buttons 4 / 5 | Back and forward |
 
-The wiki does not rate limit, but it does ask automated clients to identify
-themselves. Every outgoing request carries a descriptive User-Agent, and the
-contact address in it comes from settings — fill it in.
+The rail down the left switches between search, the DPS calculator, prices,
+hiscores, RuneProfile and the calculators. The gear at the bottom holds
+settings.
 
-### The title index
+### Worth knowing
 
-```sh
-npm run build
-npm run sync:titles              # the real thing, ~4 minutes
-npm run sync:titles -- --dry-run # 6 requests, proves the shapes parse
-```
+**It stays on top of the game**, including a borderless-fullscreen client. It
+does *not* close when you click away — you will often want to read it while
+playing — though there is a setting if you would rather it did.
 
-Measured on a full run: **239,057 titles — 35,680 articles and 203,377
-redirects** — in 884 requests over 246s, sustained at 3.6 req/s with zero
-retries and zero failures.
+**It shows up in OBS and Discord.** Unlike a lot of overlays, this is an
+ordinary window, so streaming and screen sharing capture it normally.
 
-That is far more than the wiki's own "41,244 articles" statistic suggests, in
-two ways worth knowing. The statistic counts every content namespace, while the
-index takes namespace 0 only, so the article count is lower. And OSRS pages
-carry an extraordinary number of aliases — 5.7 redirects per article, most of
-them misspellings (`Abhssal whip`, `Abbysal whip`) — so redirects dominate both
-the row count and the request count. Search in phase 2 has to rank around that,
-not just match against it.
+**Put your email in settings.** It goes into the requests Rune Panel makes to
+the wiki so they know who is asking. The wiki does not charge for access and
+does not rate limit; being identifiable is simply how you stay a good guest.
 
-The sync runs automatically on first launch and weekly thereafter, at background
-priority so anything you do jumps ahead of it.
+---
 
-### Search
+## Settings
 
-**Ctrl+K** from anywhere. Search runs in main over an in-memory copy of the
-index — measured at 6–12ms across the full 239k rows, so there is no debounce
-and no worker; every keystroke queries.
+**Hotkey** — anything you like, in Electron accelerator form
+(`Control+Shift+Space`, `Alt+R`). If another program already owns the
+combination, Rune Panel silently gets nothing, so pick another.
 
-The interesting problem is not matching, it is **collapsing**. A raw match for
-`aby` returns 1,108 rows that are really a few dozen articles wearing hats, so
-every hit resolves to its canonical article and dedupes. That turns the wiki's
-enormous redirect table from noise into precisely the typo tolerance you want —
-it has already written down every misspelling anyone makes. On top of that,
-single-error tolerance costs nothing measurable (11ms vs 12ms) and rescues
-what strict matching drops outright: `dragn scim` goes from 0 hits to 57.
+**Close when it loses focus** — off by default.
 
-Two subtleties that took a bug each to find. The alias shown as "matched …" is
-chosen *during* dedupe, preferring an exact match — otherwise `bowfa` collapses
-to `Bow of faerdhinen` but reports having matched `BOWFA RANGE`. And an exact
-title is promoted to the top afterwards, because fuzzy ranking will otherwise
-put `Zulrah/Strategies` above `Zulrah`.
+**Acrylic backdrop** — the frosted blur behind the window. Windows 11 only, and
+purely cosmetic; everything is designed to look right without it.
 
-### Articles
+**Contact address** — see above.
 
-Fetched once via `action=parse`, transformed once in main, cached forever. Every
-later visit is a disk read, and hovering a link for 150ms prefetches it, so a
-click is almost always local.
+**Wiki title index** — how many pages Rune Panel knows about, plus a rebuild
+button. Rebuilding takes about four minutes.
 
-The transform (`wiki/transform.ts`) is what separates this from an embedded
-browser: it sanitizes, lifts the infobox out into structured data the renderer
-draws as a native panel, rewrites `/w/` links to `rb://` routes, points every
-image at the local cache, and strips the navboxes and cross-wiki chrome. The
-output is injected with `dangerouslySetInnerHTML`, so script tags, inline
-handlers and `javascript:` URLs are removed — "trusted source" is not a security
-model, and the smoke suite asserts each of those individually.
+**Article cache** — how many pages are stored, and how many the wiki has edited
+since. Rune Panel tops this up in the background whenever the window is closed,
+and pauses the moment you open it so it never competes with what you are
+reading.
 
-Images go through `rbimg://`, backed by a hashed, two-level-sharded on-disk
-cache. Two things about it are not obvious. Article pages are far more
-image-dense than they look — the Abyssal whip page references **183** — so
-images deliberately bypass the API's 4 req/s ceiling, which exists for
-`api.php`, not for static bytes behind a CDN; a concurrency cap of 8 replaces
-it. And the URL carries a constant `img` host (`rbimg://img/<name>`) because a
-`standard` scheme parses `rbimg://thumb/X.png/130px-X.png` with `thumb` as the
-host, lowercases it, and drops it from the path — thumbnails are exactly the
-case that breaks.
+---
 
-**Known gap:** weapon and spell sound effects are stripped. They cannot play —
-the renderer has no `media-src` and the asset protocol serves images only — and
-a dead player control is worse than none. Supporting them is a small separate
-change.
+## Where the data comes from
 
-### Staying current
+| | |
+|---|---|
+| Articles, images, calculators | [OSRS Wiki](https://oldschool.runescape.wiki) |
+| Item data and prices | [prices.runescape.wiki](https://prices.runescape.wiki) |
+| DPS calculator | [tools.runescape.wiki/osrs-dps](https://tools.runescape.wiki/osrs-dps/) |
+| Hiscores | Jagex |
+| Profiles | [RuneProfile](https://www.runeprofile.com) |
 
-```sh
-npm run crawl        # refresh what is stale, then fill the seed list
-```
+Wiki content is licensed
+[CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/), which
+every article page credits and links back to. That licence is
+**non-commercial**: Rune Panel is free and personal, and selling it would not be
+allowed.
 
-Invalidation asks the wiki what changed rather than checking what we hold.
-Polling revision ids across tens of thousands of cached pages would be thousands
-of requests; `list=recentchanges` answers it in one, because the wiki already
-keeps that list. Changed pages are *marked*, never dropped — a stale page still
-renders instantly with a note and refreshes on next view.
+Rune Panel is not affiliated with Jagex or the OSRS Wiki. Old School RuneScape
+is a trademark of Jagex Ltd.
 
-The crawler runs on launch and fills a short hand-picked seed list (every skill,
-the raids, the common bosses). It is deliberately not a full mirror: what you
-visit is a better predictor of what you want than any heuristic worth writing.
-It runs at 500ms between pages, and **parks entirely whenever the window is
-visible** — bandwidth and the request queue belong to the page you are actually
-reading. Measured: 46 seed pages in 36s at 1.49 req/s, zero failures.
+---
 
-Two measurements worth knowing before this scales:
+## Where it keeps things
 
-- **Articles are large.** 47 cached pages hold 12 MB of HTML — ~255 KB each, and
-  those seeds skew big (Slayer task is 363 KB). Stored uncompressed. Caching the
-  whole wiki this way would run to several GB, which is one more reason the
-  design caches what you read rather than everything.
-- **The crawler caches HTML, not images.** Images are fetched by the renderer
-  when a page is actually displayed, so a crawled page still pulls its icons on
-  first view. That is the right trade — prefetching 183 images per page across
-  the seed list would be tens of thousands of requests — but it does mean this
-  is not an offline mirror.
+Everything lives in `%APPDATA%\Roaming\rune-panel` — the page cache, the search
+index, the images and your settings. There is no account and no telemetry.
+Deleting that folder resets the app completely.
 
-**Invariant worth relying on:** a redirect's target is either NULL or a title
-that exists locally. A few redirects point off-wiki entirely (`Api` resolves to
-`rsw:Application programming interface` on the RS3 wiki); their targets are
-cleared at the end of a sync so nothing downstream can follow a redirect into a
-page that cannot be rendered. The redirect's own title stays searchable.
+The cache grows with what you read. Wiki articles are large — a big one runs to
+a few hundred kilobytes — so expect a few hundred megabytes if you read a lot.
+The **Article cache** setting shows where it stands.
 
-Article views carry the required CC BY-NC-SA attribution and link back to the
-live page. The licence is non-commercial: do not sell this.
+---
 
-## Layout
+## Building on it
 
-```
-src/
-  main/            Electron main
-    window.ts      frameless acrylic window, hotkey show/hide
-    tray.ts        tray + menu
-    settings.ts    JSON persistence in userData
-    db.ts          node:sqlite — schema, migrations, kv helpers
-    sync-cli.ts    --sync-titles headless runner
-    smoke.ts       SMOKE=1 self-check
-    wiki/
-      client.ts    the only outbound request path: UA, queue, retries
-      titles.ts    the 36k-article / 203k-redirect index
-      search.ts    uFuzzy matching + alias collapsing
-      page.ts      article fetch + cache
-      transform.ts MediaWiki HTML -> our HTML, and the infobox
-      images.ts    rbimg:// protocol + on-disk image cache
-      sync.ts      recentchanges invalidation + background crawler
-  preload/         the entire renderer-facing API surface
-  shared/          types and channel names used by both processes
-  renderer/src/
-    App.tsx        shell: rail, top bar, routed body
-    nav.ts         history stack — a tagged union, not a router
-    Search.tsx     the Ctrl+K palette
-    Article.tsx    article view, infobox, hover prefetch
-    article.css    restyling of the wiki's own markup
-    Settings.tsx   settings view
-scripts/           tray icon generator (pure Node, no deps)
-```
-
-`wiki/client.ts` is the single choke point for every outbound request in the
-app, price API included. One global 4 req/s ceiling is stricter than either host
-needs, but it means a background crawl can never outpace or starve anything, and
-interactive work jumps the queue regardless.
+Forks and contributions welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers how
+the code is laid out, why it is arranged that way, and how to run the checks.

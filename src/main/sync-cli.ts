@@ -38,7 +38,7 @@ export async function runCrawlCli(): Promise<void> {
 
   out('')
   out('══════════════════════════════════════════════════════')
-  out('  BACKGROUND CRAWL  ·  rune-buddy')
+  out('  BACKGROUND CRAWL  ·  rune-panel')
   out('══════════════════════════════════════════════════════')
   out(`  cached       ${before.cached} pages (${before.stale} stale)`)
   out('──────────────────────────────────────────────────────')
@@ -85,7 +85,7 @@ export async function runSyncCli(): Promise<void> {
 
   out('')
   out('══════════════════════════════════════════════════════')
-  out(`  TITLE INDEX SYNC  ·  rune-buddy${dryRun ? '  ·  DRY RUN' : ''}`)
+  out(`  TITLE INDEX SYNC  ·  rune-panel${dryRun ? '  ·  DRY RUN' : ''}`)
   out('══════════════════════════════════════════════════════')
   out(`  user-agent   ${client.userAgent()}`)
   out(`  existing     ${before.count} titles (${before.redirects} redirects)`)

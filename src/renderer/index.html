@@ -4,16 +4,16 @@
     <meta charset="UTF-8" />
     <!-- The renderer never talks to the network. Every wiki, price and hiscores
          request is made from the main process, so no HTTP origin is allowed
-         here. `rbimg:` is our own protocol, served from the local image cache
+         here. `rpimg:` is our own protocol, served from the local image cache
          by the main process — article HTML points every image at it, and no
          wiki origin is ever contacted from this side. `ws:` exists solely for
          Vite's HMR socket in dev; it carries nothing in a packaged build, and
          blocking http(s) is what matters. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: rbimg:; connect-src 'self' ws:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: rpimg:; connect-src 'self' ws:"
     />
-    <title>Rune Buddy</title>
+    <title>Rune Panel</title>
   </head>
   <body>
     <div id="root"></div>

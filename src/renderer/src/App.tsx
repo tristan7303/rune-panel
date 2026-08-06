@@ -13,6 +13,10 @@ import { useNav, useRoute, useCanGoBack, useCanGoForward, routeTitle, type Route
 import { SettingsView } from './Settings'
 import { Search } from './Search'
 import { Article } from './Article'
+import { ToolPane } from './ToolPane'
+import { Profile } from './Profile'
+import { Calculators } from './Calculators'
+import logo from './assets/logo.png'
 import {
   SearchIcon,
   SwordIcon,
@@ -45,13 +49,13 @@ export function App(): JSX.Element {
   // Pull settings once, then track main's broadcasts. Main owns the sanitized
   // truth; the renderer only ever mirrors it.
   useEffect(() => {
-    void window.rb.getSettings().then(setSettings)
-    return window.rb.onSettings(setSettings)
+    void window.rp.getSettings().then(setSettings)
+    return window.rp.onSettings(setSettings)
   }, [setSettings])
 
   // Opening always lands on a fresh search. The window is summoned to look
   // something up, and resuming a three-hour-old article rarely is it.
-  useEffect(() => window.rb.onShown(() => reset()), [reset])
+  useEffect(() => window.rp.onShown(() => reset()), [reset])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -78,7 +82,7 @@ export function App(): JSX.Element {
         e.preventDefault()
         // Unwind one layer: out of a subview first, then out of the app.
         if (useNav.getState().index > 0) back()
-        else window.rb.hide()
+        else window.rp.hide()
       }
     }
 
@@ -103,7 +107,15 @@ export function App(): JSX.Element {
   return (
     <div className="shell">
       <nav className="rail">
-        <div className="rail-mark" />
+        {/* Clicking the mark goes home, the way a site logo does. */}
+        <button
+          className="rail-mark"
+          title="Rune Panel — search"
+          aria-label="Rune Panel — search"
+          onClick={() => push({ kind: 'search' })}
+        >
+          <img src={logo} alt="" draggable={false} />
+        </button>
         {NAV.map(({ route: target, label, icon: Icon }) => (
           <button
             key={label}
@@ -145,15 +157,19 @@ export function App(): JSX.Element {
             className="icon-btn is-close"
             title="Close (Esc)"
             aria-label="Close"
-            onClick={() => window.rb.hide()}
+            onClick={() => window.rp.hide()}
           >
             <CloseIcon />
           </button>
         </header>
 
         {/* Articles own their scrolling so the infobox can float against the
-            full width; every other view is happy to scroll inside .content. */}
-        <main className="content" data-scroll={route.kind === 'page' ? 'inner' : 'outer'}>
+            full width, and tools are a native view that must not be scrolled
+            by us at all; everything else scrolls inside .content. */}
+        <main
+          className="content"
+          data-scroll={route.kind === 'page' || route.kind === 'tool' ? 'inner' : 'outer'}
+        >
           <Body route={route} />
         </main>
       </div>
@@ -171,8 +187,22 @@ function Body({ route }: { route: Route }): JSX.Element {
       // Keyed so switching articles remounts rather than reusing state that
       // belongs to the previous page.
       return <Article title={route.title} key={route.title} />
+    case 'tool':
+      return <Tool id={route.id} />
     default:
       return <Placeholder title={routeTitle(route)} note="Not built yet." />
+  }
+}
+
+function Tool({ id }: { id: 'dps' | 'calculators' | 'profile' }): JSX.Element {
+  switch (id) {
+    case 'dps':
+      // No picker: the DPS calculator is one page, so go straight into it.
+      return <ToolPane id="dps" />
+    case 'profile':
+      return <Profile />
+    case 'calculators':
+      return <Calculators />
   }
 }
 

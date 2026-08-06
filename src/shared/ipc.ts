@@ -83,6 +83,13 @@ export const Send = {
   StartCrawl: 'wiki:crawl-start',
   /** Ask the crawler to stop after the current page. */
   StopCrawl: 'wiki:crawl-stop',
+
+  /** Show an embedded tool, optionally with an argument. */
+  ShowTool: 'tools:show',
+  /** Hide the embedded pane. It composites above the DOM, so this is required. */
+  HideTool: 'tools:hide',
+  /** Tell main where the content area is, in DIP. */
+  SetPaneBounds: 'tools:bounds',
 } as const
 
 export interface SearchResult {
@@ -110,6 +117,27 @@ export interface Section {
   level: number
   line: string
   anchor: string
+}
+
+// ── Embedded tools ──────────────────────────────────────────────────────────
+
+export type ToolId = 'dps' | 'calculators' | 'profile'
+
+/** Content-area rectangle, in DIP relative to the window. */
+export interface PaneBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** Just enough of a RuneProfile account to decide whether to load the pane. */
+export interface ProfileSummary {
+  username: string
+  exists: boolean
+  /** Combined level, when the API reports one. */
+  totalLevel?: number
+  error?: string
 }
 
 export type CrawlPhase = 'idle' | 'refreshing' | 'crawling' | 'paused' | 'done' | 'error'
@@ -148,6 +176,7 @@ export const Invoke = {
   Search: 'wiki:search',
   GetPage: 'wiki:page',
   GetCrawlState: 'wiki:crawl-state',
+  LookupProfile: 'profile:lookup',
 } as const
 
 /** Main -> renderer. */
@@ -166,8 +195,8 @@ export const On = {
   CrawlProgress: 'wiki:crawl-progress',
 } as const
 
-/** The surface exposed on `window.rb` by the preload script. */
-export interface RuneBuddyApi {
+/** The surface exposed on `window.rp` by the preload script. */
+export interface RunePanelApi {
   hide(): void
   log(message: string): void
   quit(): void
@@ -185,6 +214,11 @@ export interface RuneBuddyApi {
   startCrawl(): void
   stopCrawl(): void
 
+  showTool(id: ToolId, arg?: string): void
+  hideTool(): void
+  setPaneBounds(bounds: PaneBounds): void
+  lookupProfile(username: string): Promise<ProfileSummary>
+
   onShown(cb: () => void): () => void
   onSettings(cb: (settings: Settings) => void): () => void
   onSyncProgress(cb: (progress: SyncProgress) => void): () => void
@@ -193,6 +227,6 @@ export interface RuneBuddyApi {
 
 declare global {
   interface Window {
-    rb: RuneBuddyApi
+    rp: RunePanelApi
   }
 }

@@ -6,25 +6,17 @@
  * first runnable build for that reason.
  */
 
-import { Tray, Menu, nativeImage, app } from 'electron'
-import { join } from 'path'
+import { Tray, Menu, nativeImage } from 'electron'
+import { trayIcon } from './icon'
 import { getWindow, show } from './window'
 
 let tray: Tray | null = null
 
-function iconPath(): string {
-  // Packaged builds get resources/ copied next to the app; in dev it sits at
-  // the project root, two levels up from out/main.
-  return app.isPackaged
-    ? join(process.resourcesPath, 'tray.png')
-    : join(__dirname, '../../resources/tray.png')
-}
-
 export function createTray(hotkey: string): Tray {
-  const image = nativeImage.createFromPath(iconPath())
+  const image = trayIcon()
   tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image)
 
-  tray.setToolTip('Rune Buddy')
+  tray.setToolTip('Rune Panel')
   tray.on('click', show)
   setHotkey(hotkey)
 

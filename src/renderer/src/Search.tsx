@@ -26,9 +26,9 @@ export function Search(): JSX.Element {
 
   useEffect(() => {
     inputRef.current?.focus()
-    void window.rb.getTitleIndex().then(setIndex)
-    return window.rb.onSyncProgress(() => {
-      void window.rb.getTitleIndex().then(setIndex)
+    void window.rp.getTitleIndex().then(setIndex)
+    return window.rp.onSyncProgress(() => {
+      void window.rp.getTitleIndex().then(setIndex)
     })
   }, [])
 
@@ -39,7 +39,7 @@ export function Search(): JSX.Element {
       setSelected(0)
       return
     }
-    void window.rb.search(query).then((hits) => {
+    void window.rp.search(query).then((hits) => {
       if (seq !== latest.current) return
       setResults(hits)
       setSelected(0)

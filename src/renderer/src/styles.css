@@ -5,7 +5,7 @@
  * acrylic backdrop, but nothing here depends on getting one: with acrylic the
  * translucency picks up a blurred wash of whatever is behind the window, and
  * without it the same values read as a flat dark panel. Both are correct. The
- * "glass" in Rune Buddy is the rim and the specular top highlight, not the fill
+ * "glass" in Rune Panel is the rim and the specular top highlight, not the fill
  * — which is also why long articles stay legible over a busy game client.
  */
 
@@ -91,13 +91,35 @@ body,
 }
 
 .rail-mark {
-  width: 26px;
-  height: 26px;
+  -webkit-app-region: no-drag;
+  width: 34px;
+  height: 34px;
   margin-bottom: 10px;
-  border-radius: 7px;
-  background: linear-gradient(135deg, var(--accent-a), var(--accent-b));
-  box-shadow: 0 0 14px rgba(140, 110, 255, 0.35);
+  padding: 0;
   flex: none;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+  /* The logo carries its own violet border, so the glow sits under it rather
+     than adding a second edge. */
+  box-shadow: 0 0 14px rgba(140, 110, 255, 0.28);
+  transition: box-shadow var(--duration) ease, transform var(--duration) var(--spring);
+}
+
+.rail-mark:hover {
+  box-shadow: 0 0 18px rgba(140, 110, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.rail-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Low-poly OSRS art: crisp downscaling keeps the edges readable where
+     smoothing would turn the crown to mush. */
+  image-rendering: crisp-edges;
 }
 
 .rail-spacer {
@@ -339,6 +361,204 @@ kbd {
   font-size: 12.5px;
   line-height: 1.6;
   color: var(--text-faint);
+}
+
+/* ── Embedded tools ─────────────────────────────────────────────────── */
+
+.tool-host {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+}
+
+.tool-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rim);
+}
+
+.tool-bar-title {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+/* Deliberately empty. The WebContentsView composites above the DOM and covers
+   this rectangle exactly; anything drawn here would be invisible. It exists
+   only to be measured. */
+.tool-slot {
+  min-height: 0;
+}
+
+/* ── RuneProfile entry ──────────────────────────────────────────────── */
+
+.profile-search {
+  max-width: 520px;
+  margin: 0 auto;
+  padding-top: 32px;
+}
+
+.profile-hero {
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.profile-hero svg {
+  width: 30px;
+  height: 30px;
+  color: var(--accent-a);
+}
+
+.profile-hero h1 {
+  margin: 8px 0 6px;
+  font-size: 20px;
+  font-weight: 620;
+  color: var(--text);
+}
+
+.profile-hero p {
+  margin: 0 auto;
+  max-width: 420px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.profile-form {
+  display: flex;
+  gap: 8px;
+  margin: 22px 0 0;
+}
+
+.profile-input {
+  flex: 1;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-radius: 8px;
+  outline: none;
+  transition: border-color var(--duration) ease, box-shadow var(--duration) ease;
+}
+
+.profile-input:focus {
+  border-color: transparent;
+  box-shadow: 0 0 0 1px var(--accent-a), 0 0 18px rgba(140, 110, 255, 0.2);
+}
+
+.profile-error {
+  margin: 12px 2px 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #ffb4b4;
+}
+
+.profile-saved {
+  margin-top: 30px;
+}
+
+.profile-saved h2 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.profile-saved ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.profile-saved li {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--rim);
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+
+.profile-chip,
+.profile-forget {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--duration) ease;
+}
+
+.profile-chip {
+  padding: 5px 8px 5px 13px;
+}
+
+.profile-forget {
+  padding: 5px 10px 5px 4px;
+  color: var(--text-faint);
+}
+
+.profile-chip:hover {
+  background: var(--surface-hover);
+}
+
+.profile-forget:hover {
+  background: rgba(232, 84, 84, 0.22);
+  color: #ffd9d9;
+}
+
+/* ── Calculator picker ──────────────────────────────────────────────── */
+
+.calc-picker {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.calc-picker h1 {
+  margin: 8px 0 6px;
+  font-size: 20px;
+  font-weight: 620;
+}
+
+.calc-note {
+  margin: 0 0 22px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.calc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.calc-card {
+  padding: 14px 12px;
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 var(--rim-bright);
+  cursor: pointer;
+  transition: background var(--duration) ease, border-color var(--duration) ease;
+}
+
+.calc-card:hover {
+  background: var(--surface-hover);
+  border-color: var(--rim-bright);
 }
 
 /* ── Settings ───────────────────────────────────────────────────────── */
