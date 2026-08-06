@@ -3,12 +3,26 @@
 # Triggered by pushing a tag like `v0.1.0`. electron-builder uploads to a
 # *draft* GitHub Release, so a bad build can be discarded before anyone's
 # updater sees it — publishing the draft is what actually ships it.
+#
+# This file is public, like every workflow in a public repository, and that is
+# fine — but three properties keep it that way and are easy to undo by accident:
+#
+#  1. No `pull_request` or `pull_request_target` trigger. Both triggers below
+#     require write access to this repository, so nobody outside it can start a
+#     run. `pull_request_target` in particular hands repository secrets to code
+#     from a fork and is the classic way a public workflow gets compromised.
+#  2. Secrets are scoped to the step that needs them, not the workflow. `npm ci`
+#     runs dependency install scripts; it must not do so with a signing
+#     certificate and a token in its environment.
+#  3. Only first-party `actions/*` steps. A third-party action runs arbitrary
+#     code with whatever the job can reach.
 name: Release
 
 on:
   push:
     tags: ['v*']
   # Also runnable by hand, for testing the pipeline without cutting a tag.
+  # Requires write access, so this is not a way in for anyone else.
   workflow_dispatch:
 
 permissions:
