@@ -80,10 +80,33 @@ export const CalculatorIcon = (): JSX.Element => (
   </Svg>
 )
 
+/**
+ * A real gear.
+ *
+ * The previous "gear" was a circle with eight radiating spokes, which reads as a
+ * brightness control rather than settings — it now serves as exactly that (see
+ * SunIcon). This one has actual teeth, drawn as a single closed path so the
+ * silhouette holds together at 18px.
+ */
 export const GearIcon = (): JSX.Element => (
   <Svg>
-    <circle cx="12" cy="12" r="3" />
-    <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" />
+    <path d="M10.3 3.2a1 1 0 0 1 1-.8h1.4a1 1 0 0 1 1 .8l.24 1.2a7.4 7.4 0 0 1 1.62.94l1.16-.4a1 1 0 0 1 1.2.45l.7 1.2a1 1 0 0 1-.2 1.25l-.92.8a7.5 7.5 0 0 1 0 1.87l.92.8a1 1 0 0 1 .2 1.25l-.7 1.2a1 1 0 0 1-1.2.45l-1.16-.4a7.4 7.4 0 0 1-1.62.94l-.24 1.2a1 1 0 0 1-1 .8h-1.4a1 1 0 0 1-1-.8l-.24-1.2a7.4 7.4 0 0 1-1.62-.94l-1.16.4a1 1 0 0 1-1.2-.45l-.7-1.2a1 1 0 0 1 .2-1.25l.92-.8a7.5 7.5 0 0 1 0-1.87l-.92-.8a1 1 0 0 1-.2-1.25l.7-1.2a1 1 0 0 1 1.2-.45l1.16.4a7.4 7.4 0 0 1 1.62-.94z" />
+    <circle cx="12" cy="12" r="2.6" />
+  </Svg>
+)
+
+/** Light mode. The old "gear", finally doing the job it always looked like. */
+export const SunIcon = (): JSX.Element => (
+  <Svg>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9 6.7 6.7M17.3 17.3l1.8 1.8M19.1 4.9 17.3 6.7M6.7 17.3l-1.8 1.8" />
+  </Svg>
+)
+
+/** Dark mode. */
+export const MoonIcon = (): JSX.Element => (
+  <Svg>
+    <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5" />
   </Svg>
 )
 

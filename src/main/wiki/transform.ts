@@ -197,6 +197,14 @@ function rewriteImages($: cheerio.CheerioAPI): void {
   // control is worse than no control, so they go. Supporting them properly is a
   // small, separate change — a media protocol plus a `media-src` allowance.
   $('audio, video').remove()
+
+  // Chart.js payloads. On the website MediaWiki's JS reads this <pre>, which
+  // holds a chart's configuration as JSON, and replaces it with a canvas.
+  // Without that script it renders as raw JSON on a single unwrapped line —
+  // measured at 626,588px wide on the Twisted bow page, which drags a
+  // horizontal scrollbar across the whole article. These are almost all Grand
+  // Exchange price history, which this app draws natively instead.
+  $('.rsw-chartjs, .rsw-chartjs-config, .chartjs-config').remove()
 }
 
 /**

@@ -508,6 +508,43 @@ async function checkToolPane(win: Electron.BrowserWindow): Promise<void> {
 }
 
 /**
+ * The article never scrolls sideways.
+ *
+ * Worth a permanent check rather than an eyeball. The wiki ships content that
+ * has no intrinsic width limit — the Chart.js config blocks were a single
+ * 626,588px line — and a page-wide horizontal scrollbar is both the ugliest
+ * possible failure and the easiest to reintroduce with one CSS change.
+ *
+ * Runs only when an article is on screen, which the screenshot pass arranges.
+ */
+async function checkNoHorizontalOverflow(wc: Electron.WebContents): Promise<void> {
+  const raw = await wc.executeJavaScript(`
+    (() => {
+      const scroll = document.querySelector('.article-scroll')
+      if (!scroll) return JSON.stringify({ skipped: true })
+      const over = scroll.scrollWidth - scroll.clientWidth
+      let worst = null
+      if (over > 2) {
+        for (const el of scroll.querySelectorAll('*')) {
+          if (el.scrollWidth > scroll.clientWidth + 2 &&
+              (!worst || el.scrollWidth > worst.w)) {
+            worst = { w: el.scrollWidth, sel: el.tagName + '.' + (el.className || '').toString().slice(0, 40) }
+          }
+        }
+      }
+      return JSON.stringify({ over, worst })
+    })()
+  `)
+  const result = JSON.parse(raw) as { skipped?: boolean; over?: number; worst?: { w: number; sel: string } | null }
+  if (result.skipped) return
+  check(
+    'article: no horizontal overflow',
+    (result.over ?? 0) <= 2,
+    result.worst ? `${result.worst.sel} is ${result.worst.w}px` : 'clean'
+  )
+}
+
+/**
  * The core interaction: hotkey opens, Escape closes, nothing in between.
  *
  * The hide leg is driven from the renderer through `window.rp.hide()` rather
@@ -562,6 +599,17 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
 
   const search = await shoot('smoke-search.png')
 
+  // Both themes, so a light-mode regression shows up without a manual pass.
+  if (process.env.SMOKE_THEMES) {
+    for (const theme of ['light', 'dark'] as const) {
+      await win.webContents.executeJavaScript(
+        `window.rp.setSettings({ theme: '${theme}' }); true`
+      )
+      await settle(500)
+      await shoot(`smoke-search-${theme}.png`)
+    }
+  }
+
   // Navigate by pushing onto the history stack the UI already uses, then wait
   // for the article body to actually exist rather than guessing at a delay.
   const cached = db
@@ -578,6 +626,7 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
     // Images resolve through the protocol handler; give them a moment to paint.
     await settle(1200)
     article = await shoot('smoke-article.png')
+    await checkNoHorizontalOverflow(win.webContents)
   }
 
   check(

@@ -14,15 +14,33 @@
   overflow-y: auto;
   /* The scroll container is the whole content area so the infobox can float
      against the right edge rather than inside a narrower column. */
-  padding: 4px 28px 60px;
+  padding: 4px 32px 60px;
 }
 
+/**
+ * Use the window.
+ *
+ * A fixed 860px column left a wide band of dead space either side, which is
+ * wasteful when so much of this wiki is tables — combat stats, drop rates,
+ * experience rates — that would otherwise need their own horizontal scroll.
+ * 1400px is the cap only because prose past roughly 110 characters a line gets
+ * hard to track back from; below that the column simply takes the width.
+ */
 .article {
-  max-width: 860px;
+  max-width: 1400px;
   margin: 0 auto;
   font-size: 14px;
   line-height: 1.65;
   color: var(--text);
+}
+
+/* Body text keeps a comfortable measure even when the column is wide; tables
+   and images below opt back out to full width. */
+.article-body > p,
+.article-body > ul,
+.article-body > ol,
+.article-body > dl {
+  max-width: 78ch;
 }
 
 .article-title {
@@ -85,6 +103,26 @@
   border-top: 1px solid var(--rim);
 }
 
+/**
+ * Preformatted text wraps.
+ *
+ * A backstop, not a preference. The transform removes the known offender — the
+ * Chart.js config blocks, which are a single 600,000-character line — but any
+ * unwrapped `pre` the wiki ships would otherwise stretch the article and drag a
+ * horizontal scrollbar across the entire page. Nothing here is worth that.
+ */
+.article-body pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 10px 12px;
+  font-size: 12px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+}
+
 .article-body b,
 .article-body strong {
   font-weight: 620;
@@ -125,18 +163,57 @@
 
 /* ── Images ─────────────────────────────────────────────────────────── */
 
+/**
+ * Nothing overflows its container, and nothing dominates the page.
+ *
+ * The wiki ships images at whatever size an editor uploaded — measured across
+ * a few pages, quest and location articles carry figures up to 600x467 while
+ * the same page's inline icons are 21px. `max-width` alone only solves the
+ * horizontal half: a tall screenshot still pushes everything below it off the
+ * fold. Both dimensions are therefore capped, with `object-fit` so the aspect
+ * ratio survives, and `!important` because MediaWiki writes inline width and
+ * height attributes on every one of them.
+ */
 .article-body img {
   max-width: 100%;
   height: auto;
   vertical-align: middle;
 }
 
-/* Inline item icons sit on the text baseline and must not inherit the block
-   image treatment below. */
+/* Figures and screenshots: bounded on both axes. */
+.article-body figure img,
+.article-body .thumb img,
+.article-body .mw-halign-center img,
+.article-body .mw-halign-right img,
+.article-body .mw-halign-left img {
+  max-width: min(100%, 420px) !important;
+  max-height: 340px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+/* Inside a table cell the ceiling is the cell, not the page — equipped-character
+   sprites in the bonuses box are 150x317 and would otherwise set the row height
+   for everything beside them. */
+.article-body td img,
+.article-body th img {
+  max-height: 190px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+}
+
+/* Inline item icons sit on the text baseline and must not inherit any of the
+   block treatment above. */
 .article-body .plink-template img,
-.article-body .inventory-image img {
+.article-body .inventory-image img,
+.article-body .infobox-nested img {
   display: inline;
   margin: 0 2px;
+  max-width: none !important;
+  max-height: 34px !important;
 }
 
 .article-body figure,
@@ -147,11 +224,74 @@
 .article-body figcaption,
 .article-body .thumbcaption {
   margin-top: 6px;
+  max-width: 420px;
   font-size: 12px;
   color: var(--text-dim);
 }
 
 /* ── Tables ─────────────────────────────────────────────────────────── */
+
+/**
+ * Combat stats, and the other in-body infoboxes.
+ *
+ * Only the *first* `table.infobox` is lifted out into the native panel — the
+ * item box at the top. Pages carry more: equipment bonuses, combat styles,
+ * monster stats. Those stay in the flow, and until now inherited no table
+ * styling at all, which is why the bonuses read as an undivided block of
+ * numbers next to a properly ruled styles table.
+ *
+ * Given the same treatment as a wikitable, plus a couple of things specific to
+ * the shape: the header row that names the section, and the nested cells that
+ * hold a stat icon above its value.
+ */
+.article-body table.infobox {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0 0 18px;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+}
+
+.article-body table.infobox th,
+.article-body table.infobox td {
+  padding: 6px 12px;
+  border: 1px solid var(--rim);
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* The band naming the group — "Attack bonuses", "Defence bonuses". */
+.article-body .infobox-subheader {
+  background: var(--surface-raised);
+  font-weight: 580;
+  letter-spacing: 0.01em;
+}
+
+/* Icon cells: the stat glyph sits above its number, so the column needs to be
+   narrow and the two need to stay associated. */
+.article-body .infobox-nested {
+  background: var(--surface-raised);
+  padding: 5px 10px !important;
+  min-width: 46px;
+}
+
+/* Spacer rows exist to separate groups on the website's own styling; here the
+   borders already do that, so they become dead height. */
+.article-body table.infobox .infobox-padding {
+  display: none;
+}
+
+/* The equipped-character images span the whole box on the right. Keep them
+   from setting the row height for the numbers beside them. */
+.article-body .infobox-bonuses-image {
+  padding: 4px !important;
+  background: var(--surface);
+}
 
 /* Every table gets its own horizontal scroll container. Combat-stat and
    drop-rate tables are routinely wider than the window, and the one thing the

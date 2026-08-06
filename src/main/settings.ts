@@ -13,6 +13,7 @@ import { join } from 'path'
 import type { Settings, WindowBounds } from '../shared/ipc'
 
 export const DEFAULTS: Settings = {
+  theme: 'dark',
   // Global accelerators are first-come-first-served: whichever app registers
   // first wins, and the loser gets no hotkey at all with only a console warning
   // to say so. Nothing else on this machine should claim this one.
@@ -64,6 +65,7 @@ export function onChange(listener: (next: Settings) => void): void {
 /** Clamp anything that could wedge the UI if a hand-edited file is wrong. */
 function sanitize(s: Settings): Settings {
   return {
+    theme: s.theme === 'light' ? 'light' : 'dark',
     hotkey: typeof s.hotkey === 'string' && s.hotkey.trim() ? s.hotkey.trim() : DEFAULTS.hotkey,
     hideOnBlur: Boolean(s.hideOnBlur),
     contactEmail: typeof s.contactEmail === 'string' ? s.contactEmail.trim().slice(0, 200) : '',

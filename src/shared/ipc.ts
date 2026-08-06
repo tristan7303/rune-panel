@@ -6,8 +6,12 @@
  * rather than string literals for the same reason.
  */
 
+export type Theme = 'dark' | 'light'
+
 /** Persisted user settings. */
 export interface Settings {
+  /** Reading surface. Dark by default — it sits over a dark game client. */
+  theme: Theme
   /** Global accelerator that opens and closes the window. */
   hotkey: string
   /** Close the window as soon as it loses focus. Off by default: you will click

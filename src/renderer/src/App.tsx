@@ -16,15 +16,17 @@ import { Article } from './Article'
 import { ToolPane } from './ToolPane'
 import { Profile } from './Profile'
 import { Calculators } from './Calculators'
-import logo from './assets/logo.png'
+import mark from './assets/mark.png'
+import profileLogo from './assets/logo.png'
 import {
   SearchIcon,
   SwordIcon,
   CoinsIcon,
   ChartIcon,
-  UserIcon,
   CalculatorIcon,
   GearIcon,
+  SunIcon,
+  MoonIcon,
   BackIcon,
   ForwardIcon,
   CloseIcon,
@@ -35,7 +37,13 @@ const NAV: Array<{ route: Route; label: string; icon: () => JSX.Element }> = [
   { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: SwordIcon },
   { route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon },
   { route: { kind: 'hiscores' }, label: 'Hiscores', icon: ChartIcon },
-  { route: { kind: 'tool', id: 'profile' }, label: 'RuneProfile', icon: UserIcon },
+  {
+    route: { kind: 'tool', id: 'profile' },
+    label: 'RuneProfile',
+    // Their own mark rather than a generic person: this entry leads somewhere
+    // that is recognisably a different product, and it should look like it.
+    icon: () => <img className="rail-img" src={profileLogo} alt="" draggable={false} />,
+  },
   { route: { kind: 'tool', id: 'calculators' }, label: 'Calculators', icon: CalculatorIcon },
 ]
 
@@ -52,6 +60,14 @@ export function App(): JSX.Element {
     void window.rp.getSettings().then(setSettings)
     return window.rp.onSettings(setSettings)
   }, [setSettings])
+
+  // The theme lives on <html> rather than in React state so the whole
+  // stylesheet — including the article CSS, which styles markup React never
+  // touches — can respond to one attribute.
+  const theme = useStore((s) => s.settings?.theme ?? 'dark')
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+  }, [theme])
 
   // Opening always lands on a fresh search. The window is summoned to look
   // something up, and resuming a three-hour-old article rarely is it.
@@ -114,7 +130,7 @@ export function App(): JSX.Element {
           aria-label="Rune Panel — search"
           onClick={() => push({ kind: 'search' })}
         >
-          <img src={logo} alt="" draggable={false} />
+          <img src={mark} alt="" draggable={false} />
         </button>
         {NAV.map(({ route: target, label, icon: Icon }) => (
           <button
@@ -129,6 +145,7 @@ export function App(): JSX.Element {
           </button>
         ))}
         <div className="rail-spacer" />
+        <ThemeToggle />
         <button
           className={`rail-btn ${route.kind === 'settings' ? 'is-active' : ''}`}
           title="Settings"
@@ -192,6 +209,30 @@ function Body({ route }: { route: Route }): JSX.Element {
     default:
       return <Placeholder title={routeTitle(route)} note="Not built yet." />
   }
+}
+
+/**
+ * Light/dark switch, sitting directly above settings.
+ *
+ * A rail button rather than a settings row because it is the one preference
+ * worth flipping mid-task — usually because the room's light changed, not
+ * because you went looking for a setting.
+ */
+function ThemeToggle(): JSX.Element {
+  const theme = useStore((s) => s.settings?.theme ?? 'dark')
+  const patch = useStore((s) => s.patchSettings)
+  const next = theme === 'dark' ? 'light' : 'dark'
+
+  return (
+    <button
+      className="rail-btn"
+      title={`Switch to ${next} mode`}
+      aria-label={`Switch to ${next} mode`}
+      onClick={() => patch({ theme: next })}
+    >
+      {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+    </button>
+  )
 }
 
 function Tool({ id }: { id: 'dps' | 'calculators' | 'profile' }): JSX.Element {

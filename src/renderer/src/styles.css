@@ -38,6 +38,34 @@
   --duration: 200ms;
 }
 
+/**
+ * Light mode.
+ *
+ * Only the surface and text tokens move; the accents are shared, since the
+ * violet/cyan ramp reads correctly on both. Everything downstream — including
+ * article.css, which styles MediaWiki's own markup — is written against these
+ * variables, so this is the whole of the theme.
+ */
+:root[data-theme='light'] {
+  --surface: rgba(247, 246, 251, 0.92);
+  --surface-raised: rgba(255, 255, 255, 0.86);
+  --surface-sunken: rgba(233, 231, 240, 0.72);
+  --surface-hover: rgba(20, 16, 40, 0.06);
+
+  --rim: rgba(24, 20, 45, 0.12);
+  --rim-bright: rgba(255, 255, 255, 0.85);
+
+  --text: rgba(26, 23, 40, 0.94);
+  --text-dim: rgba(26, 23, 40, 0.6);
+  --text-faint: rgba(26, 23, 40, 0.38);
+
+  /* The dark accents wash out on a light surface; these are the same hues
+     taken down in lightness rather than different colours. */
+  --accent-a: #6d4fd6;
+  --accent-b: #1f7fc4;
+  --accent-gold: #a8761c;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -117,9 +145,26 @@ body,
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: contain;
+}
+
+/* Rail entries that use artwork instead of a line icon. Sized to sit on the
+   same optical weight as the 18px strokes around them. */
+.rail-img {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  object-fit: cover;
   /* Low-poly OSRS art: crisp downscaling keeps the edges readable where
      smoothing would turn the crown to mush. */
   image-rendering: crisp-edges;
+  opacity: 0.78;
+  transition: opacity var(--duration) ease;
+}
+
+.rail-btn:hover .rail-img,
+.rail-btn.is-active .rail-img {
+  opacity: 1;
 }
 
 .rail-spacer {
