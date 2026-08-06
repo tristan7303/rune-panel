@@ -19,6 +19,7 @@ import { ToolPane } from './ToolPane'
 import { Profile } from './Profile'
 import { Calculators } from './Calculators'
 import { Grand } from './Grand'
+import { Hiscores } from './Hiscores'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
 import {
@@ -207,6 +208,8 @@ function Body({ route }: { route: Route }): JSX.Element {
       return <Article title={route.title} key={route.title} />
     case 'ge':
       return <Grand itemId={route.itemId} key={route.itemId ?? 'search'} />
+    case 'hiscores':
+      return <Hiscores />
     case 'tool':
       return <Tool id={route.id} />
     default:

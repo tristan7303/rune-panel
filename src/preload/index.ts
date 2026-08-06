@@ -14,7 +14,9 @@ import {
   On,
   type Article,
   type CrawlState,
+  type AccountMode,
   type GeItem,
+  type Hiscores,
   type GeItemDetail,
   type GeTimestep,
   type PaneBounds,
@@ -72,6 +74,9 @@ const api: RunePanelApi = {
     ipcRenderer.invoke(Invoke.GeDetail, itemId, timestep),
   geFindByName: (name: string): Promise<GeItem | null> =>
     ipcRenderer.invoke(Invoke.GeFindByName, name),
+
+  hiscores: (name: string, mode?: AccountMode): Promise<Hiscores> =>
+    ipcRenderer.invoke(Invoke.Hiscores, name, mode),
 
   onShown: (cb) => subscribe(On.Shown, cb),
   onSettings: (cb) => subscribeWith<Settings>(On.Settings, cb),

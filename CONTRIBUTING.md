@@ -21,7 +21,7 @@ agent, the embedded browser, and the WebGL refraction engine are gone.
 | 4 | Background sync: recentchanges + seed crawler | done |
 | 5 | Embedded tool pane: DPS, calculators, RuneProfile | done |
 | 6 | Grand Exchange prices | done |
-| 7 | Hiscores lookup and compare | |
+| 7 | Hiscores lookup and compare | done |
 | 8 | Packaging | |
 
 Plan lives in `~/.claude/plans/please-copy-glass-agent-vast-rabin.md`.
@@ -235,6 +235,8 @@ src/
       sync.ts      recentchanges invalidation + background crawler
     prices/
       ge.ts        mapping / latest / timeseries, cached
+    hiscores/
+      index.ts     account-type probing + the four boards
   preload/         the entire renderer-facing API surface
   shared/          types and channel names used by both processes
   renderer/src/

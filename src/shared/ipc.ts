@@ -216,6 +216,46 @@ export interface GeItemDetail {
   series: GeSeriesPoint[]
 }
 
+// ── Hiscores ────────────────────────────────────────────────────────────────
+
+export type AccountMode = 'main' | 'ironman' | 'hardcore' | 'ultimate'
+
+export interface XpProgress {
+  level: number
+  virtualLevel: number
+  toNextLevel: number | null
+  fraction: number
+  toMax: number | null
+}
+
+export interface HiscoreSkill {
+  id: number
+  name: string
+  /** -1 when unranked. */
+  rank: number
+  level: number
+  xp: number
+  progress: XpProgress
+}
+
+export interface HiscoreActivity {
+  id: number
+  name: string
+  rank: number
+  score: number
+}
+
+export interface Hiscores {
+  name: string
+  mode: AccountMode
+  skills: HiscoreSkill[]
+  activities: HiscoreActivity[]
+  totalLevel: number
+  totalXp: number
+  overallRank: number
+  fetchedAt: number
+}
+
 export type CrawlPhase = 'idle' | 'refreshing' | 'crawling' | 'paused' | 'done' | 'error'
 
 export interface CrawlState {
@@ -255,6 +295,7 @@ export const Invoke = {
   LookupProfile: 'profile:lookup',
   GeDetail: 'ge:detail',
   GeFindByName: 'ge:find',
+  Hiscores: 'hiscores:lookup',
 } as const
 
 /** Main -> renderer. */
@@ -299,6 +340,8 @@ export interface RunePanelApi {
 
   geDetail(itemId: number, timestep?: GeTimestep): Promise<GeItemDetail | null>
   geFindByName(name: string): Promise<GeItem | null>
+
+  hiscores(name: string, mode?: AccountMode): Promise<Hiscores>
 
   onShown(cb: () => void): () => void
   onSettings(cb: (settings: Settings) => void): () => void

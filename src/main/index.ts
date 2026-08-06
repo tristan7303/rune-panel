@@ -25,6 +25,7 @@ import * as sync from './wiki/sync'
 import * as pane from './tools/pane'
 import * as profile from './tools/profile'
 import * as ge from './prices/ge'
+import * as hiscores from './hiscores'
 import type { PaneBounds, ToolId } from '../shared/ipc'
 
 /**
@@ -99,6 +100,10 @@ function registerIpc(): void {
     ge.detail(itemId, timestep)
   )
   ipcMain.handle(Invoke.GeFindByName, (_e, name: string) => ge.findItemByName(name))
+
+  ipcMain.handle(Invoke.Hiscores, (_e, name: string, mode?: hiscores.AccountMode) =>
+    hiscores.lookup(name, mode)
+  )
 
   titles.onProgress((progress) => {
     // A finished sync replaced the rows the in-memory haystack was built from.

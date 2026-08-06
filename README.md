@@ -38,7 +38,10 @@ collection log. Type a username; Rune Panel remembers the ones you look up.
 2% sell tax, buy limits, and a year of price history with volume. Search by item
 name, the same way you search the wiki.
 
-Hiscores are next.
+**Hiscores** — look up any account; Rune Panel works out which board it is on,
+so ironman accounts are found without picking a mode. Every skill with its rank,
+how far the next level is, and a compare column for putting two accounts side by
+side.
 
 ---
 

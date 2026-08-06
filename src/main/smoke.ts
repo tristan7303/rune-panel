@@ -28,6 +28,7 @@ import * as sync from './wiki/sync'
 import * as pane from './tools/pane'
 import { TOOLS } from './tools/registry'
 import type { ToolId } from '../shared/ipc'
+import { XP_FOR_LEVEL } from '../shared/xp'
 
 interface Check {
   name: string
@@ -69,6 +70,7 @@ export async function runSmoke(initial: Settings): Promise<void> {
   if (process.env.SMOKE_FETCH) {
     await checkPrices(win.webContents)
     await checkProfileLookup(win.webContents)
+    await checkHiscores(win.webContents)
   }
       if (process.env.SMOKE_FETCH) await checkToolPane(win)
       await checkShowHide(win)
@@ -612,6 +614,50 @@ async function checkPrices(wc: Electron.WebContents): Promise<void> {
   check('ge: 5m range is its own series', short > 0, `${short} points`)
 }
 
+/**
+ * Hiscores, against the live endpoint.
+ *
+ * Also checks the experience table, since it is computed from the game's
+ * formula rather than transcribed and a wrong table would quietly mis-state
+ * every "to next level" in the app.
+ */
+async function checkHiscores(wc: Electron.WebContents): Promise<void> {
+  // Two known thresholds. 13,034,431 is level 99; 83 is level 2.
+  check('xp: level 2 threshold', XP_FOR_LEVEL[2] === 83, String(XP_FOR_LEVEL[2]))
+  check('xp: level 99 threshold', XP_FOR_LEVEL[99] === 13_034_431, String(XP_FOR_LEVEL[99]))
+
+  // Lynx Titan: maxed, and the first account to reach 4.6b total experience.
+  const raw = await wc.executeJavaScript(
+    `window.rp.hiscores('Lynx Titan').then(h => JSON.stringify(h)).catch(e => JSON.stringify({ error: String(e) }))`
+  )
+  const h = JSON.parse(raw) as {
+    error?: string
+    name?: string
+    mode?: string
+    totalLevel?: number
+    skills?: Array<{ name: string; level: number; progress: { fraction: number } }>
+  }
+
+  if (h.error) {
+    check('IPC round trip (hiscores)', false, h.error)
+    return
+  }
+
+  check('IPC round trip (hiscores)', h.name?.toLowerCase() === 'lynx titan', h.name ?? 'null')
+  check('hiscores: detected the account type', h.mode === 'main', String(h.mode))
+  check('hiscores: total level', h.totalLevel === 2277 || h.totalLevel === 2278, String(h.totalLevel))
+  // Overall is a summary row, not a skill, and must not appear among them.
+  check(
+    'hiscores: overall excluded from skills',
+    !(h.skills ?? []).some((s) => s.name.toLowerCase() === 'overall'),
+    `${h.skills?.length} skills`
+  )
+  // A capped skill reads as complete rather than at the start of an
+  // unreachable level.
+  const maxed = h.skills?.find((s) => s.level === 99)
+  check('hiscores: a maxed skill reads as complete', maxed?.progress.fraction === 1, String(maxed?.progress.fraction))
+}
+
 /** RuneProfile lookup, against the live API. */
 async function checkProfileLookup(wc: Electron.WebContents): Promise<void> {
   const raw = await wc.executeJavaScript(
@@ -768,6 +814,35 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
   }
 
   const search = await shoot('smoke-home.png')
+
+  // Hiscores, with a comparison loaded, so the diff column is in the shot.
+  if (process.env.SMOKE_FETCH) {
+    await win.webContents.executeJavaScript(
+      `window.__rpNav.getState().push({ kind: 'hiscores' }); true`
+    )
+    await settle(400)
+    await win.webContents.executeJavaScript(`
+      (async () => {
+        const set = (v) => {
+          const i = document.querySelector('.hs-form input')
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+          setter.call(i, v)
+          i.dispatchEvent(new Event('input', { bubbles: true }))
+        }
+        set('Lynx Titan')
+        await new Promise((r) => setTimeout(r, 80))
+        document.querySelector('.hs-form button[type=submit]').click()
+        await new Promise((r) => setTimeout(r, 2500))
+        set('Zezima')
+        await new Promise((r) => setTimeout(r, 80))
+        ;[...document.querySelectorAll('.hs-form button')].find((b) => b.textContent === 'Compare')?.click()
+      })()
+    `)
+    await settle(4000)
+    await shoot('smoke-hiscores.png')
+    await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
+    await settle(300)
+  }
 
   // The Grand Exchange view, so the chart gets an eye on it too.
   await win.webContents.executeJavaScript(
