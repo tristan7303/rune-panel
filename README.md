@@ -14,7 +14,7 @@ agent, the embedded browser, and the WebGL refraction engine are gone.
 | 0 | Fork, acrylic window, hotkey, tray, settings | done |
 | 1 | SQLite storage, throttled wiki client, title index | done |
 | 2 | Shell UI, navigation history, Ctrl+K search | done |
-| 3 | Article renderer and HTML transform | |
+| 3 | Article renderer and HTML transform | done |
 | 4 | Background sync: recentchanges + seed crawler | |
 | 5 | Embedded tool pane: DPS, calculators, RuneProfile | |
 | 6 | Grand Exchange prices | |
@@ -57,7 +57,13 @@ whether the preload bridge connected, so the checks assert behaviour directly �
 including a settings write driven through the real IPC bridge and a full
 show/hide cycle closed from the renderer.
 
-`SMOKE_SHOT=1` also writes `out/smoke-shot.png`.
+`SMOKE_SHOT=1` also writes `out/smoke-search.png` and `out/smoke-article.png`,
+driven through the renderer's own navigation store. Deliberately not synthetic
+keystrokes: global input automation types into whatever window happens to have
+focus, which is not reliably this one.
+
+`SMOKE_FETCH=1` lets the article checks fetch one page when nothing is cached
+yet. Off by default — a smoke run should not make wiki requests every time.
 
 ## Two things that shape the architecture
 
@@ -137,6 +143,35 @@ to `Bow of faerdhinen` but reports having matched `BOWFA RANGE`. And an exact
 title is promoted to the top afterwards, because fuzzy ranking will otherwise
 put `Zulrah/Strategies` above `Zulrah`.
 
+### Articles
+
+Fetched once via `action=parse`, transformed once in main, cached forever. Every
+later visit is a disk read, and hovering a link for 150ms prefetches it, so a
+click is almost always local.
+
+The transform (`wiki/transform.ts`) is what separates this from an embedded
+browser: it sanitizes, lifts the infobox out into structured data the renderer
+draws as a native panel, rewrites `/w/` links to `rb://` routes, points every
+image at the local cache, and strips the navboxes and cross-wiki chrome. The
+output is injected with `dangerouslySetInnerHTML`, so script tags, inline
+handlers and `javascript:` URLs are removed — "trusted source" is not a security
+model, and the smoke suite asserts each of those individually.
+
+Images go through `rbimg://`, backed by a hashed, two-level-sharded on-disk
+cache. Two things about it are not obvious. Article pages are far more
+image-dense than they look — the Abyssal whip page references **183** — so
+images deliberately bypass the API's 4 req/s ceiling, which exists for
+`api.php`, not for static bytes behind a CDN; a concurrency cap of 8 replaces
+it. And the URL carries a constant `img` host (`rbimg://img/<name>`) because a
+`standard` scheme parses `rbimg://thumb/X.png/130px-X.png` with `thumb` as the
+host, lowercases it, and drops it from the path — thumbnails are exactly the
+case that breaks.
+
+**Known gap:** weapon and spell sound effects are stripped. They cannot play —
+the renderer has no `media-src` and the asset protocol serves images only — and
+a dead player control is worse than none. Supporting them is a small separate
+change.
+
 **Invariant worth relying on:** a redirect's target is either NULL or a title
 that exists locally. A few redirects point off-wiki entirely (`Api` resolves to
 `rsw:Application programming interface` on the RS3 wiki); their targets are
@@ -161,12 +196,17 @@ src/
       client.ts    the only outbound request path: UA, queue, retries
       titles.ts    the 36k-article / 203k-redirect index
       search.ts    uFuzzy matching + alias collapsing
+      page.ts      article fetch + cache
+      transform.ts MediaWiki HTML -> our HTML, and the infobox
+      images.ts    rbimg:// protocol + on-disk image cache
   preload/         the entire renderer-facing API surface
   shared/          types and channel names used by both processes
   renderer/src/
     App.tsx        shell: rail, top bar, routed body
     nav.ts         history stack — a tagged union, not a router
     Search.tsx     the Ctrl+K palette
+    Article.tsx    article view, infobox, hover prefetch
+    article.css    restyling of the wiki's own markup
     Settings.tsx   settings view
 scripts/           tray icon generator (pure Node, no deps)
 ```

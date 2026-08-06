@@ -208,8 +208,16 @@ body,
 .content {
   min-width: 0;
   min-height: 0;
+}
+
+.content[data-scroll='outer'] {
   overflow: auto;
   padding: 20px 24px;
+}
+
+/* The view inside supplies its own scroll container and padding. */
+.content[data-scroll='inner'] {
+  overflow: hidden;
 }
 
 .placeholder {

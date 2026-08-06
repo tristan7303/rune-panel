@@ -77,6 +77,8 @@ export const Send = {
   SetSettings: 'settings:set',
   /** Rebuild the wiki title index. No-op if one is already running. */
   SyncTitles: 'wiki:sync-titles',
+  /** Warm the cache for a title the cursor is resting on. */
+  PrefetchPage: 'wiki:prefetch',
 } as const
 
 export interface SearchResult {
@@ -86,11 +88,46 @@ export interface SearchResult {
   matchedVia?: string
 }
 
+// ── Articles ────────────────────────────────────────────────────────────────
+
+export interface InfoboxRow {
+  label: string
+  /** Already-transformed HTML: values carry links and item icons worth keeping. */
+  value: string
+}
+
+export interface Infobox {
+  header?: string
+  image?: string
+  rows: InfoboxRow[]
+}
+
+export interface Section {
+  level: number
+  line: string
+  anchor: string
+}
+
+export interface Article {
+  title: string
+  revid: number
+  html: string
+  infobox: Infobox | null
+  sections: Section[]
+  categories: string[]
+  fetchedAt: number
+  /** True when served from disk without touching the network. */
+  cached: boolean
+  /** Marked out of date by a recentchanges sweep; content is still shown. */
+  stale: boolean
+}
+
 /** Renderer -> main, awaits a reply. */
 export const Invoke = {
   GetSettings: 'settings:get',
   GetTitleIndex: 'wiki:title-index',
   Search: 'wiki:search',
+  GetPage: 'wiki:page',
 } as const
 
 /** Main -> renderer. */
@@ -119,6 +156,8 @@ export interface RuneBuddyApi {
   getTitleIndex(): Promise<TitleIndexState>
   syncTitles(): void
   search(query: string): Promise<SearchResult[]>
+  getPage(title: string, options?: { force?: boolean }): Promise<Article | null>
+  prefetchPage(title: string): void
 
   onShown(cb: () => void): () => void
   onSettings(cb: (settings: Settings) => void): () => void

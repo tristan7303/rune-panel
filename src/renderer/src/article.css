@@ -1,0 +1,376 @@
+/**
+ * Article typography and wiki-markup restyling.
+ *
+ * Separate from styles.css because the two have opposite jobs: that file styles
+ * components we wrote and control, this one styles markup MediaWiki hands us
+ * and we can only react to. Class names here are the wiki's, not ours.
+ *
+ * The guiding rule is that the reading surface stays calm. The shell can be
+ * glassy; a 4,000-word Slayer guide cannot.
+ */
+
+.article-scroll {
+  height: 100%;
+  overflow-y: auto;
+  /* The scroll container is the whole content area so the infobox can float
+     against the right edge rather than inside a narrower column. */
+  padding: 4px 28px 60px;
+}
+
+.article {
+  max-width: 860px;
+  margin: 0 auto;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.article-title {
+  margin: 8px 0 18px;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+
+/* ── Body text ──────────────────────────────────────────────────────── */
+
+.article-body p {
+  margin: 0 0 14px;
+}
+
+.article-body h2,
+.article-body h3,
+.article-body h4 {
+  margin: 30px 0 10px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.article-body h2 {
+  font-size: 19px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rim);
+}
+
+.article-body h3 {
+  font-size: 16px;
+}
+
+.article-body h4 {
+  font-size: 14.5px;
+  color: var(--text-dim);
+}
+
+/* MediaWiki 1.43+ wraps headings in .mw-heading; the wrapper would otherwise
+   add a second set of margins on top of the heading's own. */
+.article-body .mw-heading {
+  margin: 0;
+}
+
+.article-body ul,
+.article-body ol {
+  margin: 0 0 14px;
+  padding-left: 24px;
+}
+
+.article-body li {
+  margin: 3px 0;
+}
+
+.article-body hr {
+  margin: 24px 0;
+  border: 0;
+  border-top: 1px solid var(--rim);
+}
+
+.article-body b,
+.article-body strong {
+  font-weight: 620;
+}
+
+/* ── Links ──────────────────────────────────────────────────────────── */
+
+.article-body a,
+.infobox-card a {
+  color: var(--accent-b);
+  text-decoration: none;
+  /* An underline on every link makes a wiki page look like a ransom note —
+     these pages are ~500 links deep. A hover underline keeps affordance
+     without the visual noise. */
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--duration) ease;
+}
+
+.article-body a:hover,
+.infobox-card a:hover {
+  border-bottom-color: currentColor;
+}
+
+/* External links earn a marker precisely because they behave differently:
+   they leave the app. */
+.article-body a.rb-external::after,
+.article-footer a.rb-external::after {
+  content: '↗';
+  font-size: 0.8em;
+  margin-left: 2px;
+  opacity: 0.6;
+}
+
+.article-body sup a {
+  color: var(--text-faint);
+  font-size: 0.85em;
+}
+
+/* ── Images ─────────────────────────────────────────────────────────── */
+
+.article-body img {
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+}
+
+/* Inline item icons sit on the text baseline and must not inherit the block
+   image treatment below. */
+.article-body .plink-template img,
+.article-body .inventory-image img {
+  display: inline;
+  margin: 0 2px;
+}
+
+.article-body figure,
+.article-body .thumb {
+  margin: 16px 0;
+}
+
+.article-body figcaption,
+.article-body .thumbcaption {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────── */
+
+/* Every table gets its own horizontal scroll container. Combat-stat and
+   drop-rate tables are routinely wider than the window, and the one thing the
+   page must never do is scroll sideways as a whole. */
+.article-body .rb-table,
+.article-body table.wikitable {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0 0 16px;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+}
+
+.article-body .rb-table th,
+.article-body .rb-table td,
+.article-body table.wikitable th,
+.article-body table.wikitable td {
+  padding: 6px 10px;
+  border: 1px solid var(--rim);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.article-body .rb-table th,
+.article-body table.wikitable th {
+  background: var(--surface-raised);
+  font-weight: 580;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.article-body .rb-table tr:hover td {
+  background: var(--surface-hover);
+}
+
+.article-body .table-na {
+  color: var(--text-faint);
+}
+
+/* ── Message boxes and notices ──────────────────────────────────────── */
+
+.article-body .messagebox,
+.article-body .ambox,
+.article-body .hatnote {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-left: 2px solid var(--accent-a);
+  border-radius: var(--radius);
+}
+
+.article-body .hatnote {
+  font-style: italic;
+}
+
+/* ── References ─────────────────────────────────────────────────────── */
+
+.article-body .reflist,
+.article-body .mw-references-wrap {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.article-body .reflist ol {
+  padding-left: 20px;
+}
+
+/* ── Infobox ────────────────────────────────────────────────────────── */
+
+/* Floated right on wide windows so text wraps beside it, exactly as it does on
+   the site; the media query below drops it above the text when there is not
+   room for both. */
+.infobox-card {
+  float: right;
+  width: 300px;
+  margin: 0 0 16px 22px;
+  padding: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 var(--rim-bright);
+  font-size: 12.5px;
+}
+
+.infobox-card .infobox-header {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 620;
+  text-align: center;
+}
+
+.infobox-card .infobox-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  margin-bottom: 10px;
+  padding: 10px;
+  background: var(--surface-sunken);
+  border-radius: var(--radius);
+}
+
+.infobox-card .infobox-image img {
+  max-width: 100%;
+  /* Item sprites are tiny and pixel-art; scaling them smoothly turns them to
+     mush, so upscale them crisply instead. */
+  image-rendering: pixelated;
+  transform: scale(1.6);
+}
+
+.infobox-rows {
+  margin: 0;
+}
+
+.infobox-row {
+  display: grid;
+  grid-template-columns: 40% 1fr;
+  gap: 10px;
+  padding: 5px 2px;
+  border-top: 1px solid var(--rim);
+}
+
+.infobox-row dt {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.infobox-row dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.infobox-row dd img {
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+@media (max-width: 900px) {
+  .infobox-card {
+    float: none;
+    width: auto;
+    margin: 0 0 20px;
+  }
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────── */
+
+.article-footer {
+  clear: both;
+  margin-top: 36px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rim);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.article-footer p {
+  margin: 0 0 4px;
+}
+
+.article-footer a {
+  color: var(--text-dim);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.article-footer a:hover {
+  border-bottom-color: currentColor;
+}
+
+.article-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.chip {
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-radius: 20px;
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link-btn:hover {
+  color: var(--text);
+}
+
+/* ── Collapsibles ───────────────────────────────────────────────────── */
+
+/* The wiki's collapse toggles are driven by MediaWiki JS that does not come
+   with the HTML, so collapsed content would be permanently unreachable.
+   Forcing them open is the honest fallback. */
+.article-body .mw-collapsed,
+.article-body .mw-collapsible-content {
+  display: block !important;
+}
+
+.article-body .mw-collapsible-toggle {
+  display: none;
+}

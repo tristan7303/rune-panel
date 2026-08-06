@@ -70,6 +70,10 @@ export const useNav = create<NavState>((set, get) => ({
   reset: (route = { kind: 'search' }) => set({ entries: [route], index: 0 }),
 }))
 
+// Exposed so the SMOKE_SHOT capture can navigate the way a click does, instead
+// of synthesising global keystrokes that land in whatever window has focus.
+;(window as unknown as { __rbNav: typeof useNav }).__rbNav = useNav
+
 /** The route currently displayed. */
 export function useRoute(): Route {
   return useNav((s) => s.entries[s.index])

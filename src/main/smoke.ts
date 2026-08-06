@@ -23,6 +23,7 @@ import type { Settings } from '../shared/ipc'
 import * as db from './db'
 import * as client from './wiki/client'
 import * as titles from './wiki/titles'
+import { transform } from './wiki/transform'
 
 interface Check {
   name: string
@@ -174,6 +175,8 @@ async function checkTitleIndex(wc: Electron.WebContents): Promise<void> {
   check('titles: has articles', state.count - state.redirects > 1000, `${state.count - state.redirects}`)
 
   await checkSearch(wc)
+  checkTransform()
+  await checkArticle(wc)
 
   // Every redirect target should itself be a known title. A miss means the two
   // passes were joined on the wrong key, which would silently break search.
@@ -234,6 +237,146 @@ async function checkSearch(wc: Electron.WebContents): Promise<void> {
 }
 
 /**
+ * The transform, against markup built to break it.
+ *
+ * Offline and synchronous, so these run on every smoke pass regardless of the
+ * cache state. The security assertions matter most: the output is injected with
+ * dangerouslySetInnerHTML, so a script tag surviving here is a real hole rather
+ * than a cosmetic bug.
+ */
+function checkTransform(): void {
+  const hostile = `
+    <div class="mw-parser-output">
+      <script>window.pwned = 1</script>
+      <p onclick="alert(1)">Text with an <a href="/w/Abyssal_whip" title="x">internal link</a>,
+         an <a href="//example.com/x">external one</a>,
+         a <a href="javascript:alert(1)">nasty one</a>,
+         and a <a href="/w/File:Thing.png">file link</a>.</p>
+      <img src="/images/Abyssal_whip.png?727e9" srcset="/images/x.png 2x" />
+      <table class="infobox"><tbody>
+        <tr><th class="infobox-header">Abyssal whip</th></tr>
+        <tr><td class="infobox-image"><img src="/images/Abyssal_whip.png?727e9" /></td></tr>
+        <tr><th>Members</th><td>Yes</td></tr>
+        <tr><th>Released</th><td><a href="/w/2005" title="2005">2005</a></td></tr>
+      </tbody></table>
+      <div class="navbox">nav junk</div>
+      <table class="wikitable"><tbody><tr><td>cell</td></tr></tbody></table>
+      <!-- parser cache noise -->
+    </div>`
+
+  const { html, infobox } = transform(hostile, 'Some page')
+
+  check('transform: strips script tags', !/<script/i.test(html))
+  check('transform: strips inline handlers', !/onclick/i.test(html))
+  check('transform: strips javascript: urls', !/javascript:/i.test(html))
+  check('transform: strips comments', !html.includes('parser cache noise'))
+  check('transform: strips navboxes', !html.includes('nav junk'))
+
+  check('transform: rewrites internal links', html.includes('rb://page/Abyssal%20whip'), '')
+  check('transform: carries data-title', html.includes('data-title="Abyssal whip"'))
+  check('transform: marks external links', /rb-external/.test(html))
+  // A File: link resolves to a page this app cannot render, so the anchor goes
+  // and the text stays.
+  check(
+    'transform: unwraps non-article namespaces',
+    !html.includes('File:Thing.png') && html.includes('file link')
+  )
+
+  check('transform: rewrites images', html.includes('rbimg://img/Abyssal_whip.png'), '')
+  check('transform: drops srcset', !/srcset/i.test(html))
+  check('transform: tags wikitables', html.includes('rb-table'))
+
+  check('transform: extracts infobox', infobox !== null)
+  check('transform: infobox header', infobox?.header === 'Abyssal whip', infobox?.header ?? '')
+  check('transform: infobox rows', infobox?.rows.length === 2, `${infobox?.rows.length} rows`)
+  check(
+    'transform: infobox values keep links',
+    infobox?.rows[1]?.value.includes('rb://page/2005') ?? false
+  )
+  // Lifted, not copied: leaving it in the body would render it twice.
+  check('transform: infobox removed from body', !html.includes('infobox-header'))
+}
+
+/**
+ * An article end to end, through the real bridge.
+ *
+ * Uses whatever is already cached: a smoke check has no business making wiki
+ * requests on every run. `SMOKE_FETCH=1` opts into fetching one page — a
+ * handful of requests — so the full path can be exercised deliberately.
+ */
+async function checkArticle(wc: Electron.WebContents): Promise<void> {
+  const cached = db
+    .get()
+    .prepare('SELECT title FROM pages ORDER BY fetched_at DESC LIMIT 1')
+    .get() as { title: string } | undefined
+
+  const title = cached?.title ?? (process.env.SMOKE_FETCH ? 'Abyssal whip' : null)
+  if (!title) {
+    check('article: renders', true, 'nothing cached — run with SMOKE_FETCH=1 to fetch one')
+    return
+  }
+
+  const raw = await wc.executeJavaScript(
+    `window.rb.getPage(${JSON.stringify(title)}).then(a => JSON.stringify(a))`
+  )
+  const article = JSON.parse(raw) as {
+    title: string
+    html: string
+    cached: boolean
+    infobox: { rows: unknown[] } | null
+    sections: unknown[]
+    categories: string[]
+  } | null
+
+  check('IPC round trip (getPage)', article?.title === title, article?.title ?? 'null')
+  check(
+    'article: body is transformed',
+    (article?.html.length ?? 0) > 200 && !/<script/i.test(article?.html ?? ''),
+    `${article?.html.length ?? 0} bytes${article?.cached ? ', from cache' : ', fetched'}`
+  )
+  check(
+    'article: links point at rb://',
+    (article?.html.includes('rb://page/') ?? false) && !/href="\/w\//.test(article?.html ?? '')
+  )
+  check(
+    'article: images point at rbimg://',
+    (article?.html.includes('rbimg://') ?? false) && !article?.html.includes('/images/')
+  )
+  check('article: has sections', (article?.sections.length ?? 0) > 0, `${article?.sections.length}`)
+  check(
+    'article: has categories',
+    (article?.categories.length ?? 0) > 0,
+    (article?.categories.slice(0, 3) ?? []).join(', ')
+  )
+
+  await checkImageProtocol(wc, article?.html ?? '')
+}
+
+/** The rbimg:// protocol actually serves bytes the renderer can display. */
+async function checkImageProtocol(wc: Electron.WebContents, html: string): Promise<void> {
+  const match = /rbimg:\/\/([^"']+)/.exec(html)
+  if (!match) {
+    check('rbimg: serves cached images', false, 'no rbimg url found in article html')
+    return
+  }
+
+  // Loaded as a real <img> in the renderer, so this exercises the protocol
+  // handler, the CSP allowance and the on-disk cache together — fetch() would
+  // prove less.
+  const result = await wc.executeJavaScript(`
+    new Promise((resolve) => {
+      const img = new Image()
+      const timer = setTimeout(() => resolve('timeout'), 8000)
+      img.onload = () => { clearTimeout(timer); resolve('ok:' + img.naturalWidth + 'x' + img.naturalHeight) }
+      img.onerror = () => { clearTimeout(timer); resolve('error') }
+      img.src = ${JSON.stringify(match[0])}
+    })
+  `)
+
+  check('rbimg: serves cached images', String(result).startsWith('ok:'), `${match[0]} -> ${result}`)
+}
+
+/**
  * The core interaction: hotkey opens, Escape closes, nothing in between.
  *
  * The hide leg is driven from the renderer through `window.rb.hide()` rather
@@ -270,13 +413,59 @@ async function checkShowHide(win: Electron.BrowserWindow): Promise<void> {
   await settle()
 }
 
-/** Write a PNG of the window to out/smoke-shot.png for eyeballing the design. */
+/**
+ * Write PNGs of the real UI to out/ for eyeballing the design.
+ *
+ * Driven entirely through the renderer's own store — no synthetic keystrokes.
+ * Global input automation types into whatever happens to be focused, which is
+ * emphatically not always this window.
+ */
 async function screenshot(win: Electron.BrowserWindow): Promise<void> {
-  const image = await win.webContents.capturePage()
-  // Not app.getAppPath(): running the built entry directly makes that out/main,
-  // which would nest the file one level too deep.
-  writeFileSync(join(process.cwd(), 'out', 'smoke-shot.png'), image.toPNG())
-  check('screenshot written', image.getSize().width > 0, 'out/smoke-shot.png')
+  const shoot = async (name: string): Promise<boolean> => {
+    const image = await win.webContents.capturePage()
+    // Not app.getAppPath(): running the built entry directly makes that
+    // out/main, which would nest the file one level too deep.
+    writeFileSync(join(process.cwd(), 'out', name), image.toPNG())
+    return image.getSize().width > 0
+  }
+
+  const search = await shoot('smoke-search.png')
+
+  // Navigate by pushing onto the history stack the UI already uses, then wait
+  // for the article body to actually exist rather than guessing at a delay.
+  const cached = db
+    .get()
+    .prepare('SELECT title FROM pages ORDER BY fetched_at DESC LIMIT 1')
+    .get() as { title: string } | undefined
+
+  let article = true
+  if (cached) {
+    await win.webContents.executeJavaScript(`
+      window.__rbNav.getState().push({ kind: 'page', title: ${JSON.stringify(cached.title)} }); true
+    `)
+    await waitFor(win.webContents, '.article-body', 8000)
+    // Images resolve through the protocol handler; give them a moment to paint.
+    await settle(1200)
+    article = await shoot('smoke-article.png')
+  }
+
+  check(
+    'screenshots written',
+    search && article,
+    cached ? 'out/smoke-search.png, out/smoke-article.png' : 'out/smoke-search.png (no page cached)'
+  )
+}
+
+/** Poll for a selector to appear, so captures are not timing guesses. */
+async function waitFor(wc: Electron.WebContents, selector: string, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const found = await wc.executeJavaScript(
+      `!!document.querySelector(${JSON.stringify(selector)})`
+    )
+    if (found) return
+    await settle(150)
+  }
 }
 
 function waitForLoad(wc: Electron.WebContents): Promise<void> {

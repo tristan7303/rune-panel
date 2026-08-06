@@ -12,6 +12,7 @@ import { useStore } from './store'
 import { useNav, useRoute, useCanGoBack, useCanGoForward, routeTitle, type Route } from './nav'
 import { SettingsView } from './Settings'
 import { Search } from './Search'
+import { Article } from './Article'
 import {
   SearchIcon,
   SwordIcon,
@@ -150,7 +151,9 @@ export function App(): JSX.Element {
           </button>
         </header>
 
-        <main className="content">
+        {/* Articles own their scrolling so the infobox can float against the
+            full width; every other view is happy to scroll inside .content. */}
+        <main className="content" data-scroll={route.kind === 'page' ? 'inner' : 'outer'}>
           <Body route={route} />
         </main>
       </div>
@@ -165,7 +168,9 @@ function Body({ route }: { route: Route }): JSX.Element {
     case 'settings':
       return <SettingsView />
     case 'page':
-      return <Placeholder title={route.title} note="Article rendering lands in phase 3." />
+      // Keyed so switching articles remounts rather than reusing state that
+      // belongs to the previous page.
+      return <Article title={route.title} key={route.title} />
     default:
       return <Placeholder title={routeTitle(route)} note="Not built yet." />
   }

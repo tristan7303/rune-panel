@@ -12,6 +12,7 @@ import {
   Send,
   Invoke,
   On,
+  type Article,
   type RuneBuddyApi,
   type SearchResult,
   type Settings,
@@ -46,6 +47,9 @@ const api: RuneBuddyApi = {
   getTitleIndex: (): Promise<TitleIndexState> => ipcRenderer.invoke(Invoke.GetTitleIndex),
   syncTitles: () => ipcRenderer.send(Send.SyncTitles),
   search: (query: string): Promise<SearchResult[]> => ipcRenderer.invoke(Invoke.Search, query),
+  getPage: (title: string, options?: { force?: boolean }): Promise<Article | null> =>
+    ipcRenderer.invoke(Invoke.GetPage, title, options),
+  prefetchPage: (title: string) => ipcRenderer.send(Send.PrefetchPage, title),
 
   onShown: (cb) => subscribe(On.Shown, cb),
   onSettings: (cb) => subscribeWith<Settings>(On.Settings, cb),

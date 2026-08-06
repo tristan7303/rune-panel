@@ -11,6 +11,8 @@ import * as db from './db'
 import * as client from './wiki/client'
 import * as titles from './wiki/titles'
 import * as search from './wiki/search'
+import * as page from './wiki/page'
+import * as images from './wiki/images'
 
 /**
  * Claim our identity before anything reads it.
@@ -26,6 +28,10 @@ import * as search from './wiki/search'
  * `getPath('userData')`, which is why it sits at module scope.
  */
 app.setName('rune-buddy')
+
+// Privileged schemes must be declared before the protocol registry locks at
+// app.ready, so this cannot wait for main().
+images.registerScheme()
 
 /** The accelerator currently registered, so a no-op change is not re-registered. */
 let boundHotkey = ''
@@ -56,6 +62,11 @@ function registerIpc(): void {
 
   ipcMain.handle(Invoke.Search, (_e, query: string) => search.search(query))
 
+  ipcMain.handle(Invoke.GetPage, (_e, title: string, options?: { force?: boolean }) =>
+    page.get(title, options)
+  )
+  ipcMain.on(Send.PrefetchPage, (_e, title: string) => page.prefetch(title))
+
   titles.onProgress((progress) => {
     // A finished sync replaced the rows the in-memory haystack was built from.
     if (progress.phase === 'done') search.invalidate()
@@ -82,6 +93,7 @@ function main(): void {
     const initial = settings.load()
     db.open()
     client.configure({ contact: initial.contactEmail })
+    images.serve()
 
     // Headless: build the index, print a report, exit. Kept out of the normal
     // path so it never opens a window or claims the hotkey.
