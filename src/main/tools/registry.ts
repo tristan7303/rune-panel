@@ -22,18 +22,75 @@ export interface ToolCookie {
   value: string
 }
 
+/**
+ * The app's surfaces, as literal colours.
+ *
+ * The pane is a separate origin and cannot read our CSS variables, so the
+ * values have to travel with the injection. Alpha is resolved here too — these
+ * composite onto their own page, not onto our acrylic.
+ */
+export interface ToolPalette {
+  /** True when the host app is in a dark theme. */
+  dark: boolean
+  surface: string
+  raised: string
+  sunken: string
+  rim: string
+  text: string
+  textDim: string
+  accent: string
+}
+
+export const PALETTES: Record<'dark' | 'light' | 'parchment', ToolPalette> = {
+  dark: {
+    dark: true,
+    surface: '#15121f',
+    raised: '#221e33',
+    sunken: '#0d0b14',
+    rim: '#332e46',
+    text: '#eeecf8',
+    textDim: '#9d99b0',
+    accent: '#b39bff',
+  },
+  parchment: {
+    dark: false,
+    surface: '#e8dcc4',
+    raised: '#f4ebd7',
+    sunken: '#d6c7aa',
+    rim: '#b8a582',
+    text: '#302414',
+    textDim: '#6b5c44',
+    accent: '#7a4bb8',
+  },
+  light: {
+    dark: false,
+    surface: '#e2e0ea',
+    raised: '#f0eff5',
+    sunken: '#d0cddb',
+    rim: '#b9b5c6',
+    text: '#141220',
+    textDim: '#5a566b',
+    accent: '#6d4fd6',
+  },
+}
+
 export interface ToolDef {
   id: ToolId
   label: string
   /** `arg` carries the RuneProfile username, or a calculator page title. */
   url: (arg?: string) => string
   /** Injected after load: hide chrome, match the theme. */
-  css?: string
+  css?: (palette: ToolPalette) => string
   /**
    * Cookies to set before the first load. Cheaper and far more robust than
    * restyling someone else's light theme by hand.
    */
   cookies?: ToolCookie[]
+  /**
+   * Run before the CSS lands — used to put a site into the light or dark mode
+   * that matches ours, so the injected palette is not fighting the page.
+   */
+  js?: (palette: ToolPalette) => string
   /** In-pane navigation is confined to this; everything else opens externally. */
   allowNavigation: RegExp
 }
@@ -53,7 +110,7 @@ const DPS: ToolDef = {
   id: 'dps',
   label: 'DPS calculator',
   url: () => 'https://tools.runescape.wiki/osrs-dps/',
-  css: `
+  css: (p) => `
     /* The header carries the wiki logo, the "DPS Calculator" h1 and a Discord
        link — all redundant inside an app whose title bar already says where
        you are. Matched via the h1 rather than by class, so a restyle does not
@@ -64,7 +121,49 @@ const DPS: ToolDef = {
     body > main > div:last-child:has(a[href*="weirdgloop.org"]) { display: none !important; }
 
     /* Reclaim the height the header occupied. */
-    main.flex.h-\\[100vh\\], main { height: 100vh !important; }
+    main { height: 100vh !important; }
+
+    /*
+     * Repaint their palette with ours.
+     *
+     * The calculator is Tailwind with a custom scale — dark-100..500 for its
+     * dark surfaces, body-* and btns-400 for its light ones — compiled to
+     * literal hex, so there are no variables to override and every utility has
+     * to be restated. Both scales are covered rather than only the active one:
+     * the page decides its own mode, and a half-themed pane is worse than an
+     * unthemed one.
+     */
+    html, body { background: ${p.surface} !important; color: ${p.text} !important; }
+
+    .bg-dark-500, .bg-btns-400 { background-color: ${p.sunken} !important; }
+    .bg-dark-400, .bg-body-100 { background-color: ${p.surface} !important; }
+    .bg-dark-300, .bg-dark-200, .bg-dark-100,
+    .bg-body-200, .bg-body-400 { background-color: ${p.raised} !important; }
+
+    [class*='border-dark-'], [class*='border-body-'], [class*='border-gray-'] {
+      border-color: ${p.rim} !important;
+    }
+
+    .text-dark-100, .text-body-200, .text-gray-300 { color: ${p.textDim} !important; }
+
+    /* Form controls inherit none of the above on their own. */
+    input, select, textarea { background-color: ${p.sunken} !important; color: ${p.text} !important; border-color: ${p.rim} !important; }
+
+    /* Their orange is a highlight, not a surface; it becomes our accent. */
+    .bg-orange-700, .bg-orange-400 {
+      background-color: ${p.accent} !important;
+      color: ${p.dark ? '#1a1626' : '#ffffff'} !important;
+    }
+  `,
+  // Their own theme script reads localStorage and toggles a `dark` class. Set
+  // both so the page starts in the mode our palette is written for, rather than
+  // flipping to it after paint.
+  js: (p) => `
+    try {
+      localStorage.setItem('theme', ${JSON.stringify(p.dark ? 'dark' : 'light')});
+      document.documentElement.classList.toggle('dark', ${String(p.dark)});
+      document.documentElement.classList.toggle('light', ${String(!p.dark)});
+    } catch (e) {}
   `,
   allowNavigation: /^https:\/\/tools\.runescape\.wiki\//,
 }
@@ -88,7 +187,7 @@ const CALCULATORS: ToolDef = {
   cookies: [
     { url: 'https://oldschool.runescape.wiki', name: 'theme', value: 'dark' },
   ],
-  css: `
+  css: () => `
     /* Vector-legacy skin chrome: the sidebar, the tab strip, the personal
        tools, the site footer. Ids, not classes — MediaWiki ids are part of its
        public skin contract and change far less often than styling. */
@@ -119,7 +218,7 @@ const PROFILE: ToolDef = {
   id: 'profile',
   label: 'RuneProfile',
   url: (username) => `https://www.runeprofile.com/${encodeURIComponent(username ?? '')}`,
-  css: `
+  css: () => `
     /* A real <footer> element — Discord, Ko-fi, GitHub, Jagex attribution. */
     body > div > footer, footer { display: none !important; }
   `,

@@ -155,6 +155,9 @@ function main(): void {
       setHotkey(next.hotkey)
       applySettings(next)
       client.configure({ contact: next.contactEmail })
+      // An open tool pane repaints in place rather than waiting for the next
+      // navigation to pick the new theme up.
+      void pane.applyTheme()
       getWindow()?.webContents.send(On.Settings, next)
     })
 

@@ -16,7 +16,8 @@
  */
 
 import { WebContentsView, shell, session, type BrowserWindow, type Rectangle } from 'electron'
-import { TOOLS, type ToolCookie, type ToolId } from './registry'
+import { TOOLS, PALETTES, type ToolCookie, type ToolId } from './registry'
+import * as settings from '../settings'
 
 /** Shared so a login or a preference survives switching tools and restarts. */
 const PARTITION = 'persist:tools'
@@ -26,6 +27,8 @@ let host: BrowserWindow | null = null
 let current: { id: ToolId; arg?: string } | null = null
 let bounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
 let injectionEnabled = true
+/** Handle for the stylesheet we injected, so a re-theme can replace it. */
+let injectedKey: string | null = null
 
 export function attach(window: BrowserWindow): void {
   host = window
@@ -70,6 +73,7 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
   if (same && view.webContents.getURL()) return
 
   await setCookies(tool.cookies)
+  injectedKey = null
   await view.webContents.loadURL(url)
 }
 
@@ -81,6 +85,33 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
  */
 export function debugWebContents(): Electron.WebContents | null {
   return view?.webContents ?? null
+}
+
+/**
+ * Push the current theme into the pane.
+ *
+ * Runs on load and again whenever the theme changes, so switching to parchment
+ * repaints an already-open calculator rather than leaving it dark until the
+ * next navigation. The script goes first: it puts the site into the light or
+ * dark mode our palette is written against, so the CSS is not fighting the
+ * page's own choice.
+ */
+export async function applyTheme(): Promise<void> {
+  if (!view || !current) return
+  const tool = TOOLS[current.id]
+  const palette = PALETTES[settings.get().theme] ?? PALETTES.dark
+
+  try {
+    if (tool.js) await view.webContents.executeJavaScript(tool.js(palette))
+    if (injectionEnabled && tool.css) {
+      // Replace rather than stack: insertCSS returns a key precisely because
+      // repeated calls otherwise pile up a stylesheet per theme change.
+      if (injectedKey) await view.webContents.removeInsertedCSS(injectedKey).catch(() => '')
+      injectedKey = await view.webContents.insertCSS(tool.css(palette))
+    }
+  } catch (err) {
+    console.warn(`[tools] ${current.id} theme:`, err instanceof Error ? err.message : err)
+  }
 }
 
 export function hide(): void {
@@ -137,14 +168,7 @@ function wire(v: WebContentsView): void {
 
   // Re-injected on every navigation, not just the first: these are real sites
   // and clicking within one loads a fresh document.
-  wc.on('did-finish-load', () => {
-    if (!injectionEnabled || !current) return
-    const css = TOOLS[current.id].css
-    if (!css) return
-    wc.insertCSS(css).catch((err: unknown) => {
-      console.warn(`[tools] ${current?.id} css:`, err instanceof Error ? err.message : err)
-    })
-  })
+  wc.on('did-finish-load', () => void applyTheme())
 
   wc.on('did-fail-load', (_e, code, description, url) => {
     // -3 is ERR_ABORTED, which is what a superseded navigation looks like.

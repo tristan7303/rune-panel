@@ -688,7 +688,17 @@ kbd {
   padding-top: 2px;
 }
 
-input[type='text'] {
+/**
+ * Settings text fields.
+ *
+ * Scoped to `.settings` deliberately. As a bare `input[type='text']` this had
+ * specificity 0,1,1 and quietly beat `.search-input` at 0,1,0 — so every search
+ * box in the app was rendering as a settings field: its own border, its own
+ * background, a fixed 220px width and 9px of padding. That inner box is what
+ * the header search text appeared to be touching, and padding the outer field
+ * only ever slid the box along with it.
+ */
+.settings input[type='text'] {
   width: 220px;
   padding: 6px 9px;
   font: inherit;
@@ -701,7 +711,7 @@ input[type='text'] {
   transition: border-color var(--duration) ease, box-shadow var(--duration) ease;
 }
 
-input[type='text']:focus {
+.settings input[type='text']:focus {
   border-color: transparent;
   box-shadow: 0 0 0 1px var(--accent-a), 0 0 14px rgba(140, 110, 255, 0.22);
 }
@@ -749,6 +759,15 @@ input[type='text']:focus {
   box-shadow: none;
 }
 
+/*
+ * The knob.
+ *
+ * Off, it takes the theme's text colour so it reads against the sunken track.
+ * On, it is always light — the track becomes a saturated accent gradient in
+ * every theme, and `var(--text)` is dark in light and parchment, which put a
+ * dark disc on a coloured bar and read as a rendering fault rather than a
+ * switch.
+ */
 .switch::after {
   content: '';
   position: absolute;
@@ -758,7 +777,12 @@ input[type='text']:focus {
   height: 16px;
   border-radius: 50%;
   background: var(--text);
-  transition: transform var(--duration) var(--spring);
+  transition: transform var(--duration) var(--spring), background var(--duration) ease;
+}
+
+.switch[aria-checked='true']::after {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .switch[aria-checked='true']::after {
@@ -1187,14 +1211,14 @@ input[type='text']:focus {
 .search-field.is-header {
   /* The icon needs clearance from the rounded edge, and the text needs
      clearance from the icon; both were touching before. */
-  padding: 0 8px 0 20px;
-  gap: 20px;
+  padding: 0 10px 0 13px;
+  gap: 10px;
   border-radius: 9px;
   background: var(--surface-sunken);
 }
 
 .search-field.is-header .search-input {
-  padding: 8px 0 8px 2px;
+  padding: 8px 0;
   font-size: 13.5px;
 }
 

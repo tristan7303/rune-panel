@@ -26,7 +26,8 @@ import * as titles from './wiki/titles'
 import { transform } from './wiki/transform'
 import * as sync from './wiki/sync'
 import * as pane from './tools/pane'
-import { TOOLS } from './tools/registry'
+import { TOOLS, PALETTES } from './tools/registry'
+import * as settingsModule from './settings'
 import type { ToolId } from '../shared/ipc'
 import { XP_FOR_LEVEL } from '../shared/xp'
 
@@ -540,15 +541,33 @@ async function checkToolPane(win: Electron.BrowserWindow): Promise<void> {
   await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
   await settle(300)
 
-  const dpsHidden = await probe(
-    'dps',
-    undefined,
-    `(() => {
-       const h = document.querySelector('main > div:first-child:has(h1)')
-       return h ? getComputedStyle(h).display : 'no-match'
-     })()`
+  const dps = JSON.parse(
+    String(
+      await probe(
+        'dps',
+        undefined,
+        `(() => {
+           const h = document.querySelector('main > div:first-child:has(h1)')
+           return JSON.stringify({
+             header: h ? getComputedStyle(h).display : 'no-match',
+             bg: getComputedStyle(document.body).backgroundColor,
+           })
+         })()`
+      )
+    )
+  ) as { header: string; bg: string }
+
+  check('tools: dps header hidden', dps.header === 'none', dps.header)
+  // The pane cannot read our CSS variables, so the palette travels with the
+  // injection as literal colours. This is the check that it arrived.
+  // Compared against whichever theme is actually set, not a hardcoded one —
+  // the point is that the pane matches the app, not that it is dark.
+  const wanted = hexToRgb(PALETTES[settingsModule.get().theme].surface)
+  check(
+    'tools: dps repainted in the app theme',
+    dps.bg === wanted,
+    `${dps.bg} vs ${wanted} (${settingsModule.get().theme})`
   )
-  check('tools: dps header hidden', dpsHidden === 'none', String(dpsHidden))
 
   const calcDark = await probe(
     'calculators',
@@ -840,6 +859,20 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
 
   const search = await shoot('smoke-home.png')
 
+  // A tight crop of the search field, because the spacing there has been
+  // judged from full-window shots where 60px reads as nothing.
+  {
+    const image = await win.webContents.capturePage()
+    const scale = image.getSize().width / win.getBounds().width
+    const crop = image.crop({
+      x: Math.round(280 * scale),
+      y: 0,
+      width: Math.round(660 * scale),
+      height: Math.round(54 * scale),
+    })
+    writeFileSync(join(process.cwd(), 'out', 'smoke-searchbar.png'), crop.toPNG())
+  }
+
   // Hiscores, with a comparison loaded, so the diff column is in the shot.
   if (process.env.SMOKE_FETCH) {
     await win.webContents.executeJavaScript(
@@ -879,7 +912,7 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
   await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
   await settle(300)
 
-  // Both themes, so a light-mode regression shows up without a manual pass.
+  // Every theme, so a light-mode regression shows up without a manual pass.
   if (process.env.SMOKE_THEMES) {
     for (const theme of ['light', 'parchment', 'dark'] as const) {
       await win.webContents.executeJavaScript(
@@ -888,6 +921,20 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
       await settle(500)
       await shoot(`smoke-home-${theme}.png`)
     }
+
+    // Settings too: the toggles live there, and their "on" state is the one
+    // control that has to look right against all three surfaces.
+    await win.webContents.executeJavaScript(
+      `window.__rpNav.getState().push({ kind: 'settings' }); true`
+    )
+    await settle(400)
+    for (const theme of ['parchment', 'light', 'dark'] as const) {
+      await win.webContents.executeJavaScript(`window.rp.setSettings({ theme: '${theme}' }); true`)
+      await settle(500)
+      await shoot(`smoke-settings-${theme}.png`)
+    }
+    await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
+    await settle(300)
   }
 
   // Navigate by pushing onto the history stack the UI already uses, then wait
@@ -1014,4 +1061,10 @@ function report(): void {
 
   hide()
   app.exit(failed === 0 ? 0 : 1)
+}
+
+/** '#15121f' -> 'rgb(21, 18, 31)', the form getComputedStyle reports. */
+function hexToRgb(hex: string): string {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
 }
