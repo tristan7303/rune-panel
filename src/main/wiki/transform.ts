@@ -469,12 +469,23 @@ function buildTabbers($: cheerio.CheerioAPI): void {
  * The wiki leads each loadout with a bullet list of caveats and follows it with
  * the recommended-equipment table. Read top to bottom that is backwards: the
  * notes reference items you have not seen yet, and the table — the thing you
- * opened the tab for — is pushed below a screen of prose. Moving the notes
- * after the table costs nothing and puts the answer first.
+ * opened the tab for — is pushed below a screen of prose.
+ *
+ * Where they land matters as much as that they move. A tab runs
+ * *notes → table → footnotes → Inventory heading → equipment panels*, so the
+ * notes go directly after the footnote list: the lettered references stay
+ * against the table that cites them, and the Inventory section keeps its own
+ * heading and panels together. Appending to the end of the tab instead pushes
+ * the notes below the inventory, which reads as a second stray section.
  */
 function moveNotesBelowTable($: cheerio.CheerioAPI, $tab: cheerio.Cheerio<Element>): void {
   const table = $tab.find('table').first()
   if (table.length === 0) return
+
+  // The table's own top-level ancestor within the tab — the table itself may be
+  // wrapped, and the notes have to be placed relative to that wrapper.
+  const block = table.parentsUntil($tab).last()
+  const anchor = block.length ? block : table
 
   // Everything before the table that is prose, not layout.
   const notes = $tab
@@ -483,16 +494,19 @@ function moveNotesBelowTable($: cheerio.CheerioAPI, $tab: cheerio.Cheerio<Elemen
     .filter((el) => {
       const $el = $(el)
       if ($el.is('table') || $el.find('table').length > 0) return false
-      // Only what precedes the table; anything after is already in place.
-      return $el.nextAll().toArray().some((n) => n === table[0] || $(n).find('table').length > 0)
+      return $el.nextAll().toArray().some((n) => n === anchor[0])
     })
 
   if (notes.length === 0) return
 
+  // Immediately after the footnotes if there are any, otherwise after the table.
+  const reflist = anchor.nextAll('.reflist, .mw-references-wrap').first()
+  const target = reflist.length ? reflist : anchor
+
   const wrapper = $('<div class="rp-gear-notes"></div>')
-  // Appended in source order so the list still follows its own heading.
+  // Kept in source order so the list still follows its own heading.
   for (const el of notes) wrapper.append($(el))
-  $tab.append(wrapper)
+  target.after(wrapper)
 }
 
 /** Minimal escaping for text taken from a wiki attribute. */

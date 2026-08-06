@@ -1182,8 +1182,8 @@ input[type='text']:focus {
 .search-field.is-header {
   /* The icon needs clearance from the rounded edge, and the text needs
      clearance from the icon; both were touching before. */
-  padding: 0 8px 0 18px;
-  gap: 15px;
+  padding: 0 8px 0 20px;
+  gap: 20px;
   border-radius: 9px;
   background: var(--surface-sunken);
 }
@@ -1222,7 +1222,7 @@ input[type='text']:focus {
 /* ── Home ───────────────────────────────────────────────────────────── */
 
 .home {
-  max-width: 1020px;
+  max-width: 1120px;
   margin: 0 auto;
   padding-top: 22px;
 }
@@ -1232,23 +1232,15 @@ input[type='text']:focus {
   margin-bottom: 30px;
 }
 
-/* The mark on its own, with the name as text. The banner carried a tiled floor
-   that fought every theme it sat on. */
+/* The mark alone. It already reads "Rune Panel", so no heading under it, and no
+   plate behind it — the artwork has its own transparency and a background
+   square only boxed it in. */
 .home-mark {
   display: block;
-  width: 84px;
-  height: 84px;
-  margin: 0 auto 14px;
-  border-radius: 18px;
+  width: 190px;
+  height: auto;
+  margin: 0 auto 16px;
   object-fit: contain;
-  box-shadow: 0 0 26px rgba(140, 110, 255, 0.24);
-}
-
-.home-hero h1 {
-  margin: 0 0 8px;
-  font-size: 28px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
 }
 
 .home-hero p {
@@ -1261,15 +1253,15 @@ input[type='text']:focus {
 
 .home-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 14px;
 }
 
 .home-card {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 18px;
+  gap: 18px;
+  padding: 22px;
   text-align: left;
   font: inherit;
   color: var(--text);
@@ -1292,8 +1284,8 @@ input[type='text']:focus {
    art has not been fetched yet. */
 .home-card-art {
   flex: none;
-  width: 58px;
-  height: 58px;
+  width: 66px;
+  height: 66px;
   display: grid;
   place-items: center;
   background: var(--surface-sunken);
@@ -1301,8 +1293,8 @@ input[type='text']:focus {
 }
 
 .home-card-art img {
-  max-width: 42px;
-  max-height: 42px;
+  max-width: 48px;
+  max-height: 48px;
   border-radius: 6px;
   /* Item sprites are pixel art; smoothing them at this size turns them to mush. */
   image-rendering: pixelated;
@@ -1317,12 +1309,12 @@ input[type='text']:focus {
 }
 
 .home-card-text strong {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
 }
 
 .home-card-text em {
-  font-size: 12px;
+  font-size: 12.5px;
   font-style: normal;
   line-height: 1.45;
   color: var(--text-dim);

@@ -72,8 +72,8 @@ export function Home(): JSX.Element {
   return (
     <div className="home">
       <header className="home-hero">
+        {/* The mark carries the name already; a heading under it just repeats it. */}
         <img className="home-mark" src={mark} alt="Rune Panel" draggable={false} />
-        <h1>Rune Panel</h1>
         <p>
           The whole wiki, a keystroke away — plus prices, calculators and profiles. Press{' '}
           <kbd>Ctrl</kbd> <kbd>F</kbd> to search from anywhere.
