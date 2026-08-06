@@ -250,6 +250,7 @@ body,
 
 .topbar {
   -webkit-app-region: drag;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -257,9 +258,12 @@ body,
   border-bottom: 1px solid var(--rim);
 }
 
+/* Sits left of the centred search and yields to it — an article title can be
+   long, and it must never push the box off centre or overlap it. */
 .topbar-title {
   flex: 1;
   min-width: 0;
+  max-width: calc(50% - min(240px, 22vw));
   font-size: 12.5px;
   font-weight: 500;
   letter-spacing: 0.01em;
@@ -1160,4 +1164,146 @@ input[type='text']:focus {
   font-size: 10.5px;
   font-style: normal;
   color: var(--text-faint);
+}
+
+/* ── Header search ──────────────────────────────────────────────────── */
+
+/* Centred in the title bar and given a fixed share of it, so it does not drift
+   as the route title changes length. */
+.header-search {
+  -webkit-app-region: no-drag;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(460px, 42vw);
+  z-index: 20;
+}
+
+.search-field.is-header {
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--surface-sunken);
+}
+
+.search-field.is-header .search-input {
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.search-hint {
+  flex: none;
+  font-size: 10px;
+  padding: 1px 5px;
+  opacity: 0.6;
+}
+
+/* Floats over the content: the header is only 44px tall and the list is not. */
+.header-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: min(60vh, 420px);
+  padding: 4px;
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+}
+
+/* ── Home ───────────────────────────────────────────────────────────── */
+
+.home {
+  max-width: 880px;
+  margin: 0 auto;
+  padding-top: 26px;
+}
+
+.home-hero {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.home-hero h1 {
+  margin: 0 0 8px;
+  font-size: 27px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.home-hero p {
+  margin: 0 auto;
+  max-width: 470px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.home-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
+  gap: 10px;
+}
+
+.home-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 var(--rim-bright);
+  cursor: pointer;
+  transition: background var(--duration) ease, border-color var(--duration) ease,
+    transform var(--duration) var(--spring);
+}
+
+.home-card:hover {
+  background: var(--surface-hover);
+  border-color: var(--rim-bright);
+  transform: translateY(-1px);
+}
+
+/* The tile carries its own background so a card still reads as a card if the
+   art has not been fetched yet. */
+.home-card-art {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-sunken);
+  border-radius: 9px;
+}
+
+.home-card-art img {
+  max-width: 32px;
+  max-height: 32px;
+  /* Item sprites are pixel art; smoothing them at this size turns them to mush. */
+  image-rendering: pixelated;
+}
+
+.home-card-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.home-card-text strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.home-card-text em {
+  font-size: 11.5px;
+  font-style: normal;
+  line-height: 1.45;
+  color: var(--text-dim);
 }

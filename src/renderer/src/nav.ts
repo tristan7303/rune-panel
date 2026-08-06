@@ -14,7 +14,7 @@
 import { create } from 'zustand'
 
 export type Route =
-  | { kind: 'search' }
+  | { kind: 'home' }
   | { kind: 'page'; title: string }
   | { kind: 'tool'; id: 'dps' | 'calculators' | 'profile' }
   | { kind: 'ge'; itemId?: number }
@@ -36,7 +36,7 @@ interface NavState {
 }
 
 export const useNav = create<NavState>((set, get) => ({
-  entries: [{ kind: 'search' }],
+  entries: [{ kind: 'home' }],
   index: 0,
 
   push: (route) => {
@@ -67,7 +67,7 @@ export const useNav = create<NavState>((set, get) => ({
     if (index < entries.length - 1) set({ index: index + 1 })
   },
 
-  reset: (route = { kind: 'search' }) => set({ entries: [route], index: 0 }),
+  reset: (route = { kind: 'home' }) => set({ entries: [route], index: 0 }),
 }))
 
 // Exposed so the SMOKE_SHOT capture can navigate the way a click does, instead
@@ -98,8 +98,8 @@ function sameRoute(a: Route | undefined, b: Route): boolean {
 /** Human-readable label for the top bar. */
 export function routeTitle(route: Route): string {
   switch (route.kind) {
-    case 'search':
-      return 'Search'
+    case 'home':
+      return 'Rune Panel'
     case 'page':
       return route.title
     case 'tool':

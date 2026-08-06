@@ -34,13 +34,15 @@
   color: var(--text);
 }
 
-/* Body text keeps a comfortable measure even when the column is wide; tables
-   and images below opt back out to full width. */
+/* Body text keeps a measure even when the column is wide; tables and images
+   below opt back out to full width. 96ch rather than the classic 66-78: this is
+   reference material read in short bursts, not a novel, and the tighter column
+   left an obvious empty band beside every paragraph. */
 .article-body > p,
 .article-body > ul,
 .article-body > ol,
 .article-body > dl {
-  max-width: 78ch;
+  max-width: 96ch;
 }
 
 .article-title {
@@ -637,6 +639,11 @@
   background: color-mix(in srgb, var(--accent-gold) 10%, transparent);
   box-shadow: inset 2px 0 0 var(--accent-gold);
   border-radius: 0 5px 5px 0;
+  /* The inset rule is painted inside the box, so without this the gold line
+     sits directly against the "E" of Exchange. The row's own grid columns are
+     unchanged; only the padding moves. */
+  padding-left: 10px;
+  margin-left: -2px;
 }
 
 .infobox-row.is-price dt {

@@ -12,7 +12,8 @@ import { useStore } from './store'
 import type { Theme } from '@shared/ipc'
 import { useNav, useRoute, useCanGoBack, useCanGoForward, routeTitle, type Route } from './nav'
 import { SettingsView } from './Settings'
-import { Search } from './Search'
+import { Home } from './Home'
+import { HeaderSearch } from './HeaderSearch'
 import { Article } from './Article'
 import { ToolPane } from './ToolPane'
 import { Profile } from './Profile'
@@ -21,7 +22,6 @@ import { Grand } from './Grand'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
 import {
-  SearchIcon,
   SwordIcon,
   CoinsIcon,
   ChartIcon,
@@ -35,8 +35,9 @@ import {
   CloseIcon,
 } from './icons'
 
+// No Search entry: the wiki search box lives in the header, reachable from
+// every view without spending a route on it.
 const NAV: Array<{ route: Route; label: string; icon: () => JSX.Element }> = [
-  { route: { kind: 'search' }, label: 'Search', icon: SearchIcon },
   { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: SwordIcon },
   { route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon },
   { route: { kind: 'hiscores' }, label: 'Hiscores', icon: ChartIcon },
@@ -52,7 +53,7 @@ const NAV: Array<{ route: Route; label: string; icon: () => JSX.Element }> = [
 
 export function App(): JSX.Element {
   const route = useRoute()
-  const { push, back, forward, reset } = useNav()
+  const { push, back, forward } = useNav()
   const canBack = useCanGoBack()
   const canForward = useCanGoForward()
   const setSettings = useStore((s) => s.setSettings)
@@ -72,19 +73,12 @@ export function App(): JSX.Element {
     document.documentElement.dataset.theme = theme
   }, [theme])
 
-  // Opening always lands on a fresh search. The window is summoned to look
-  // something up, and resuming a three-hour-old article rarely is it.
-  useEffect(() => window.rp.onShown(() => reset()), [reset])
+  // Reopening keeps whatever was on screen. Resetting made sense when search
+  // was a destination you had to navigate to; now that Ctrl+F reaches it from
+  // anywhere, throwing away the article you were mid-way through is pure loss.
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      const mod = e.ctrlKey || e.metaKey
-
-      if (mod && e.key === 'k') {
-        e.preventDefault()
-        push({ kind: 'search' })
-        return
-      }
       // Alt+arrows and the mouse thumb buttons, the two conventions people
       // already have for history.
       if (e.altKey && e.key === 'ArrowLeft') {
@@ -129,9 +123,9 @@ export function App(): JSX.Element {
         {/* Clicking the mark goes home, the way a site logo does. */}
         <button
           className="rail-mark"
-          title="Rune Panel — search"
-          aria-label="Rune Panel — search"
-          onClick={() => push({ kind: 'search' })}
+          title="Rune Panel — home"
+          aria-label="Rune Panel — home"
+          onClick={() => push({ kind: 'home' })}
         >
           <img src={mark} alt="" draggable={false} />
         </button>
@@ -173,6 +167,10 @@ export function App(): JSX.Element {
             <ForwardIcon />
           </button>
           <span className="topbar-title">{routeTitle(route)}</span>
+          {/* Absolutely centred rather than placed in the flex run: the route
+              title varies from "Home" to a full article name, and a flexed
+              search box would slide left and right as you navigate. */}
+          <HeaderSearch />
           <button
             className="icon-btn is-close"
             title="Close (Esc)"
@@ -199,8 +197,8 @@ export function App(): JSX.Element {
 
 function Body({ route }: { route: Route }): JSX.Element {
   switch (route.kind) {
-    case 'search':
-      return <Search />
+    case 'home':
+      return <Home />
     case 'settings':
       return <SettingsView />
     case 'page':

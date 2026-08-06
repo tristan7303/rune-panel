@@ -53,7 +53,8 @@ npx electron out/main/index.js
 ```
 
 **Ctrl+Shift+Space** opens and closes it. So does the tray icon, which is also
-the only way to quit.
+the only way to quit. Closing keeps your place — reopening returns you to
+whatever you were reading.
 
 The first launch spends about four minutes in the background learning every page
 name on the wiki. Search works while it fills.
@@ -65,14 +66,14 @@ name on the wiki. Search works while it fills.
 | | |
 |---|---|
 | **Ctrl+Shift+Space** | Open or close, from anywhere |
-| **Ctrl+K** | Jump back to search |
+| **Ctrl+F** | Search the wiki, from anywhere |
 | **Esc** | Go back a step, then close |
 | **Alt+←** / **Alt+→** | Back and forward |
 | Mouse buttons 4 / 5 | Back and forward |
 
-The rail down the left switches between search, the DPS calculator, prices,
-hiscores, RuneProfile and the calculators. The gear at the bottom holds
-settings.
+The search box sits in the title bar and is reachable from every view with
+**Ctrl+F**. The rail down the left switches between the DPS calculator, prices,
+hiscores, RuneProfile and the calculators; the mark at the top returns home.
 
 ### Worth knowing
 

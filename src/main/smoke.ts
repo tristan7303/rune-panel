@@ -711,7 +711,7 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
     return image.getSize().width > 0
   }
 
-  const search = await shoot('smoke-search.png')
+  const search = await shoot('smoke-home.png')
 
   // The Grand Exchange view, so the chart gets an eye on it too.
   await win.webContents.executeJavaScript(
@@ -730,7 +730,7 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
         `window.rp.setSettings({ theme: '${theme}' }); true`
       )
       await settle(500)
-      await shoot(`smoke-search-${theme}.png`)
+      await shoot(`smoke-home-${theme}.png`)
     }
   }
 
@@ -782,7 +782,7 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
   check(
     'screenshots written',
     search && article,
-    cached ? 'out/smoke-search.png, out/smoke-article.png' : 'out/smoke-search.png (no page cached)'
+    cached ? 'out/smoke-home.png, out/smoke-article.png' : 'out/smoke-home.png (no page cached)'
   )
 }
 
