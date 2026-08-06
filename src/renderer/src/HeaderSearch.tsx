@@ -159,11 +159,21 @@ export function HeaderSearch(): JSX.Element {
   // to stand down while it is up.
   const pushOverlay = useStore((s) => s.pushOverlay)
   const popOverlay = useStore((s) => s.popOverlay)
+  const setOverlayRect = useStore((s) => s.setOverlayRect)
+  const resultsRef = useRef<HTMLUListElement>(null)
+
   useEffect(() => {
     if (!showing) return
     pushOverlay()
-    return popOverlay
-  }, [showing, pushOverlay, popOverlay])
+    const frame = requestAnimationFrame(() => {
+      const r = resultsRef.current?.getBoundingClientRect()
+      if (r) setOverlayRect({ x: r.x, y: r.y, width: r.width, height: r.height })
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      popOverlay()
+    }
+  }, [showing, pushOverlay, popOverlay, setOverlayRect])
 
   return (
     <div className="header-search" ref={wrapRef}>
@@ -185,7 +195,7 @@ export function HeaderSearch(): JSX.Element {
       </div>
 
       {showing && (
-        <ul className="results header-results" role="listbox">
+        <ul className="results header-results" role="listbox" ref={resultsRef}>
           {results.slice(0, 14).map((r, i) => (
             <li
               key={`${r.title}:${r.matchedVia ?? ''}`}

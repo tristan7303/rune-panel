@@ -579,18 +579,42 @@ async function checkToolPane(win: Electron.BrowserWindow): Promise<void> {
   await settle(900)
   const visibleWithTool = pane.debugVisible()
 
-  await win.webContents.executeJavaScript(`window.__rpStore.getState().pushOverlay(); true`)
+  const fullBounds = pane.debugBounds()
+
+  // A theme-picker-shaped overlay: bottom-left of the content area.
+  await win.webContents.executeJavaScript(`
+    (() => {
+      const s = window.__rpStore.getState()
+      s.pushOverlay()
+      s.setOverlayRect({ x: 64, y: window.innerHeight - 200, width: 232, height: 170 })
+    })(); true
+  `)
   await settle(500)
-  const hiddenForOverlay = !pane.debugVisible()
+  const shrunk = pane.debugBounds()
+  const stillVisible = pane.debugVisible()
 
   await win.webContents.executeJavaScript(`window.__rpStore.getState().popOverlay(); true`)
   await settle(500)
-  const backAfterOverlay = pane.debugVisible()
+  const restored = pane.debugBounds()
 
+  // The point of the change: the page stays on screen and merely gives up the
+  // smallest slice that clears the menu, rather than vanishing for it.
   check(
-    'tools: pane yields to an overlay and comes back',
-    visibleWithTool && hiddenForOverlay && backAfterOverlay,
-    `shown=${visibleWithTool} hiddenWhileOpen=${hiddenForOverlay} restored=${backAfterOverlay}`
+    'tools: pane stays visible under an overlay',
+    visibleWithTool && stillVisible,
+    `shown=${visibleWithTool} stillVisible=${stillVisible}`
+  )
+  // Which edge gives way depends on where the overlay is, so the assertion is
+  // about area rather than a particular dimension — and about the origin
+  // staying put, since a shifted pane slides the whole page sideways.
+  const area = (r: { width: number; height: number }): number => r.width * r.height
+  check(
+    'tools: pane shrinks clear of the overlay, then restores',
+    area(shrunk) < area(fullBounds) &&
+      shrunk.x === fullBounds.x &&
+      shrunk.y === fullBounds.y &&
+      area(restored) === area(fullBounds),
+    `${fullBounds.width}x${fullBounds.height} -> ${shrunk.width}x${shrunk.height} -> ${restored.width}x${restored.height}`
   )
 
   await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)

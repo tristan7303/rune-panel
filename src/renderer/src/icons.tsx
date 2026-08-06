@@ -51,16 +51,18 @@ export const SwordIcon = (): JSX.Element => (
 )
 
 /**
- * Coins, as overlapping discs.
+ * A stack of coins.
  *
- * The previous version was a stack of ellipses, which is the universal symbol
- * for a database rather than for money.
+ * Drawn as separate discs with a gap between them rather than one cylinder —
+ * a continuous side wall is the universal database symbol, and that is exactly
+ * what an earlier version of this read as.
  */
 export const CoinsIcon = (): JSX.Element => (
   <Svg>
-    <circle cx="9" cy="9" r="5.5" />
-    <path d="M9 6.5v5M7.6 7.7h2.4a1.2 1.2 0 0 1 0 2.4H8a1.2 1.2 0 0 0 0 2.4h2.4" />
-    <path d="M15.2 5.4a5.5 5.5 0 0 1 0 13.2M6.6 17.4a5.5 5.5 0 0 0 8.6 1.2" />
+    <ellipse cx="12" cy="6" rx="6.5" ry="2.6" />
+    <path d="M5.5 6v2.4c0 1.44 2.91 2.6 6.5 2.6s6.5-1.16 6.5-2.6V6" />
+    <path d="M5.5 11.4v2.4c0 1.44 2.91 2.6 6.5 2.6s6.5-1.16 6.5-2.6v-2.4" />
+    <path d="M5.5 16.8v2.4c0 1.44 2.91 2.6 6.5 2.6s6.5-1.16 6.5-2.6v-2.4" />
   </Svg>
 )
 

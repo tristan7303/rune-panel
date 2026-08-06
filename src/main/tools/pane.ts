@@ -92,6 +92,11 @@ export function debugVisible(): boolean {
   return view?.getVisible() ?? false
 }
 
+/** The pane's current rectangle. For the smoke suite only. */
+export function debugBounds(): Rectangle {
+  return { ...bounds }
+}
+
 /**
  * Push the current theme into the pane.
  *

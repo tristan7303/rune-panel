@@ -26,14 +26,36 @@ interface State {
   overlays: number
   pushOverlay: () => void
   popOverlay: () => void
+
+  /**
+   * Where the open overlay is, in window coordinates.
+   *
+   * The pane cannot be layered under it, so it is moved out of the way
+   * instead — which requires knowing what to move out of the way of.
+   */
+  overlayRect: DOMRectLike | null
+  setOverlayRect: (rect: DOMRectLike | null) => void
+}
+
+export interface DOMRectLike {
+  x: number
+  y: number
+  width: number
+  height: number
 }
 
 export const useStore = create<State>((set, get) => ({
   settings: null,
   overlays: 0,
+  overlayRect: null,
 
   pushOverlay: () => set((s) => ({ overlays: s.overlays + 1 })),
-  popOverlay: () => set((s) => ({ overlays: Math.max(0, s.overlays - 1) })),
+  popOverlay: () =>
+    set((s) => {
+      const next = Math.max(0, s.overlays - 1)
+      return { overlays: next, overlayRect: next === 0 ? null : s.overlayRect }
+    }),
+  setOverlayRect: (overlayRect) => set({ overlayRect }),
 
   setSettings: (settings) => set({ settings }),
 

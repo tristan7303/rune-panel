@@ -23,6 +23,9 @@ import { Hiscores } from './Hiscores'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
 import {
+  SwordIcon,
+  CoinsIcon,
+  TrophyIcon,
   CalculatorIcon,
   GearIcon,
   SunIcon,
@@ -33,21 +36,12 @@ import {
   CloseIcon,
 } from './icons'
 
-/** Wiki art, through the local image cache, matching the cards on the home page. */
-const wikiArt = (file: string) => (): JSX.Element => (
-  <img className="rail-img" src={`rpimg://img/${file}`} alt="" draggable={false} />
-)
-
 // No Search entry: the wiki search box lives in the header, reachable from
 // every view without spending a route on it.
 const NAV: Array<{ route: Route; label: string; icon: () => JSX.Element }> = [
-  {
-    route: { kind: 'tool', id: 'dps' },
-    label: 'DPS calculator',
-    icon: wikiArt('Dragon_scimitar.png'),
-  },
-  { route: { kind: 'ge' }, label: 'Grand Exchange', icon: wikiArt('Coins_10000.png') },
-  { route: { kind: 'hiscores' }, label: 'Hiscores', icon: wikiArt('HiScores_icon.png') },
+  { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: SwordIcon },
+  { route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon },
+  { route: { kind: 'hiscores' }, label: 'Hiscores', icon: TrophyIcon },
   {
     route: { kind: 'tool', id: 'profile' },
     label: 'RuneProfile',
@@ -241,15 +235,26 @@ function ThemeToggle(): JSX.Element {
   const patch = useStore((s) => s.patchSettings)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const pushOverlay = useStore((s) => s.pushOverlay)
   const popOverlay = useStore((s) => s.popOverlay)
+  const setOverlayRect = useStore((s) => s.setOverlayRect)
 
-  // Registered while open so an embedded tool steps aside; see store.ts.
+  // Registered while open, with its rectangle, so an embedded tool can shrink
+  // clear of it rather than disappear. See ToolPane's `avoiding`.
   useEffect(() => {
     if (!open) return
     pushOverlay()
-    return popOverlay
-  }, [open, pushOverlay, popOverlay])
+    // Measured after paint, when the menu actually has a size.
+    const frame = requestAnimationFrame(() => {
+      const r = menuRef.current?.getBoundingClientRect()
+      if (r) setOverlayRect({ x: r.x, y: r.y, width: r.width, height: r.height })
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      popOverlay()
+    }
+  }, [open, pushOverlay, popOverlay, setOverlayRect])
 
   // Dismiss on an outside click or Escape, the two things every popup owes you.
   useEffect(() => {
@@ -287,7 +292,7 @@ function ThemeToggle(): JSX.Element {
       </button>
 
       {open && (
-        <div className="theme-menu" role="menu">
+        <div className="theme-menu" role="menu" ref={menuRef}>
           {THEMES.map(({ id, label, hint, icon: Icon }) => (
             <button
               key={id}
