@@ -1,13 +1,20 @@
 /**
- * The app icon, in the two sizes Windows asks for.
+ * The app icon, in the sizes Windows asks for.
  *
- * One 492px source, resized at runtime rather than checked in at several sizes:
- * Electron's `nativeImage.resize` uses the same scaler either way, and one file
- * cannot drift out of step with the others.
+ * One source file, resized at runtime rather than checked in at several sizes:
+ * `nativeImage.resize` uses the same scaler either way, and one file cannot
+ * drift out of step with the others.
+ *
+ * The artwork is 1024x952 — wider than it is tall. Window and tray icons are
+ * square, so it is padded onto a transparent square first; scaling it directly
+ * would squash the mark by 7%, which is small enough to look like bad
+ * rendering rather than a deliberate shape.
  */
 
 import { app, nativeImage, type NativeImage } from 'electron'
 import { join } from 'path'
+
+let squared: NativeImage | null = null
 
 function iconPath(): string {
   // Packaged builds get resources/ copied next to the app; in dev it sits at
@@ -17,9 +24,33 @@ function iconPath(): string {
     : join(__dirname, '../../resources/icon.png')
 }
 
-/** Full-size, for the window and taskbar. */
+/** Full-size and square, for the window and taskbar. */
 export function appIcon(): NativeImage {
-  return nativeImage.createFromPath(iconPath())
+  if (squared) return squared
+
+  const source = nativeImage.createFromPath(iconPath())
+  if (source.isEmpty()) return source
+
+  const { width, height } = source.getSize()
+  if (width === height) {
+    squared = source
+    return squared
+  }
+
+  // Centre the artwork on a transparent square. The bitmap is BGRA, four bytes
+  // a pixel, and a zero-filled buffer is already fully transparent.
+  const side = Math.max(width, height)
+  const src = source.toBitmap()
+  const dst = Buffer.alloc(side * side * 4)
+  const offsetX = Math.floor((side - width) / 2)
+  const offsetY = Math.floor((side - height) / 2)
+
+  for (let y = 0; y < height; y++) {
+    src.copy(dst, ((y + offsetY) * side + offsetX) * 4, y * width * 4, (y + 1) * width * 4)
+  }
+
+  squared = nativeImage.createFromBuffer(dst, { width: side, height: side })
+  return squared
 }
 
 /**
