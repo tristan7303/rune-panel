@@ -1,0 +1,9 @@
+node_modules/
+dist/
+out/
+.env
+.env.*
+config.local.json
+*.log
+*.tsbuildinfo
+resources/tray.png

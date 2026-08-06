@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- The renderer never talks to the network. Every wiki, price and hiscores
+         request is made from the main process, so no HTTP origin is allowed
+         here. `ws:` exists solely for Vite's HMR socket in dev; it carries
+         nothing in a packaged build, and blocking http(s) is what matters.
+         `rbimg:` is added in phase 3 for cached wiki images. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws:"
+    />
+    <title>Rune Buddy</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>
