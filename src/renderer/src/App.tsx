@@ -23,9 +23,6 @@ import { Hiscores } from './Hiscores'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
 import {
-  SwordIcon,
-  CoinsIcon,
-  TrophyIcon,
   CalculatorIcon,
   GearIcon,
   SunIcon,
@@ -36,12 +33,21 @@ import {
   CloseIcon,
 } from './icons'
 
+/** Wiki art, through the local image cache, matching the cards on the home page. */
+const wikiArt = (file: string) => (): JSX.Element => (
+  <img className="rail-img" src={`rpimg://img/${file}`} alt="" draggable={false} />
+)
+
 // No Search entry: the wiki search box lives in the header, reachable from
 // every view without spending a route on it.
 const NAV: Array<{ route: Route; label: string; icon: () => JSX.Element }> = [
-  { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: SwordIcon },
-  { route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon },
-  { route: { kind: 'hiscores' }, label: 'Hiscores', icon: TrophyIcon },
+  {
+    route: { kind: 'tool', id: 'dps' },
+    label: 'DPS calculator',
+    icon: wikiArt('Dragon_scimitar.png'),
+  },
+  { route: { kind: 'ge' }, label: 'Grand Exchange', icon: wikiArt('Coins_10000.png') },
+  { route: { kind: 'hiscores' }, label: 'Hiscores', icon: wikiArt('HiScores_icon.png') },
   {
     route: { kind: 'tool', id: 'profile' },
     label: 'RuneProfile',

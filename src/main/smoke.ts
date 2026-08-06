@@ -914,11 +914,11 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
           setter.call(i, v)
           i.dispatchEvent(new Event('input', { bubbles: true }))
         }
-        set('Lynx Titan')
+        set('Framed')
         await new Promise((r) => setTimeout(r, 80))
         document.querySelector('.hs-form button[type=submit]').click()
         await new Promise((r) => setTimeout(r, 2500))
-        set('Zezima')
+        set('Lynx Titan')
         await new Promise((r) => setTimeout(r, 80))
         ;[...document.querySelectorAll('.hs-form button')].find((b) => b.textContent === 'Compare')?.click()
       })()

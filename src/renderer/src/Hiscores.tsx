@@ -11,7 +11,7 @@
  */
 
 import { useState, type JSX } from 'react'
-import type { Hiscores as Data, HiscoreSkill } from '@shared/ipc'
+import type { Hiscores as Data, HiscoreActivity, HiscoreSkill } from '@shared/ipc'
 import { shortNumber } from '@shared/xp'
 import { TrophyIcon, SearchIcon } from './icons'
 
@@ -141,7 +141,10 @@ export function Hiscores(): JSX.Element {
             <AccountHead data={primary} onClear={() => setPrimary(null)} />
             {compare && <AccountHead data={compare} onClear={() => setCompare(null)} compare />}
           </div>
-          <SkillTable primary={primary} compare={compare} />
+          <div className="hs-body">
+            <SkillTable primary={primary} compare={compare} />
+            <Activities data={primary} />
+          </div>
         </>
       )}
     </div>
@@ -252,6 +255,68 @@ function SkillRow({
         </td>
       )}
     </tr>
+  )
+}
+
+/**
+ * Kill counts, clues and everything else the hiscores track.
+ *
+ * The API returns all 91 rows whether or not the account has done them, with
+ * -1 in both fields; only scored ones survive the fetch. They arrive in a fixed
+ * order whose id ranges are the only grouping available — there is no category
+ * field — so the boundaries below are read off that order rather than inferred
+ * from names, which change.
+ */
+const CLUE_IDS = { from: 7, to: 13 }
+const BOSS_FROM = 20
+
+function group(activities: HiscoreActivity[]): Array<{ title: string; rows: HiscoreActivity[] }> {
+  const clues = activities.filter((a) => a.id >= CLUE_IDS.from && a.id <= CLUE_IDS.to)
+  const bosses = activities.filter((a) => a.id >= BOSS_FROM)
+  const other = activities.filter((a) => a.id < CLUE_IDS.from || (a.id > CLUE_IDS.to && a.id < BOSS_FROM))
+
+  return [
+    { title: 'Bosses', rows: bosses },
+    { title: 'Clue scrolls', rows: clues },
+    { title: 'Other', rows: other },
+  ].filter((g) => g.rows.length > 0)
+}
+
+function Activities({ data }: { data: Data }): JSX.Element {
+  const groups = group(data.activities)
+
+  if (groups.length === 0) {
+    return (
+      <aside className="hs-activities">
+        <p className="search-note">
+          Nothing tracked yet. Boss kills, clue scrolls and minigame scores appear here once the
+          hiscores record them.
+        </p>
+      </aside>
+    )
+  }
+
+  return (
+    <aside className="hs-activities">
+      {groups.map((g) => (
+        <section key={g.title}>
+          <h2>{g.title}</h2>
+          <ul>
+            {g.rows.map((a) => (
+              <li key={a.id}>
+                <span className="hs-act-name" title={a.name}>
+                  {a.name}
+                </span>
+                <span className="hs-act-score">{a.score.toLocaleString()}</span>
+                <span className="hs-act-rank">
+                  {a.rank > 0 ? `#${a.rank.toLocaleString()}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </aside>
   )
 }
 
