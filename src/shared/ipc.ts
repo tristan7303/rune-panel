@@ -571,6 +571,11 @@ export const On = {
   /** One step of the background refresh + crawl. */
   CrawlProgress: 'wiki:crawl-progress',
   /**
+   * The pane is mid-navigation, or has finished. It is deliberately not shown
+   * until its page is loaded and themed, so the renderer fills the gap.
+   */
+  PaneLoading: 'tools:loading',
+  /**
    * An in-app shortcut pressed while an embedded tool had the keyboard.
    *
    * The renderer's own key listeners are on its document, and a
@@ -633,6 +638,7 @@ export interface RunePanelApi {
   onSettings(cb: (settings: Settings) => void): () => void
   onSyncProgress(cb: (progress: SyncProgress) => void): () => void
   onCrawlProgress(cb: (state: CrawlState) => void): () => void
+  onPaneLoading(cb: (loading: boolean) => void): () => void
   onPaneShortcut(cb: (which: PaneShortcut) => void): () => void
 }
 

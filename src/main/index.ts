@@ -92,6 +92,7 @@ function registerIpc(): void {
   ipcMain.on(Send.StopCrawl, () => sync.stop())
 
   sync.onProgress((state) => getWindow()?.webContents.send(On.CrawlProgress, state))
+  pane.onLoading((loading) => getWindow()?.webContents.send(On.PaneLoading, loading))
 
   ipcMain.on(Send.ShowTool, (_e, id: ToolId, arg?: string) => {
     void pane.show(id, arg).catch((err: unknown) => {

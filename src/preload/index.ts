@@ -115,6 +115,7 @@ const api: RunePanelApi = {
   onSettings: (cb) => subscribeWith<Settings>(On.Settings, cb),
   onSyncProgress: (cb) => subscribeWith<SyncProgress>(On.SyncProgress, cb),
   onCrawlProgress: (cb) => subscribeWith<CrawlState>(On.CrawlProgress, cb),
+  onPaneLoading: (cb) => subscribeWith<boolean>(On.PaneLoading, cb),
   onPaneShortcut: (cb) => subscribeWith<PaneShortcut>(On.PaneShortcut, cb),
 }
 

@@ -823,6 +823,46 @@ kbd {
   min-height: 0;
 }
 
+/**
+ * The wait, made legible.
+ *
+ * The pane is held back until its page is loaded and themed, so the slot is
+ * empty for up to a second. A spinner says "loading" where an empty rectangle
+ * says "broken" — and it sits on the surface the pane will occupy, so nothing
+ * jumps when the real thing takes its place.
+ */
+.tool-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-spinner {
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--rim);
+  /* One coloured arc against a dim ring: the gap is what reads as motion. */
+  border-top-color: var(--accent-a);
+  border-radius: 50%;
+  animation: tool-spin 700ms linear infinite;
+}
+
+@keyframes tool-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Honour the same preference the window animation does: a spinner is motion,
+   and a static ring still says "something is happening here". */
+@media (prefers-reduced-motion: reduce) {
+  .tool-spinner {
+    animation: none;
+  }
+}
+
 /* The freeze-frame: a still of the pane, shown in its exact place while an
    overlay is open and the real view is stood down. Same rectangle, same
    pixels — the page appears to hold still with the dropdown over it. */

@@ -12,6 +12,7 @@
 
 import type { JSX } from 'react'
 import { useNav, type Route } from './nav'
+import { useStore } from './store'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
 
@@ -25,19 +26,38 @@ interface Card {
   asset?: string
 }
 
-const CARDS: Card[] = [
+/**
+ * The prices tile follows the setting, exactly as the rail does.
+ *
+ * Only one of the two is ever offered. They answer the same question, and a
+ * home screen listing both invites the reader to work out which one this app
+ * actually means.
+ */
+function pricesCard(geTracker: boolean): Card {
+  return geTracker
+    ? {
+        route: { kind: 'tool', id: 'getracker' },
+        title: 'GE Tracker',
+        blurb: 'Live margins, volume and price history, with the items you star kept to hand.',
+        image: 'Coins_10000.png',
+      }
+    : {
+        route: { kind: 'ge' },
+        title: 'Grand Exchange',
+        blurb: 'Live buy and sell prices, margins after tax, and a year of history.',
+        image: 'Coins_10000.png',
+      }
+}
+
+function cards(geTracker: boolean): Card[] {
+  return [
   {
     route: { kind: 'tool', id: 'dps' },
     title: 'DPS calculator',
     blurb: "The wiki's own, for testing a loadout against any monster.",
     image: 'Dragon_scimitar.png',
   },
-  {
-    route: { kind: 'ge' },
-    title: 'Grand Exchange',
-    blurb: 'Live buy and sell prices, margins after tax, and a year of history.',
-    image: 'Coins_10000.png',
-  },
+  pricesCard(geTracker),
   {
     route: { kind: 'hiscores' },
     title: 'Hiscores',
@@ -64,10 +84,12 @@ const CARDS: Card[] = [
     blurb: 'Every article and alias, cached locally after the first read.',
     image: 'Book_of_knowledge.png',
   },
-]
+  ]
+}
 
 export function Home(): JSX.Element {
   const push = useNav((s) => s.push)
+  const geTracker = useStore((s) => s.settings?.geTrackerReplacesGe ?? true)
 
   return (
     <div className="home">
@@ -81,7 +103,7 @@ export function Home(): JSX.Element {
       </header>
 
       <div className="home-cards">
-        {CARDS.map((card) => (
+        {cards(geTracker).map((card) => (
           <button key={card.title} className="home-card" onClick={() => push(card.route)}>
             <span className="home-card-art">
               {/* Straight to the cache protocol: main downloads it on first use

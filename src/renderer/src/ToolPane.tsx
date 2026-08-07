@@ -19,6 +19,14 @@ export function ToolPane({ id, arg }: { id: ToolId; arg?: string }): JSX.Element
   const overlaysOpen = useStore((s) => s.overlays) > 0
   /** A still of the pane, standing in for it while an overlay is open. */
   const [freeze, setFreeze] = useState<string | null>(null)
+  /**
+   * The pane is not shown until its page has loaded and been themed — which is
+   * what stopped the unstyled flash, and leaves a second of empty slot in its
+   * place. Main says when that window opens and closes.
+   */
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => window.rp.onPaneLoading(setLoading), [])
 
   // Where the pane goes, published before it is ever shown. Bounds are
   // window-relative, so anything that moves the slot invalidates them: window
@@ -94,6 +102,13 @@ export function ToolPane({ id, arg }: { id: ToolId; arg?: string }): JSX.Element
   return (
     <div className="tool-slot" ref={slotRef}>
       {freeze && <img className="tool-freeze" src={freeze} alt="" draggable={false} />}
+      {/* Not while a still is up: the page is already on screen, frozen, and a
+          spinner over it would claim otherwise. */}
+      {loading && !freeze && (
+        <div className="tool-loading" role="status" aria-label="Loading">
+          <span className="tool-spinner" />
+        </div>
+      )}
     </div>
   )
 }

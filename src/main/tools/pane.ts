@@ -118,6 +118,7 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
   // Hidden for the duration of the navigation: leaving it visible showed the
   // previous document — another tool, or about:blank — for the whole load.
   view.setVisible(false)
+  emitLoading(true)
 
   /**
    * Shown only once there is something to show.
@@ -144,6 +145,7 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
    */
   await applyTheme()
   view.setVisible(true)
+  emitLoading(false)
 }
 
 /**
@@ -225,6 +227,27 @@ export async function applyTheme(): Promise<void> {
  * caller falls back to hiding with nothing in its place, which is merely the
  * old behaviour.
  */
+type LoadingListener = (loading: boolean) => void
+const loadingListeners = new Set<LoadingListener>()
+
+/**
+ * Whether the pane is mid-navigation.
+ *
+ * The view is deliberately not shown until its page has loaded *and* been
+ * themed, which is what stopped the unstyled flash — but that leaves a second
+ * or so of nothing where the page will be. The renderer draws a spinner in the
+ * slot for exactly that window, so the wait reads as loading rather than as
+ * having gone wrong.
+ */
+export function onLoading(listener: LoadingListener): () => void {
+  loadingListeners.add(listener)
+  return () => loadingListeners.delete(listener)
+}
+
+function emitLoading(loading: boolean): void {
+  for (const listener of loadingListeners) listener(loading)
+}
+
 export async function capture(): Promise<string | null> {
   if (!view || !current) return null
   try {
