@@ -411,11 +411,15 @@ function checkTransform(): void {
   check('transform: tags wikitables', html.includes('rp-table'))
 
   check('transform: extracts infobox', infobox !== null)
-  check('transform: infobox header', infobox?.header === 'Abyssal whip', infobox?.header ?? '')
-  check('transform: infobox rows', infobox?.rows.length === 2, `${infobox?.rows.length} rows`)
+  // One form is the ordinary case; a page describing more than one of the same
+  // subject — Vorkath awake and asleep — carries a tab per form.
+  check('transform: one form for a plain page', infobox?.forms.length === 1, `${infobox?.forms.length} forms`)
+  const form = infobox?.forms[0]
+  check('transform: infobox header', form?.header === 'Abyssal whip', form?.header ?? '')
+  check('transform: infobox rows', form?.rows.length === 2, `${form?.rows.length} rows`)
   check(
     'transform: infobox values keep links',
-    infobox?.rows[1]?.value.includes('rp://page/2005') ?? false
+    form?.rows[1]?.value.includes('rp://page/2005') ?? false
   )
   // Lifted, not copied: leaving it in the body would render it twice.
   check('transform: infobox removed from body', !html.includes('infobox-header'))

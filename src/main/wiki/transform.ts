@@ -32,7 +32,16 @@ export interface InfoboxRow {
   byVariant?: Array<string | null>
 }
 
-export interface Infobox {
+/**
+ * One form of the subject — Vorkath awake, Vorkath asleep.
+ *
+ * Nested inside `Infobox.forms` rather than being the infobox itself, because a
+ * form can *also* have variants: Vorkath's awake statblock has a post-quest and
+ * a Dragon Slayer II version, so the card carries two levels of tabs.
+ */
+export interface InfoboxForm {
+  /** Tab label — "Awakened", "Active", "Idle". */
+  label: string
   /** The bold title row at the top of the box, if present. */
   header?: string
   /** Per-variant titles, when the item is renamed between variants. */
@@ -48,6 +57,12 @@ export interface Infobox {
   variants: string[]
   /** Which variant the wiki shows first. */
   defaultVariant: number
+}
+
+export interface Infobox {
+  /** One entry per form. Always at least one; usually exactly one. */
+  forms: InfoboxForm[]
+  defaultForm: number
 }
 
 export interface TransformResult {
@@ -321,10 +336,131 @@ function harvestSwitchResources($: cheerio.CheerioAPI): SwitchData {
   return data
 }
 
-function extractInfobox($: cheerio.CheerioAPI, switchData: SwitchData): Infobox | null {
-  const table = $('table.infobox').first()
-  if (table.length === 0) return null
+/**
+ * Every infobox on the page that describes the same thing.
+ *
+ * A page can carry more than one. Vorkath has an awake statblock and an asleep
+ * one, wrapped in the wiki's `.multi-infobox` tabber; Phosani's Nightmare has a
+ * combat form and an idle form as two plain sibling tables with no tabber at
+ * all. Only the first was ever lifted, which left the others stranded in the
+ * article body as raw tables — and on Vorkath left the tab that had been emptied
+ * of its table sitting there as a labelled blank.
+ *
+ * What must *not* be swept up is the equipment-bonuses table, which is also
+ * `table.infobox` and genuinely belongs in the body. The header is what tells
+ * them apart, and it does so cleanly: a form repeats the subject's name in its
+ * `.infobox-header` — both of Phosani's say "Phosani's Nightmare" — while a
+ * bonuses table has no header row at all. Checked against ten pages covering
+ * items, weapons and bosses.
+ */
+function findFormTables($: cheerio.CheerioAPI): Array<cheerio.Cheerio<Element>> {
+  const tables = $('table.infobox')
+    .toArray()
+    // A nested infobox is a layout device inside another one, not a form.
+    .filter((el) => $(el).parents('table.infobox').length === 0)
+    .map((el) => $(el))
+  if (tables.length === 0) return []
 
+  const headerOf = (t: cheerio.Cheerio<Element>): string =>
+    t.find('.infobox-header').first().text().trim()
+
+  const subject = headerOf(tables[0])
+  if (!subject) return [tables[0]]
+  return tables.filter((t) => headerOf(t) === subject)
+}
+
+/**
+ * What to call a form's tab.
+ *
+ * The wiki names them itself, in two different ways depending on which switcher
+ * the page uses, and both names are better than anything derived — "Awakened"
+ * and "Asleep" say more than any rule could.
+ *
+ * `.multi-infobox` wraps each form in a Tabber tab carrying `data-title`.
+ * `.switch-infobox` instead lists the names separately as `.trigger` spans and
+ * joins them to the forms by `data-id`, which is where Phosani's Nightmare gets
+ * "Active" and "Idle" from.
+ *
+ * Only if a page uses neither does this fall back to the infobox subtype, which
+ * is still a fair signal — the fighting statblock is tagged `infobox-monster`
+ * and the passive one `infobox-npc`.
+ */
+function formLabel(table: cheerio.Cheerio<Element>, index: number): string {
+  const tabbed = table.closest('.tabbertab').attr('data-title')?.trim()
+  if (tabbed) return tabbed
+
+  const item = table.closest('.item[data-id]')
+  const id = item.attr('data-id')
+  if (id) {
+    const trigger = item
+      .closest('.switch-infobox')
+      .find(`.switch-infobox-triggers .trigger[data-id="${id}"]`)
+      .first()
+      .text()
+      .trim()
+    if (trigger) return trigger
+  }
+
+  const classes = table.attr('class') ?? ''
+  if (/\binfobox-monster\b/.test(classes)) return 'Active'
+  if (/\binfobox-npc\b/.test(classes)) return 'Idle'
+  return `Form ${index + 1}`
+}
+
+function extractInfobox($: cheerio.CheerioAPI, switchData: SwitchData): Infobox | null {
+  const tables = findFormTables($)
+  if (tables.length === 0) return null
+
+  const forms: InfoboxForm[] = []
+  for (const [i, table] of tables.entries()) {
+    const form = extractForm($, switchData, table, formLabel(table, i))
+    if (form) forms.push(form)
+  }
+
+  // Both switchers are only chrome once their tables are gone, and left behind
+  // they are worse than nothing: the tab strip renders as the labels run
+  // together — "ActiveIdle" — above a "Loading..." that never resolves, because
+  // the script that would have replaced it is not here.
+  if (tables.length > 1) $('.multi-infobox, .switch-infobox').remove()
+  if (forms.length === 0) return null
+  return { forms, defaultForm: 0 }
+}
+
+/**
+ * The row holding the subject's picture, if this is it.
+ *
+ * `.infobox-image` is the wiki's own marker and is the answer whenever it is
+ * there. It is not always there: Vorkath's asleep box and the other
+ * `infobox-npc` statblocks put the picture in a plain full-width cell with no
+ * such class, so the card came up with a blank where the render should be.
+ *
+ * The fallback is deliberately narrow — a full-width cell holding an image and
+ * no text at all. A row with a label beside it is a field, not the portrait,
+ * and only the first match is ever used.
+ */
+function pictureCell(
+  $: cheerio.CheerioAPI,
+  $tr: cheerio.Cheerio<Element>
+): cheerio.Cheerio<Element> {
+  const tagged = $tr.find('.infobox-image').first()
+  if (tagged.length > 0) return tagged
+
+  const cells = $tr.children('td')
+  if (cells.length !== 1) return $()
+  const cell = cells.first()
+  const wide = cell.attr('colspan') !== undefined || cell.hasClass('infobox-full-width-content')
+  if (!wide) return $()
+  if (cell.find('img').length === 0) return $()
+  if (cell.text().trim().length > 0) return $()
+  return cell
+}
+
+function extractForm(
+  $: cheerio.CheerioAPI,
+  switchData: SwitchData,
+  table: cheerio.Cheerio<Element>,
+  label: string
+): InfoboxForm | null {
   // Variant tabs. The wiki renders these as buttons in the table's <caption>
   // and relies on its own JavaScript to switch them; without that script every
   // variant's value renders at once, which is why an item like the Scythe of
@@ -335,7 +471,8 @@ function extractInfobox($: cheerio.CheerioAPI, switchData: SwitchData): Infobox 
     .map((el) => $(el).text().trim())
     .filter(Boolean)
 
-  const box: Infobox = {
+  const box: InfoboxForm = {
+    label,
     rows: [],
     variants,
     defaultVariant: pickDefaultVariant(table, variants),
@@ -400,7 +537,7 @@ function extractInfobox($: cheerio.CheerioAPI, switchData: SwitchData): Infobox 
       return
     }
 
-    const image = $tr.find('.infobox-image').first()
+    const image = pictureCell($, $tr)
     if (image.length) {
       if (box.image === undefined) {
         box.image = image.html()?.trim() || undefined

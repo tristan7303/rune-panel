@@ -279,7 +279,10 @@ function Body({ route }: { route: Route }): JSX.Element {
     case 'page':
       // Keyed so switching articles remounts rather than reusing state that
       // belongs to the previous page.
-      return <Article title={route.title} key={route.title} />
+      // Keyed on title alone: a hash-only change must not remount, or jumping
+      // to a section would re-fetch the page and throw away the scroll it is
+      // about to perform.
+      return <Article title={route.title} hash={route.hash} key={route.title} />
     case 'ge':
       return <Grand itemId={route.itemId} key={route.itemId ?? 'search'} />
     case 'hiscores':
@@ -291,8 +294,10 @@ function Body({ route }: { route: Route }): JSX.Element {
   }
 }
 
+// Ordered dark to light, so the list reads as a ramp rather than a set.
 const THEMES: Array<{ id: Theme; label: string; hint: string; icon: () => JSX.Element }> = [
   { id: 'dark', label: 'Dark', hint: 'Over a dark game client', icon: MoonIcon },
+  { id: 'mocha', label: 'Mocha', hint: 'Warm and dim, for reading at night', icon: MoonIcon },
   { id: 'parchment', label: 'Parchment', hint: 'Warm tan, easiest for long reads', icon: PageIcon },
   { id: 'light', label: 'Light', hint: 'Plain white', icon: SunIcon },
 ]
@@ -300,9 +305,9 @@ const THEMES: Array<{ id: Theme; label: string; hint: string; icon: () => JSX.El
 /**
  * Theme picker, directly above settings.
  *
- * A small popup rather than a cycling button: with three options a toggle makes
- * you click through the one you do not want, and gives no hint what the next
- * press will do. This shows all three at once with the current one marked.
+ * A small popup rather than a cycling button: a toggle makes you click through
+ * the ones you do not want and gives no hint what the next press will do. This
+ * shows every theme at once with the current one marked.
  */
 function ThemeToggle(): JSX.Element {
   const theme = useStore((s) => s.settings?.theme ?? 'dark')

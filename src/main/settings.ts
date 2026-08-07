@@ -10,7 +10,10 @@
 import { app } from 'electron'
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import type { Settings, WindowBounds } from '../shared/ipc'
+import type { Settings, Theme, WindowBounds } from '../shared/ipc'
+
+/** Every theme the stylesheet defines. Anything else falls back to dark. */
+const THEMES: Theme[] = ['dark', 'mocha', 'light', 'parchment']
 
 export const DEFAULTS: Settings = {
   theme: 'dark',
@@ -24,6 +27,9 @@ export const DEFAULTS: Settings = {
   hideOnBlur: false,
   contactEmail: '',
   rsn: '',
+  dropRateInTitle: false,
+  dropRateOrder: 'common',
+  normaliseDropRates: false,
   acrylic: true,
   reduceMotion: false,
   bounds: null,
@@ -70,7 +76,7 @@ export function onChange(listener: (next: Settings) => void): void {
 /** Clamp anything that could wedge the UI if a hand-edited file is wrong. */
 function sanitize(s: Settings): Settings {
   return {
-    theme: s.theme === 'light' || s.theme === 'parchment' ? s.theme : 'dark',
+    theme: THEMES.includes(s.theme) ? s.theme : 'dark',
     hotkey: typeof s.hotkey === 'string' && s.hotkey.trim() ? s.hotkey.trim() : DEFAULTS.hotkey,
     searchKey: bind(s.searchKey, DEFAULTS.searchKey),
     geKey: bind(s.geKey, DEFAULTS.geKey),
@@ -80,6 +86,9 @@ function sanitize(s: Settings): Settings {
     // Jagex caps a display name at 12 characters, so anything longer is a
     // mistake rather than a name and truncating it costs nothing real.
     rsn: typeof s.rsn === 'string' ? s.rsn.trim().slice(0, 12) : '',
+    dropRateInTitle: Boolean(s.dropRateInTitle),
+    dropRateOrder: s.dropRateOrder === 'rare' ? 'rare' : 'common',
+    normaliseDropRates: Boolean(s.normaliseDropRates),
     acrylic: Boolean(s.acrylic),
     reduceMotion: Boolean(s.reduceMotion),
     bounds: sanitizeBounds(s.bounds),

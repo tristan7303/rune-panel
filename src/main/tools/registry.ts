@@ -16,6 +16,8 @@
  * degrades to the plain site rather than a blank pane.
  */
 
+import type { Theme } from '../../shared/ipc'
+
 export interface ToolCookie {
   url: string
   name: string
@@ -41,7 +43,7 @@ export interface ToolPalette {
   accent: string
 }
 
-export const PALETTES: Record<'dark' | 'light' | 'parchment', ToolPalette> = {
+export const PALETTES: Record<Theme, ToolPalette> = {
   dark: {
     dark: true,
     surface: '#15121f',
@@ -51,6 +53,19 @@ export const PALETTES: Record<'dark' | 'light' | 'parchment', ToolPalette> = {
     text: '#eeecf8',
     textDim: '#9d99b0',
     accent: '#b39bff',
+  },
+  // Flattened from the translucent tokens in styles.css: an embedded page needs
+  // opaque hex, and the alpha these carry over the window backdrop has to be
+  // resolved to a single colour here.
+  mocha: {
+    dark: true,
+    surface: '#2b211a',
+    raised: '#3b2e24',
+    sunken: '#1c1510',
+    rim: '#4d3d30',
+    text: '#f5e9d8',
+    textDim: '#a3927f',
+    accent: '#d0a86a',
   },
   parchment: {
     dark: false,

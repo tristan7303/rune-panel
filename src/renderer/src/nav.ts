@@ -15,7 +15,12 @@ import { create } from 'zustand'
 
 export type Route =
   | { kind: 'home' }
-  | { kind: 'page'; title: string }
+  /**
+   * `hash` is a section anchor to land on rather than the top of the page —
+   * how a drop badge opens its source *at* the loot table, and what a wiki link
+   * carrying a `#fragment` has always meant but nothing here could act on.
+   */
+  | { kind: 'page'; title: string; hash?: string }
   | { kind: 'tool'; id: 'dps' | 'calculators' | 'profile' }
   | { kind: 'ge'; itemId?: number }
   | { kind: 'hiscores' }
@@ -89,7 +94,10 @@ export function useCanGoForward(): boolean {
 
 function sameRoute(a: Route | undefined, b: Route): boolean {
   if (!a || a.kind !== b.kind) return false
-  if (a.kind === 'page' && b.kind === 'page') return a.title === b.title
+  // The hash counts: jumping to a section of the page you are already on is a
+  // real navigation, and treating it as a no-op would make a badge on the
+  // source's own page do nothing.
+  if (a.kind === 'page' && b.kind === 'page') return a.title === b.title && a.hash === b.hash
   if (a.kind === 'tool' && b.kind === 'tool') return a.id === b.id
   if (a.kind === 'ge' && b.kind === 'ge') return a.itemId === b.itemId
   return true

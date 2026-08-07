@@ -116,6 +116,46 @@ export function SettingsView(): JSX.Element {
         <RsnField />
       </Group>
 
+      <Group title="Drop rates">
+        <Field
+          label="Show item drop rate in title"
+          hint="Puts an item's drop chances beside its name, coloured by rarity, as 1 in N. Click one to open that source's drop table. More than three sources collapse to a single chip."
+        >
+          <Switch
+            checked={settings.dropRateInTitle}
+            onChange={(dropRateInTitle) => patch({ dropRateInTitle })}
+            label="Show item drop rate in title"
+          />
+        </Field>
+
+        {settings.dropRateInTitle && (
+          <Field
+            label="Order those badges by"
+            hint="Which end of the ramp to start from when an item has more than one source."
+          >
+            <select
+              className="settings-select"
+              value={settings.dropRateOrder}
+              onChange={(e) => patch({ dropRateOrder: e.target.value as 'common' | 'rare' })}
+            >
+              <option value="common">Most common first</option>
+              <option value="rare">Rarest first</option>
+            </select>
+          </Field>
+        )}
+
+        <Field
+          label="Always show rates as 1 in N"
+          hint="Rewrites drop tables too, so 2/69 reads 1/34.5 and 5/150 reads 1/30. Off by default — the wiki's own wording says how the drop is implemented, and hovering a cell always shows it."
+        >
+          <Switch
+            checked={settings.normaliseDropRates}
+            onChange={(normaliseDropRates) => patch({ normaliseDropRates })}
+            label="Always show rates as 1 in N"
+          />
+        </Field>
+      </Group>
+
       <Group title="Wiki data">
         <Field
           label="Contact address"

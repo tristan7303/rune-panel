@@ -10,7 +10,7 @@
  * Three reading surfaces. Parchment is the default: a warm tan that suits a
  * fantasy wiki and is easier on the eyes than plain white for long articles.
  */
-export type Theme = 'dark' | 'light' | 'parchment'
+export type Theme = 'dark' | 'mocha' | 'light' | 'parchment'
 
 /** Persisted user settings. */
 export interface Settings {
@@ -52,6 +52,25 @@ export interface Settings {
    * here, and the hiscores are public either way.
    */
   rsn: string
+  /**
+   * Show an item's drop rates beside its title.
+   *
+   * Read off the page's own sources table: up to three coloured rates, or a
+   * single "Multiple sources" chip past that. Off by default — it is a useful
+   * answer on a boss drop and pure noise on a bucket of sand.
+   */
+  dropRateInTitle: boolean
+  /** Which end of the ramp those badges start from. */
+  dropRateOrder: 'common' | 'rare'
+  /**
+   * Rewrite every drop rate as 1-in-N, including inside drop tables.
+   *
+   * Off by default, because `5/150` says the drop occupies five slots of a
+   * hundred and fifty, which is how it is actually implemented — worth keeping
+   * unless you would rather compare odds at a glance. The title badges are
+   * always normalised regardless; that is the whole point of them.
+   */
+  normaliseDropRates: boolean
   /**
    * Draw the Windows 11 DWM acrylic backdrop behind the window. Turn off if the
    * blur costs frames or the compositor refuses it. The UI is designed to look
@@ -262,15 +281,29 @@ export interface InfoboxRow {
   byVariant?: Array<string | null>
 }
 
-export interface Infobox {
+/**
+ * One form of the subject: Vorkath awake, Vorkath asleep.
+ *
+ * A form can itself have variants, so the card carries two levels of tabs —
+ * Vorkath's awake statblock also has post-quest and Dragon Slayer II versions.
+ */
+export interface InfoboxForm {
+  /** Tab label — "Awakened", "Active", "Idle". */
+  label: string
   header?: string
   headerByVariant?: Array<string | null>
   image?: string
   imageByVariant?: Array<string | null>
   rows: InfoboxRow[]
-  /** "Uncharged", "Charged" — empty for an ordinary single-form infobox. */
+  /** "Uncharged", "Charged" — empty for a form with nothing to switch. */
   variants: string[]
   defaultVariant: number
+}
+
+export interface Infobox {
+  /** Always at least one; more than one only when the page describes forms. */
+  forms: InfoboxForm[]
+  defaultForm: number
 }
 
 export interface Section {

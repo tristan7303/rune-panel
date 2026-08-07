@@ -9,7 +9,16 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import type { Article as ArticleData, Infobox as InfoboxData } from '@shared/ipc'
 import { useNav } from './nav'
+import { useStore } from './store'
 import { usePlayer, markRequirements } from './player'
+import {
+  formatOneIn,
+  normaliseRateCells,
+  rarityClass,
+  readDropSources,
+  sortSources,
+  type DropSource,
+} from './drops'
 
 /** Cursor dwell before a link is speculatively fetched. */
 const HOVER_MS = 150
@@ -29,19 +38,26 @@ function decodeFragment(raw: string): string {
   }
 }
 
-export function Article({ title }: { title: string }): JSX.Element {
+export function Article({ title, hash }: { title: string; hash?: string }): JSX.Element {
   const [article, setArticle] = useState<ArticleData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   /** Bumped by the refresh control to re-run the fetch with force. */
   const [reloads, setReloads] = useState(0)
   const [variant, setVariant] = useState(0)
+  /** Which form of the subject the card is showing — awake or asleep. */
+  const [form, setForm] = useState(0)
   /** The footnote under the cursor, when it is too far away to just highlight. */
   const [cite, setCite] = useState<CiteTipState | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const push = useNav((s) => s.push)
   const levels = usePlayer((s) => s.levels)
+  /** What drops this item, read out of the page's own sources table. */
+  const [sources, setSources] = useState<DropSource[]>([])
+  const showDropRates = useStore((s) => s.settings?.dropRateInTitle ?? false)
+  const dropOrder = useStore((s) => s.settings?.dropRateOrder ?? 'common')
+  const normalise = useStore((s) => s.settings?.normaliseDropRates ?? false)
 
   useEffect(() => {
     let live = true
@@ -56,7 +72,9 @@ export function Article({ title }: { title: string }): JSX.Element {
         if (!got) setError(`No article named “${title}”.`)
         else {
           setArticle(got)
-          setVariant(got.infobox?.defaultVariant ?? 0)
+          const first = got.infobox?.defaultForm ?? 0
+          setForm(first)
+          setVariant(got.infobox?.forms[first]?.defaultVariant ?? 0)
         }
       })
       .catch((err: unknown) => {
@@ -86,11 +104,28 @@ export function Article({ title }: { title: string }): JSX.Element {
    */
   const bodyHtml = useMemo(() => ({ __html: article?.html ?? '' }), [article])
 
-  // A new article starts at the top; without this the previous scroll position
-  // survives the swap and you land mid-page.
+  /**
+   * Where a new article starts.
+   *
+   * Top by default — without this the previous scroll position survives the
+   * swap and you land mid-page. With a hash, at that section instead, which is
+   * how a drop badge opens its source already at the loot table. The lookup has
+   * to wait for the article, since the anchor lives in HTML that does not exist
+   * until then; an anchor that does not resolve falls back to the top rather
+   * than leaving you wherever the last page was.
+   */
   useEffect(() => {
-    scrollRef.current?.scrollTo(0, 0)
-  }, [title, article])
+    const scroller = scrollRef.current
+    if (!scroller) return
+    if (hash && article && bodyRef.current) {
+      const target = findAnchor(bodyRef.current, hash)
+      if (target) {
+        target.scrollIntoView({ block: 'start' })
+        return
+      }
+    }
+    scroller.scrollTo(0, 0)
+  }, [title, hash, article])
 
   /**
    * Mark skill requirements against your own levels.
@@ -108,6 +143,24 @@ export function Article({ title }: { title: string }): JSX.Element {
     if (!scrollRef.current || !article) return
     markRequirements(scrollRef.current, levels)
   }, [article, variant, levels])
+
+  /**
+   * Drop rates: read them out of the body, and optionally restate them.
+   *
+   * Both run off the rendered DOM rather than anything main computed, so the
+   * page cache stays a plain copy of the wiki and both settings take effect the
+   * moment they are switched rather than on the next fetch.
+   */
+  useEffect(() => {
+    const root = bodyRef.current
+    if (!root || !article) {
+      setSources([])
+      return
+    }
+    normaliseRateCells(root, normalise)
+    // After normalising, so a badge quotes the same figure as the table.
+    setSources(showDropRates ? readDropSources(root) : [])
+  }, [article, showDropRates, normalise])
 
   /**
    * One delegated listener rather than rebinding every anchor.
@@ -142,7 +195,14 @@ export function Article({ title }: { title: string }): JSX.Element {
       const target = anchor.dataset.title
       if (target) {
         e.preventDefault()
-        push({ kind: 'page', title: target })
+        // The transform keeps the fragment on the href but not in `data-title`,
+        // so a link into a section of another page used to arrive at its top.
+        const fragment = anchor.getAttribute('href')?.split('#')[1]
+        push({
+          kind: 'page',
+          title: target,
+          hash: fragment ? decodeFragment(fragment) : undefined,
+        })
         return
       }
       // External links are already target=_blank; main's window-open handler
@@ -219,6 +279,21 @@ export function Article({ title }: { title: string }): JSX.Element {
     }
   }, [push, article])
 
+  /** Jump to the sources table on this page — where the badges were read from. */
+  const scrollToSources = (): void => {
+    const root = bodyRef.current
+    if (!root) return
+    for (const table of root.querySelectorAll('table')) {
+      const headers = [...table.querySelectorAll('th')].map((th) =>
+        (th.textContent ?? '').trim().toLowerCase()
+      )
+      if (headers.includes('source') && headers.includes('rarity')) {
+        table.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+    }
+  }
+
   if (loading) return <div className="placeholder">Loading {title}…</div>
   if (error) {
     return (
@@ -233,12 +308,38 @@ export function Article({ title }: { title: string }): JSX.Element {
   return (
     <div className="article-scroll" ref={scrollRef}>
       <article className="article selectable">
-        <h1 className="article-title">{article.title}</h1>
+        <h1 className="article-title">
+          {article.title}
+          <DropBadges
+            sources={sources}
+            order={dropOrder}
+            // The source's drop section, not just its page. "Drops" is what the
+            // wiki heads it on a monster; a source without one lands at the top
+            // rather than nowhere, since the scroll falls back.
+            onSource={(s) =>
+              s.title
+                ? push({ kind: 'page', title: s.title, hash: 'Drops' })
+                : scrollToSources()
+            }
+            onAll={scrollToSources}
+          />
+        </h1>
 
         <PriceHeader title={article.title} />
 
         {article.infobox && (
-          <Infobox box={article.infobox} variant={variant} onVariant={setVariant} />
+          <Infobox
+            box={article.infobox}
+            form={form}
+            // Each form has its own variants, so switching form has to reset to
+            // that form's default rather than carry an index that may not exist.
+            onForm={(f) => {
+              setForm(f)
+              setVariant(article.infobox?.forms[f]?.defaultVariant ?? 0)
+            }}
+            variant={variant}
+            onVariant={setVariant}
+          />
         )}
 
         <div
@@ -322,6 +423,97 @@ function PriceHeader({ title }: { title: string }): JSX.Element | null {
       </button>
       {item.name !== title && <span className="price-header-note">as {item.name}</span>}
     </div>
+  )
+}
+
+/**
+ * Headings that hold what a thing drops.
+ *
+ * There is no agreed name for that section. A monster heads it "Drops", a
+ * chest "Loot table", a raid "Rewards" — Ancient chest, which is where the
+ * twisted bow comes from, uses the second and has no "Drops" heading anywhere.
+ */
+const LOOT_HEADING = /drop|loot|reward/i
+
+/**
+ * The element a fragment refers to.
+ *
+ * An exact id wins, always — that is what a wiki link means. The fallback only
+ * applies when the fragment was itself asking for a loot table and this page
+ * calls it something else, which is the case a drop badge has to survive. A
+ * link to a section that simply does not exist still resolves to nothing, and
+ * the caller sends you to the top rather than somewhere invented.
+ */
+function findAnchor(root: HTMLElement, hash: string): Element | null {
+  const exact = root.querySelector(`[id="${CSS.escape(hash)}"]`)
+  if (exact) return exact
+  if (!LOOT_HEADING.test(hash)) return null
+  for (const heading of root.querySelectorAll('h2, h3')) {
+    if (heading.id && LOOT_HEADING.test(heading.id)) return heading
+  }
+  return null
+}
+
+/* ── Drop rates beside the title ─────────────────────────────────────────── */
+
+/** Past this many sources the badges stop being a summary and become a wall. */
+const MAX_BADGES = 3
+
+/**
+ * An item's drop rates, next to its name.
+ *
+ * The question "how rare is this" is the reason most item pages get opened, and
+ * the answer is otherwise most of a page away in a table you have to scroll to
+ * and then do arithmetic on. Each badge carries the odds in 1-in-N form and the
+ * rarity colour the wiki would have given it, and opens the loot table it came
+ * from — the source's own drop section, not just the source's page.
+ *
+ * Beyond three sources the badges would say less than the table does, so they
+ * collapse to one chip pointing at it.
+ */
+function DropBadges({
+  sources,
+  order,
+  onSource,
+  onAll,
+}: {
+  sources: DropSource[]
+  order: 'common' | 'rare'
+  onSource: (source: DropSource) => void
+  onAll: () => void
+}): JSX.Element | null {
+  if (sources.length === 0) return null
+
+  if (sources.length > MAX_BADGES) {
+    return (
+      <span className="drop-badges">
+        <button
+          className="drop-badge is-many"
+          title={`${sources.length} sources — jump to the table`}
+          onClick={onAll}
+        >
+          Multiple sources
+        </button>
+      </span>
+    )
+  }
+
+  return (
+    <span className="drop-badges">
+      {sortSources(sources, order).map((s, i) => (
+        <button
+          key={`${s.source}-${i}`}
+          className={`drop-badge ${rarityClass(s.rate)}`}
+          // The source is the tooltip rather than a label: naming every source
+          // inline pushes the title onto a second line on any item with more
+          // than one, and the colour plus the odds is the part being scanned.
+          title={`${formatOneIn(s.rate)} from ${s.source} — open its drop table`}
+          onClick={() => onSource(s)}
+        >
+          {formatOneIn(s.rate)}
+        </button>
+      ))}
+    </span>
   )
 }
 
@@ -412,28 +604,68 @@ function isSprite(html: string): boolean {
   return Number.isFinite(width) && width > 0 && width <= SPRITE_MAX_PX
 }
 
+/**
+ * The infobox, drawn natively, with up to two rows of tabs.
+ *
+ * The outer row is *forms* — Vorkath awake and asleep, the Nightmare active and
+ * idle. These are separate tables on the wiki, stacked down the page or hidden
+ * behind its own tab script, and only ever one of them used to reach the card.
+ *
+ * The inner row is *variants* within a form: charged and uncharged, post-quest
+ * and Dragon Slayer II. The wiki packs every variant's values into the same
+ * cells and relies on its script to show one at a time, which is why an item
+ * like the Scythe of vitur otherwise reads as both its names mashed together.
+ * A row with nothing to say for the selected variant is dropped rather than
+ * shown empty.
+ */
 function Infobox({
   box,
+  form,
+  onForm,
   variant,
   onVariant,
 }: {
   box: InfoboxData
+  form: number
+  onForm: (f: number) => void
   variant: number
   onVariant: (v: number) => void
-}): JSX.Element {
+}): JSX.Element | null {
+  // Optional chaining rather than plain indexing: a migration clears rows
+  // written before forms existed, but a card that throws would take the whole
+  // article view down with it, and that is not a trade worth one saved `?.`.
+  const current = box.forms?.[form] ?? box.forms?.[0]
+  if (!current) return null
+
   const pick = (single: string, per?: Array<string | null>): string | null =>
     per ? per[variant] : single
 
-  const header = box.headerByVariant?.[variant] ?? box.header
-  const image = pick(box.image ?? '', box.imageByVariant)
+  const header = current.headerByVariant?.[variant] ?? current.header
+  const image = pick(current.image ?? '', current.imageByVariant)
 
   return (
     <aside className="infobox-card">
       {header && <h2 className="infobox-header">{header}</h2>}
 
-      {box.variants.length > 1 && (
+      {box.forms.length > 1 && (
+        <div className="infobox-tabs is-forms" role="tablist">
+          {box.forms.map((f, i) => (
+            <button
+              key={f.label}
+              role="tab"
+              aria-selected={i === form}
+              className={`infobox-tab ${i === form ? 'is-active' : ''}`}
+              onClick={() => onForm(i)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {current.variants.length > 1 && (
         <div className="infobox-tabs" role="tablist">
-          {box.variants.map((name, i) => (
+          {current.variants.map((name, i) => (
             <button
               key={name}
               role="tab"
@@ -460,7 +692,7 @@ function Infobox({
       )}
 
       <dl className="infobox-rows">
-        {box.rows.map((row, i) => {
+        {current.rows.map((row, i) => {
           const value = pick(row.value, row.byVariant)
           if (!value) return null
           // The live Grand Exchange price is the row people scan an item page

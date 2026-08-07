@@ -65,6 +65,39 @@
 }
 
 /**
+ * Mocha.
+ *
+ * Parchment after dark: the same warm, aged-paper family, taken down to a
+ * roasted brown rather than the near-black of the default. It exists for the
+ * gap between the two — dark mode is a cold near-black that suits a HUD over a
+ * game, parchment is bright enough to be a lamp in a dark room, and neither is
+ * what you want for a long read at night.
+ *
+ * Brown is unforgiving about this: warm mid-tones go muddy the moment the text
+ * loses contrast against them, so the surfaces stay well separated in lightness
+ * and the text sits at a warm off-white rather than pure white, which would ring
+ * against the brown. The accents keep the dark theme's brightness — the light
+ * variants disappear into a surface this deep.
+ */
+:root[data-theme='mocha'] {
+  --surface: rgba(43, 33, 26, 0.93);
+  --surface-raised: rgba(59, 46, 36, 0.86);
+  --surface-sunken: rgba(28, 21, 16, 0.6);
+  --surface-hover: rgba(255, 226, 188, 0.08);
+
+  --rim: rgba(255, 222, 180, 0.12);
+  --rim-bright: rgba(255, 235, 205, 0.22);
+
+  --text: rgba(245, 233, 216, 0.95);
+  --text-dim: rgba(245, 233, 216, 0.58);
+  --text-faint: rgba(245, 233, 216, 0.34);
+
+  --accent-a: #d0a86a;
+  --accent-b: #7fb5d8;
+  --accent-gold: #e8bd6b;
+}
+
+/**
  * Light mode.
  *
  * Only the surface and text tokens move; the accents are shared, since the
@@ -119,6 +152,55 @@ body,
 .selectable {
   user-select: text;
   cursor: auto;
+}
+
+/**
+ * Scrollbars, in the theme.
+ *
+ * Chromium's default is a light-grey track with a mid-grey thumb, drawn from
+ * the platform rather than the page — so a dark or brown panel grew a bright
+ * white gutter down its edge the moment an article was long enough to scroll,
+ * which is most of them.
+ *
+ * Both syntaxes are set on purpose. `scrollbar-color` is the standard one and
+ * is what Chromium honours for overlay scrollbars; the `::-webkit-` rules cover
+ * the classic ones and let the thumb round off. Declared on `*` rather than a
+ * container because the article, the search results, the settings sheet and the
+ * hiscores grid all scroll independently, and any one of them missed shows the
+ * default again.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rim-bright) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--rim-bright);
+  border-radius: 6px;
+  /* Inset from the track so the thumb reads as floating in the gutter rather
+     than filling it edge to edge. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+  background-clip: padding-box;
+}
+
+/* Where two scrollbars meet. Left alone it paints the same default grey the
+   rest of this section exists to remove. */
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /**
@@ -793,6 +875,26 @@ kbd {
 .settings input[type='text']:focus {
   border-color: transparent;
   box-shadow: 0 0 0 1px var(--accent-a), 0 0 14px rgba(140, 110, 255, 0.22);
+}
+
+/* Matched to the text fields above rather than left as the platform control,
+   which renders in the OS palette and ignores the theme entirely. */
+.settings-select {
+  width: 220px;
+  padding: 6px 9px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+}
+
+.settings-select:focus {
+  border-color: transparent;
+  box-shadow: 0 0 0 1px var(--accent-a);
 }
 
 /* A field whose control is an input and a button rather than one of either.

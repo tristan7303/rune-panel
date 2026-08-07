@@ -123,6 +123,15 @@ const MIGRATIONS: string[] = [
   `
   DELETE FROM pages;
   `,
+
+  // The infobox is now a list of forms rather than a single box, so that a page
+  // describing more than one of its subject — Vorkath awake and asleep — can
+  // tab between them instead of stranding the others in the article body. Rows
+  // cached before this hold the old single-box JSON, which the card cannot
+  // read, and the shape is decided at fetch time.
+  `
+  DELETE FROM pages;
+  `,
 ]
 
 export function open(): DatabaseSync {
