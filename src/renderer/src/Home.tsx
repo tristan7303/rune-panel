@@ -15,6 +15,7 @@ import { useNav, type Route } from './nav'
 import { useStore } from './store'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
+import geTrackerLogo from './assets/ge-tracker-logo-small.png'
 
 interface Card {
   route: Route
@@ -39,7 +40,10 @@ function pricesCard(geTracker: boolean): Card {
         route: { kind: 'tool', id: 'getracker' },
         title: 'GE Tracker',
         blurb: 'Live margins, volume and price history, with the items you star kept to hand.',
-        image: 'Coins_10000.png',
+        // Their own mark, for the same reason RuneProfile carries its own: the
+        // coin sprite belongs to the built-in Grand Exchange this card replaces,
+        // and using it for both leaves the two tiles indistinguishable.
+        asset: geTrackerLogo,
       }
     : {
         route: { kind: 'ge' },
