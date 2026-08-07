@@ -294,14 +294,17 @@ body,
   background: none;
   cursor: pointer;
   overflow: hidden;
-  /* The logo carries its own violet border, so the glow sits under it rather
-     than adding a second edge. */
-  box-shadow: 0 0 14px rgba(140, 110, 255, 0.28);
+  /* The logo carries its own border, so the glow sits under it rather than
+     adding a second edge — and it takes the theme's accent rather than the
+     violet the dark theme happens to use, which read as a stray purple halo on
+     parchment and mocha. `color-mix` because the accents are opaque hex and
+     this wants them at a fraction. */
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent-a) 34%, transparent);
   transition: box-shadow var(--duration) ease, transform var(--duration) var(--spring);
 }
 
 .rail-mark:hover {
-  box-shadow: 0 0 18px rgba(140, 110, 255, 0.5);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent-a) 58%, transparent);
   transform: translateY(-1px);
 }
 
@@ -626,6 +629,12 @@ kbd {
    RuneProfile, whose pane is meaningless without a username, GE Tracker's front
    page is worth landing on, so the pane loads immediately and the box is a way
    to jump rather than a gate. */
+/* Pushed to the far edge: a once-per-install action does not belong beside the
+   search box you use constantly. */
+.ge-signin {
+  margin-left: auto;
+}
+
 .ge-tracker-search {
   position: relative;
   flex: 1;
@@ -637,6 +646,49 @@ kbd {
 
 /* The home page: what you have starred, and what you looked at. Scrolls in the
    slot the pane would occupy, so choosing an item swaps one for the other. */
+/**
+ * Their mark, at the top of our page.
+ *
+ * The page is theirs to the extent that everything on it links into their site,
+ * and saying so once at the top is more honest than a heading in our own voice.
+ * Bounded rather than full width — a 400px wordmark stretched across the panel
+ * would read as a banner ad.
+ */
+.ge-tracker-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 26px;
+  text-align: center;
+}
+
+.ge-tracker-hero img {
+  width: 100%;
+  max-width: 230px;
+  height: auto;
+}
+
+.ge-tracker-hero p {
+  max-width: 46ch;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+/* Section title and its one control on the same line. */
+.ge-grid-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.ge-grid-head h2 {
+  margin: 0;
+}
+
 /* Capped like the article column, and for the same reason: tiles marching to
    the far edge of a 2000px window are harder to scan than a bounded grid. */
 .ge-tracker-home {
@@ -654,7 +706,7 @@ kbd {
 }
 
 .ge-grid h2 {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -728,15 +780,16 @@ kbd {
   color: var(--accent-gold);
 }
 
-/* The star lives where the forget button does, and moves up when both are
-   present so neither covers the other. */
+/* Centred down the right edge of the tile rather than tucked into a corner:
+   it is the tile's one control, and at this size it needs room to be hit. */
 .ge-grid-star {
   position: absolute;
-  top: 2px;
-  right: 4px;
-  padding: 0 2px;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  padding: 2px 4px;
   font: inherit;
-  font-size: 14px;
+  font-size: 20px;
   line-height: 1;
   color: var(--accent-gold);
   background: none;
@@ -786,6 +839,12 @@ kbd {
 
 .ge-grid-item:hover {
   border-color: var(--accent-a);
+}
+
+/* Room for the star at the right edge, so a long name ellipsises before it
+   reaches the control rather than sliding underneath it. */
+.ge-grid li:has(.ge-grid-star) .ge-grid-item {
+  padding-right: 34px;
 }
 
 .ge-grid-icon {

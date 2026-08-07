@@ -31,9 +31,10 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { SearchResult } from '@shared/ipc'
 import { ToolPane } from './ToolPane'
-import { SearchIcon, TrendIcon } from './icons'
+import { SearchIcon, HomeIcon } from './icons'
 import { usePrimaryInput } from './focus'
 import { useStore } from './store'
+import geTrackerLogo from './assets/ge-tracker-logo.png'
 
 /**
  * Their item URLs.
@@ -315,6 +316,23 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
   return (
     <div className="tool-host">
       <div className="tool-bar">
+        {/* Back to the watchlist without needing the app's own history — from
+            an item page the thing you usually want is the list you came from,
+            not the page before it. */}
+        <button
+          className="icon-btn"
+          title="GE Tracker home"
+          aria-label="GE Tracker home"
+          disabled={!slug}
+          onClick={() => {
+            setSlug(undefined)
+            setShowing(null)
+            setError(null)
+          }}
+        >
+          <HomeIcon />
+        </button>
+
         <div className="ge-tracker-search">
           <div className="search-field">
             <SearchIcon />
@@ -384,8 +402,9 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
         {error && <span className="tool-bar-error">{error}</span>}
 
         {/* Their own sign-in lives in the top bar the injection hides, so it
-            gets a place here instead. Premium features need an account and
-            there is no address bar to reach one without this. */}
+            gets a place here instead — pushed to the far right, where a
+            once-per-install action belongs rather than beside the search you
+            use constantly. */}
         <button
           className="link-btn ge-signin"
           title="Sign in to GE Tracker — premium features need an account"
@@ -405,19 +424,18 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
         // front page would load their signed-out splash, and an empty prompt
         // says more than a page asking you to register.
         <div className="ge-tracker-home">
+          <header className="ge-tracker-hero">
+            <img src={geTrackerLogo} alt="GE Tracker" draggable={false} />
+            <p>
+              Live margins, volume and price history from ge&#8209;tracker.com. Search an item to
+              open it, and star the ones you watch to keep them here.
+            </p>
+          </header>
+
           {favourites.length === 0 && unstarredRecent.length === 0 ? (
-            <div className="ge-tracker-empty">
-              <TrendIcon />
-              <h1>GE Tracker</h1>
-              <p>
-                Live margins, volume and price history from{' '}
-                <strong>ge&#8209;tracker.com</strong>. Search an item above to open it, and star
-                the ones you watch to keep them here.
-              </p>
-            </div>
+            <p className="ge-tracker-empty">Nothing starred or opened yet.</p>
           ) : (
             <>
-              {favourites.length > 0 && <Watchlist items={favourites} prices={prices} />}
               {favourites.length > 0 && (
                 <ItemGrid
                   title="Starred"
@@ -447,13 +465,10 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
                       return next
                     })
                   }
-                  onForget={(name) =>
-                    setRecent((prev) => {
-                      const next = prev.filter((r) => r.name !== name)
-                      save(RECENT_KEY, next)
-                      return next
-                    })
-                  }
+                  onClear={() => {
+                    save(RECENT_KEY, [])
+                    setRecent([])
+                  }}
                 />
               )}
             </>
@@ -461,50 +476,6 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
         </div>
       )}
     </div>
-  )
-}
-
-/**
- * What the watchlist is worth, at a glance.
- *
- * The page is a launcher and a launcher for three items is mostly empty space.
- * This is the one summary the underlying data actually supports: prices come
- * from the local table the Grand Exchange page already keeps, so it costs
- * nothing and cannot be wrong in a way the tiles are not. Anything more
- * ambitious — biggest movers, most traded — would need history and volume this
- * app does not hold for every item, and a guessed answer on a prices page is
- * worse than no answer.
- */
-function Watchlist({
-  items,
-  prices,
-}: {
-  items: RememberedItem[]
-  prices: Record<number, number | null>
-}): JSX.Element | null {
-  const priced = items
-    .map((entry) => (entry.id === undefined ? null : prices[entry.id]))
-    .filter((value): value is number => typeof value === 'number')
-
-  if (priced.length === 0) return null
-  const total = priced.reduce((sum, value) => sum + value, 0)
-  const dearest = Math.max(...priced)
-
-  return (
-    <section className="ge-watchlist">
-      <div>
-        <strong>{items.length}</strong>
-        <em>starred</em>
-      </div>
-      <div>
-        <strong>{formatGp(total)}</strong>
-        <em>combined buy price</em>
-      </div>
-      <div>
-        <strong>{formatGp(dearest)}</strong>
-        <em>dearest</em>
-      </div>
-    </section>
   )
 }
 
@@ -522,7 +493,7 @@ function ItemGrid({
   prices,
   onOpen,
   onStar,
-  onForget,
+  onClear,
   starred,
 }: {
   title: string
@@ -530,13 +501,21 @@ function ItemGrid({
   prices: Record<number, number | null>
   onOpen: (item: RememberedItem) => void
   onStar?: (item: RememberedItem) => void
-  onForget?: (name: string) => void
+  /** Empties the whole section. One control beats a cross on every tile. */
+  onClear?: () => void
   /** True for the starred section, where the star is filled and unstars. */
   starred?: boolean
 }): JSX.Element {
   return (
     <section className="ge-grid">
-      <h2>{title}</h2>
+      <div className="ge-grid-head">
+        <h2>{title}</h2>
+        {onClear && (
+          <button className="link-btn" onClick={onClear}>
+            clear all
+          </button>
+        )}
+      </div>
       <ul>
         {items.map((entry) => {
           const src = itemIcon(entry.icon)
@@ -566,16 +545,6 @@ function ItemGrid({
                   onClick={() => onStar(entry)}
                 >
                   {starred ? '★' : '☆'}
-                </button>
-              )}
-              {onForget && (
-                <button
-                  className="profile-forget"
-                  title={`Forget ${entry.name}`}
-                  aria-label={`Forget ${entry.name}`}
-                  onClick={() => onForget(entry.name)}
-                >
-                  ×
                 </button>
               )}
             </li>

@@ -108,6 +108,15 @@ export const TrendIcon = (): JSX.Element => (
   </Svg>
 )
 
+/** A house, for returning to a tool's own landing view. */
+export const HomeIcon = (): JSX.Element => (
+  <Svg>
+    <path d="M4 10.5 12 4l8 6.5" />
+    <path d="M6 9.8V20h12V9.8" />
+    <path d="M10 20v-5.5h4V20" />
+  </Svg>
+)
+
 export const UserIcon = (): JSX.Element => (
   <Svg>
     <circle cx="12" cy="8" r="4" />
