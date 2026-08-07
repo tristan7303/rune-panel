@@ -55,6 +55,18 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
   if (!host) return
   const tool = TOOLS[id]
 
+  /**
+   * Recorded before the view exists, not after.
+   *
+   * A freshly constructed `WebContentsView` loads `about:blank` immediately,
+   * and its preload asks for the stylesheet as part of that. Setting `current`
+   * afterwards meant the very first ask was answered with nothing, so the blank
+   * document kept its default white — and that document is what is on screen
+   * for the whole of the first load.
+   */
+  const same = current?.id === id && current.arg === arg
+  current = { id, arg }
+
   if (!view) {
     view = new WebContentsView({
       webPreferences: {
@@ -85,17 +97,29 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
    */
   view.setBackgroundColor(PALETTES[settings.get().theme]?.surface ?? PALETTES.dark.surface)
 
-  view.setVisible(true)
   applyBounds()
 
   const url = tool.url(arg)
-  const same = current?.id === id && current.arg === arg
-  current = { id, arg }
-  if (same && view.webContents.getURL()) return
+  if (same && view.webContents.getURL()) {
+    view.setVisible(true)
+    return
+  }
 
   await setCookies(tool.cookies)
   injectedKey = null
+
+  /**
+   * Shown only once there is something to show.
+   *
+   * This used to be made visible before the navigation started, which put the
+   * *previous* document on screen for the whole load — `about:blank` and its
+   * default white on a first open, the last tool you looked at on a later one.
+   * Waiting costs nothing visible: the slot it would occupy is already painted
+   * in the theme's surface, so the pane simply arrives rather than flashing
+   * first.
+   */
   await view.webContents.loadURL(url)
+  view.setVisible(true)
 }
 
 /**
@@ -132,10 +156,23 @@ export function debugBounds(): Rectangle {
  * say. Read synchronously by the pane's preload before its first paint.
  */
 export function themeCss(): string {
-  if (!current || !injectionEnabled) return ''
+  const palette = PALETTES[settings.get().theme] ?? PALETTES.dark
+
+  /**
+   * The background rule is unconditional, and the site's own styling is not.
+   *
+   * Turning the injection off in settings means "show me the plain site" — it
+   * does not mean "flash white at me first". This one declaration only paints
+   * the surface the pane is sitting in, so a document that has not styled
+   * itself yet, `about:blank` included, is never brighter than the app around
+   * it. Everything that actually restyles the page stays behind the setting.
+   */
+  const base = `html, body { background-color: ${palette.surface}; }`
+
+  if (!current || !injectionEnabled) return base
   const tool = TOOLS[current.id]
-  if (!tool.css) return ''
-  return tool.css(PALETTES[settings.get().theme] ?? PALETTES.dark)
+  return tool.css ? `${base}
+${tool.css(palette)}` : base
 }
 
 export async function applyTheme(): Promise<void> {
