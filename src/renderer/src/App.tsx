@@ -28,11 +28,11 @@ import { usePlayer, seedRsn } from './player'
 import { onBind } from './keys'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
+import geTrackerLogo from './assets/ge-tracker-logo-small.png'
 import {
   DpsIcon,
   CoinsIcon,
   TrophyIcon,
-  TrendIcon,
   CalculatorIcon,
   GearIcon,
   SunIcon,
@@ -58,7 +58,14 @@ type NavEntry = { route: Route; label: string; icon: () => JSX.Element }
  */
 function navEntries(geTracker: boolean): NavEntry[] {
   const prices: NavEntry = geTracker
-    ? { route: { kind: 'tool', id: 'getracker' }, label: 'GE Tracker', icon: TrendIcon }
+    ? {
+        route: { kind: 'tool', id: 'getracker' },
+        label: 'GE Tracker',
+        // Their own mark, for the same reason RuneProfile has one below: this
+        // entry leads somewhere that is recognisably a different product, and
+        // a generic trend line said nothing the coins above it did not.
+        icon: () => <img className="rail-img" src={geTrackerLogo} alt="" draggable={false} />,
+      }
     : { route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon }
   return [
     { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: DpsIcon },
@@ -68,10 +75,9 @@ function navEntries(geTracker: boolean): NavEntry[] {
     {
       route: { kind: 'tool', id: 'profile' },
       label: 'RuneProfile',
-      // Their own mark rather than a generic person: this entry leads somewhere
-      // that is recognisably a different product, and it should look like it.
-      // Last in the list because it is the only artwork among line icons, and
-      // breaking that run in the middle read as a mistake.
+      // Their own mark rather than a generic person: this entry leads
+      // somewhere that is recognisably a different product, and it should look
+      // like it. GE Tracker above carries its own for the same reason.
       icon: () => <img className="rail-img" src={profileLogo} alt="" draggable={false} />,
     },
   ]
