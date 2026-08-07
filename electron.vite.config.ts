@@ -15,7 +15,14 @@ export default defineConfig({
   preload: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      rollupOptions: { input: { index: resolve(__dirname, 'src/preload/index.ts') } },
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/preload/index.ts'),
+          // The embedded tools get their own, which is a stylesheet injector
+          // rather than a bridge. See src/preload/pane.ts.
+          pane: resolve(__dirname, 'src/preload/pane.ts'),
+        },
+      },
     },
   },
   renderer: {

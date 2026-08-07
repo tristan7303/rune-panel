@@ -99,6 +99,11 @@ function registerIpc(): void {
     })
   })
   ipcMain.on(Send.HideTool, () => pane.hide())
+  // Synchronous by design: the pane's preload asks before its page paints, and
+  // an async answer would arrive after the flash it exists to prevent.
+  ipcMain.on(Send.PaneThemeCss, (event) => {
+    event.returnValue = pane.themeCss()
+  })
   ipcMain.on(Send.SetPaneBounds, (_e, bounds: PaneBounds) => pane.setBounds(bounds))
   ipcMain.handle(Invoke.LookupProfile, (_e, username: string) => profile.lookup(username))
 

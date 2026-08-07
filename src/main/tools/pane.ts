@@ -15,6 +15,7 @@
  * something, because there is no underneath.
  */
 
+import { join } from 'path'
 import { WebContentsView, session, type BrowserWindow, type Input, type Rectangle } from 'electron'
 import { TOOLS, PALETTES, type ToolCookie, type ToolId } from './registry'
 import { openExternal } from '../safe-open'
@@ -60,7 +61,13 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
         partition: PARTITION,
         contextIsolation: true,
         nodeIntegration: false,
-        // No preload: these are third-party pages and get no bridge to us.
+        /**
+         * Not a bridge. It exposes nothing to the page and reads nothing from
+         * it — its whole job is to put the theme's stylesheet in place before
+         * the document paints, which is the one thing main cannot do from
+         * outside. See src/preload/pane.ts.
+         */
+        preload: join(__dirname, 'pane.js'),
       },
     })
     host.contentView.addChildView(view)
@@ -120,6 +127,17 @@ export function debugBounds(): Rectangle {
  * dark mode our palette is written against, so the CSS is not fighting the
  * page's own choice.
  */
+/**
+ * The stylesheet for whatever is showing, or empty when there is nothing to
+ * say. Read synchronously by the pane's preload before its first paint.
+ */
+export function themeCss(): string {
+  if (!current || !injectionEnabled) return ''
+  const tool = TOOLS[current.id]
+  if (!tool.css) return ''
+  return tool.css(PALETTES[settings.get().theme] ?? PALETTES.dark)
+}
+
 export async function applyTheme(): Promise<void> {
   if (!view || !current) return
   const tool = TOOLS[current.id]

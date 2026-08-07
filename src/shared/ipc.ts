@@ -284,6 +284,11 @@ export const Send = {
   /** Hide the embedded pane. It composites above the DOM, so this is required. */
   HideTool: 'tools:hide',
   /** Tell main where the content area is, in DIP. */
+  /**
+   * Synchronous, and asked by the tools' preload before the page paints.
+   * Answers with the CSS for the tool being shown. See src/preload/pane.ts.
+   */
+  PaneThemeCss: 'tools:theme-css',
   SetPaneBounds: 'tools:bounds',
 } as const
 
