@@ -14,6 +14,7 @@ import {
   On,
   type Article,
   type CrawlState,
+  type PaneShortcut,
   type AccountMode,
   type GeItem,
   type Hiscores,
@@ -113,6 +114,7 @@ const api: RunePanelApi = {
   onSettings: (cb) => subscribeWith<Settings>(On.Settings, cb),
   onSyncProgress: (cb) => subscribeWith<SyncProgress>(On.SyncProgress, cb),
   onCrawlProgress: (cb) => subscribeWith<CrawlState>(On.CrawlProgress, cb),
+  onPaneShortcut: (cb) => subscribeWith<PaneShortcut>(On.PaneShortcut, cb),
 }
 
 contextBridge.exposeInMainWorld('rp', api)

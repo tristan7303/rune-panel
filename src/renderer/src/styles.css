@@ -635,8 +635,124 @@ kbd {
   max-width: 420px;
 }
 
-/* What stands in for the pane before a search. Centred in the slot the pane
-   would occupy, so choosing an item swaps one for the other in place. */
+/* The home page: what you have starred, and what you looked at. Scrolls in the
+   slot the pane would occupy, so choosing an item swaps one for the other. */
+.ge-tracker-home {
+  height: 100%;
+  overflow-y: auto;
+  padding: 24px 32px 60px;
+}
+
+.ge-grid {
+  margin: 0 0 26px;
+}
+
+.ge-grid h2 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.ge-grid ul {
+  display: grid;
+  /* Auto-fill rather than a fixed count: the window is resizable and a row of
+     four stranded on the left of a wide panel looks like a bug. */
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ge-grid li {
+  position: relative;
+}
+
+.ge-grid-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.ge-grid-item:hover {
+  border-color: var(--accent-a);
+}
+
+.ge-grid-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 32px;
+}
+
+.ge-grid-icon img {
+  max-width: 32px;
+  max-height: 30px;
+  /* Item sprites are small pixel art; smooth scaling turns them to mush. */
+  image-rendering: pixelated;
+}
+
+.ge-grid-letter {
+  font-size: 15px;
+  font-weight: 620;
+  color: var(--text-faint);
+}
+
+.ge-grid-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ge-grid li .profile-forget {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  opacity: 0;
+}
+
+.ge-grid li:hover .profile-forget {
+  opacity: 1;
+}
+
+/* The star, beside the item name in the tool bar. Gold when on, because that is
+   what the app already uses for anything the game would call valuable. */
+.ge-star {
+  padding: 0 2px;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--text-faint);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.ge-star:hover {
+  color: var(--accent-gold);
+}
+
+.ge-star.is-on {
+  color: var(--accent-gold);
+}
+
+/* What stands in for the pane before anything has been starred or opened. */
 .ge-tracker-empty {
   display: flex;
   flex-direction: column;

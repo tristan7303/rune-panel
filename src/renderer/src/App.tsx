@@ -43,26 +43,39 @@ import {
   CloseIcon,
 } from './icons'
 
-// No Search entry: the wiki search box lives in the header, reachable from
-// every view without spending a route on it.
-const NAV: Array<{ route: Route; label: string; icon: () => JSX.Element }> = [
-  { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: DpsIcon },
-  { route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon },
-  // Beside the Grand Exchange rather than beside the other embedded tools: what
-  // groups these two is the question you are asking, not how they are built.
-  { route: { kind: 'tool', id: 'getracker' }, label: 'GE Tracker', icon: TrendIcon },
-  { route: { kind: 'hiscores' }, label: 'Hiscores', icon: TrophyIcon },
-  { route: { kind: 'tool', id: 'calculators' }, label: 'Calculators', icon: CalculatorIcon },
-  {
-    route: { kind: 'tool', id: 'profile' },
-    label: 'RuneProfile',
-    // Their own mark rather than a generic person: this entry leads somewhere
-    // that is recognisably a different product, and it should look like it.
-    // Last in the list because it is the only artwork among line icons, and
-    // breaking that run in the middle read as a mistake.
-    icon: () => <img className="rail-img" src={profileLogo} alt="" draggable={false} />,
-  },
-]
+type NavEntry = { route: Route; label: string; icon: () => JSX.Element }
+
+/**
+ * The rail, minus whichever price view is turned off.
+ *
+ * Only one of the two is ever listed. They answer the same question, and a rail
+ * offering both invites the reader to work out which one this app actually
+ * means — so the setting picks, and the other stops existing as far as the rail
+ * is concerned. Its route still resolves if something links to it directly.
+ *
+ * No Search entry: the wiki search box lives in the header, reachable from
+ * every view without spending a route on it.
+ */
+function navEntries(geTracker: boolean): NavEntry[] {
+  const prices: NavEntry = geTracker
+    ? { route: { kind: 'tool', id: 'getracker' }, label: 'GE Tracker', icon: TrendIcon }
+    : { route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon }
+  return [
+    { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: DpsIcon },
+    prices,
+    { route: { kind: 'hiscores' }, label: 'Hiscores', icon: TrophyIcon },
+    { route: { kind: 'tool', id: 'calculators' }, label: 'Calculators', icon: CalculatorIcon },
+    {
+      route: { kind: 'tool', id: 'profile' },
+      label: 'RuneProfile',
+      // Their own mark rather than a generic person: this entry leads somewhere
+      // that is recognisably a different product, and it should look like it.
+      // Last in the list because it is the only artwork among line icons, and
+      // breaking that run in the middle read as a mistake.
+      icon: () => <img className="rail-img" src={profileLogo} alt="" draggable={false} />,
+    },
+  ]
+}
 
 export function App(): JSX.Element {
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null)
@@ -104,6 +117,7 @@ export function App(): JSX.Element {
   // The theme lives on <html> rather than in React state so the whole
   // stylesheet — including the article CSS, which styles markup React never
   // touches — can respond to one attribute.
+  const geTracker = useStore((s) => s.settings?.geTrackerReplacesGe ?? true)
   const theme = useStore((s) => s.settings?.theme ?? 'dark')
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -135,15 +149,49 @@ export function App(): JSX.Element {
   // when the route actually changes, which is precisely the case this has to
   // handle itself. The route is read from the store rather than from `route`,
   // so the listener is not torn down and rebuilt on every navigation.
+  /**
+   * The same two shortcuts, forwarded from an embedded pane.
+   *
+   * A pane owns the keyboard while it is focused, so the listeners below never
+   * see the keystroke — main matches it there and sends it here. The wiki
+   * search is reached by focusing the header box, which is always mounted.
+   */
+  useEffect(
+    () =>
+      window.rp.onPaneShortcut((which) => {
+        if (which === 'search') {
+          focusPrimary()
+          return
+        }
+        // Same contract as pressing it locally: go there, or focus the box if
+        // that is already where you are.
+        const { entries, index } = useNav.getState()
+        const here = entries[index]
+        const onGeTracker = here.kind === 'tool' && here.id === 'getracker'
+        if (geTracker ? onGeTracker : here.kind === 'ge') focusPrimary()
+        else push(geTracker ? { kind: 'tool', id: 'getracker' } : { kind: 'ge' })
+      }),
+    [push, geTracker]
+  )
+
   const geKey = useStore((s) => s.settings?.geKey ?? 'Ctrl+G')
   useEffect(
     () =>
       onBind(geKey, () => {
         const { entries, index } = useNav.getState()
-        if (entries[index].kind === 'ge') focusPrimary()
-        else push({ kind: 'ge' })
+        const here = entries[index]
+        // Whichever price view is in force. Both land with the caret in a
+        // search box, and pressing the key again on the page focuses it rather
+        // than doing nothing.
+        const target: Route = geTracker
+          ? { kind: 'tool', id: 'getracker' }
+          : { kind: 'ge' }
+        const alreadyThere =
+          target.kind === 'ge' ? here.kind === 'ge' : here.kind === 'tool' && here.id === 'getracker'
+        if (alreadyThere) focusPrimary()
+        else push(target)
       }),
-    [geKey, push]
+    [geKey, push, geTracker]
   )
 
   useEffect(() => {
@@ -207,7 +255,7 @@ export function App(): JSX.Element {
         >
           <img src={mark} alt="" draggable={false} />
         </button>
-        {NAV.map(({ route: target, label, icon: Icon }) => (
+        {navEntries(geTracker).map(({ route: target, label, icon: Icon }) => (
           <button
             key={label}
             className={`rail-btn ${isActive(route, target) ? 'is-active' : ''}`}

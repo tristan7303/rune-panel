@@ -1190,10 +1190,22 @@ async function checkAutoFocus(win: Electron.BrowserWindow): Promise<void> {
   await settle(120)
   await pressGe()
   await settle(150)
+  // Which price view it lands on is a setting, so the assertion is that the two
+  // agree — not that it is one of them. `geTrackerReplacesGe` defaults on.
   const routed = await win.webContents.executeJavaScript(
-    `(() => { const s = window.__rpNav.getState(); return s.entries[s.index].kind })()`
+    `(() => {
+      const s = window.__rpNav.getState();
+      const r = s.entries[s.index];
+      const geTracker = window.__rpStore.getState().settings?.geTrackerReplacesGe ?? true;
+      return { where: r.kind === 'tool' ? 'tool:' + r.id : r.kind, geTracker };
+    })()`
   )
-  check('Ctrl+G routes to the Grand Exchange', routed === 'ge', String(routed))
+  const wanted = routed.geTracker ? 'tool:getracker' : 'ge'
+  check(
+    'Ctrl+G routes to the price view in force',
+    routed.where === wanted,
+    `${routed.where}, setting ${routed.geTracker ? 'on' : 'off'}`
+  )
   check('Ctrl+G leaves the item box focused', (await active()).startsWith('Find an item'), '')
 
   await win.webContents.executeJavaScript('document.activeElement?.blur(); true')

@@ -51,8 +51,12 @@ export function SettingsView(): JSX.Element {
         </Field>
 
         <Field
-          label="Grand Exchange"
-          hint="Opens the Grand Exchange with the item box focused, or just focuses it if you are already there."
+          label="Prices"
+          hint={
+            settings.geTrackerReplacesGe
+              ? 'Opens GE Tracker with the item box focused, or just focuses it if you are already there.'
+              : 'Opens the Grand Exchange with the item box focused, or just focuses it if you are already there.'
+          }
         >
           <input
             type="text"
@@ -116,6 +120,19 @@ export function SettingsView(): JSX.Element {
         <RsnField />
       </Group>
 
+      <Group title="Prices">
+        <Field
+          label="Replace Wiki prices with GE Tracker"
+          hint="One switch for all of it: the rail shows GE Tracker instead of the Grand Exchange, the shortcut goes there, and every Price history button opens the item on their site. Turn it off to get the built-in chart back — offline, instant, and drawn in your theme."
+        >
+          <Switch
+            checked={settings.geTrackerReplacesGe}
+            onChange={(geTrackerReplacesGe) => patch({ geTrackerReplacesGe })}
+            label="Replace Wiki prices with GE Tracker"
+          />
+        </Field>
+      </Group>
+
       <Group title="Drop rates">
         <Field
           label="Show item drop rate in title"
@@ -143,17 +160,6 @@ export function SettingsView(): JSX.Element {
             </select>
           </Field>
         )}
-
-        <Field
-          label="Use GE Tracker for price history"
-          hint="Sends the Price history button on an item page to GE Tracker instead of the built-in chart. Theirs has margins, volume and a longer history; the built-in one is offline, instant and drawn in your theme."
-        >
-          <Switch
-            checked={settings.priceHistoryInGeTracker}
-            onChange={(priceHistoryInGeTracker) => patch({ priceHistoryInGeTracker })}
-            label="Use GE Tracker for price history"
-          />
-        </Field>
 
         <Field
           label="Always show rates as 1 in N"

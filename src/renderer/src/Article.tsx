@@ -383,7 +383,7 @@ function PriceHeader({ title }: { title: string }): JSX.Element | null {
   const [item, setItem] = useState<{ id: number; name: string } | null>(null)
   const [price, setPrice] = useState<{ high: number | null; low: number | null } | null>(null)
   const push = useNav((s) => s.push)
-  const geTrackerPrices = useStore((s) => s.settings?.priceHistoryInGeTracker ?? false)
+  const geTrackerPrices = useStore((s) => s.settings?.geTrackerReplacesGe ?? true)
 
   useEffect(() => {
     let live = true

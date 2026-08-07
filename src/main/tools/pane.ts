@@ -15,10 +15,12 @@
  * something, because there is no underneath.
  */
 
-import { WebContentsView, session, type BrowserWindow, type Rectangle } from 'electron'
+import { WebContentsView, session, type BrowserWindow, type Input, type Rectangle } from 'electron'
 import { TOOLS, PALETTES, type ToolCookie, type ToolId } from './registry'
 import { openExternal } from '../safe-open'
 import * as settings from '../settings'
+import { On, type PaneShortcut } from '../../shared/ipc'
+import { parseCombo } from '../../shared/keys'
 
 /** Shared so a login or a preference survives switching tools and restarts. */
 const PARTITION = 'persist:tools'
@@ -222,6 +224,34 @@ function wire(v: WebContentsView): void {
     console.warn(`[tools] blocked off-site navigation: ${url.slice(0, 120)}`)
   })
 
+  /**
+   * App shortcuts, while the keyboard belongs to somebody else's page.
+   *
+   * The renderer listens for Ctrl+F and Ctrl+G on its own document, and a
+   * `WebContentsView` is a different document — so with a pane focused the two
+   * shortcuts that get you back to searching did nothing, on the four routes
+   * where you are most likely to want them.
+   *
+   * Matched against the same specs the renderer uses, from shared/keys.ts, and
+   * consumed rather than passed on: Ctrl+F is a find bar on most sites, and
+   * having it open one *and* focus our search would be worse than either.
+   */
+  wc.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return
+    const { searchKey, geKey } = settings.get()
+    const which = matchShortcut(input, searchKey, geKey)
+    if (!which) return
+    event.preventDefault()
+    // Focus has to come back before the renderer can put a caret anywhere. The
+    // pane holds it at the OS level, so calling `.focus()` on a DOM input in
+    // the host window would move nothing and the next keystroke would still go
+    // to the website.
+    const window = getHost()
+    if (!window) return
+    window.webContents.focus()
+    window.webContents.send(On.PaneShortcut, which)
+  })
+
   // Re-injected on every navigation, not just the first: these are real sites
   // and clicking within one loads a fresh document.
   wc.on('did-finish-load', () => void applyTheme())
@@ -245,4 +275,29 @@ async function setCookies(cookies: ToolCookie[] | undefined): Promise<void> {
         })
     )
   )
+}
+
+/** The host window, for sending forwarded shortcuts back to the renderer. */
+function getHost(): BrowserWindow | null {
+  return host && !host.isDestroyed() ? host : null
+}
+
+/** Does this keystroke belong to the app rather than the page under it? */
+function matchShortcut(input: Input, searchKey: string, geKey: string): PaneShortcut | null {
+  for (const [spec, which] of [
+    [searchKey, 'search'],
+    [geKey, 'ge'],
+  ] as Array<[string, PaneShortcut]>) {
+    const combo = parseCombo(spec)
+    if (!combo) continue
+    if (
+      combo.ctrl === (input.control || input.meta) &&
+      combo.alt === input.alt &&
+      combo.shift === input.shift &&
+      combo.key === input.key.toLowerCase()
+    ) {
+      return which
+    }
+  }
+  return null
 }

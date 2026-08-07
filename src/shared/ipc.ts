@@ -72,13 +72,19 @@ export interface Settings {
    */
   normaliseDropRates: boolean
   /**
-   * Send "Price history" to GE Tracker instead of the built-in chart.
+   * Prefer GE Tracker over the built-in Grand Exchange, everywhere.
    *
-   * Off by default — the built-in chart is offline, instant, and drawn in the
-   * app's own theme. GE Tracker earns the switch when you want margins, volume
-   * and the longer history it keeps, and would rather not go via two clicks.
+   * One switch rather than several, because half-applying it is the confusing
+   * state: the rail entry, the Ctrl+G shortcut and every "Price history" button
+   * all move together, and the Grand Exchange entry leaves the rail rather than
+   * sitting beside a page that has replaced it.
+   *
+   * On by default. GE Tracker has margins, volume and a longer history than the
+   * built-in chart, which is the reason to have embedded it at all — but the
+   * built-in one is still there, still offline and instant, for anyone who turns
+   * this off.
    */
-  priceHistoryInGeTracker: boolean
+  geTrackerReplacesGe: boolean
   /**
    * Draw the Windows 11 DWM acrylic backdrop behind the window. Turn off if the
    * blur costs frames or the compositor refuses it. The UI is designed to look
@@ -476,6 +482,9 @@ export interface UpdateStatus {
   message?: string
 }
 
+/** Which app shortcut was pressed inside an embedded pane. */
+export type PaneShortcut = 'search' | 'ge'
+
 export type CrawlPhase = 'idle' | 'refreshing' | 'crawling' | 'paused' | 'done' | 'error'
 
 export interface CrawlState {
@@ -541,6 +550,15 @@ export const On = {
   UpdateStatus: 'update:status',
   /** One step of the background refresh + crawl. */
   CrawlProgress: 'wiki:crawl-progress',
+  /**
+   * An in-app shortcut pressed while an embedded tool had the keyboard.
+   *
+   * The renderer's own key listeners are on its document, and a
+   * `WebContentsView` is a different one — so with a pane focused, Ctrl+F and
+   * Ctrl+G reached the website and nothing else. Main watches the pane's input
+   * and forwards the ones that belong to the app.
+   */
+  PaneShortcut: 'tools:shortcut',
 } as const
 
 /** The surface exposed on `window.rp` by the preload script. */
@@ -594,6 +612,7 @@ export interface RunePanelApi {
   onSettings(cb: (settings: Settings) => void): () => void
   onSyncProgress(cb: (progress: SyncProgress) => void): () => void
   onCrawlProgress(cb: (state: CrawlState) => void): () => void
+  onPaneShortcut(cb: (which: PaneShortcut) => void): () => void
 }
 
 declare global {

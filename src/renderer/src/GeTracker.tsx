@@ -19,9 +19,13 @@
  *
  * The pane waits for a search rather than loading immediately. Their front page
  * is a signed-out marketing splash — a full-screen hero, a carousel and a call
- * to register — which is a poor thing to land on every time and worse than the
- * empty box that replaces it. An item page is what this is for, so the way in
- * is the way in.
+ * to register — which is a poor thing to land on every time. Ours is the items
+ * you have starred and the ones you looked at recently, which is the only
+ * front page here that could say anything you did not already know.
+ *
+ * Both lists live in localStorage, like the hiscores and RuneProfile ones: they
+ * are renderer-only convenience, and a schema migration for a list of item
+ * names would be the wrong trade.
  */
 
 import { useEffect, useRef, useState, type JSX } from 'react'
@@ -39,6 +43,59 @@ import { useStore } from './store'
  * it holds for every item checked, and a mapping table for thousands of items
  * would go stale the first time one is added.
  */
+/**
+ * Their sign-in page. Verified rather than guessed — `/login` is a 404 there.
+ *
+ * Passed as a whole path, which the tool's url builder takes in preference to
+ * an item slug; one sentinel is cheaper than a second shape on the route for a
+ * page most people open once.
+ */
+const LOGIN_PATH = 'auth/login'
+
+const RECENT_KEY = 'rp.getracker.recent'
+const FAVOURITE_KEY = 'rp.getracker.favourites'
+const MAX_RECENT = 8
+
+/** An item as both lists remember it: enough to draw a row without a lookup. */
+export interface RememberedItem {
+  name: string
+  /** Wiki image filename from the item list, e.g. "Twisted bow.png". */
+  icon: string | null
+}
+
+function load(key: string): RememberedItem[] {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (v): v is RememberedItem => !!v && typeof (v as RememberedItem).name === 'string'
+    )
+  } catch {
+    return []
+  }
+}
+
+function save(key: string, items: RememberedItem[]): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(items))
+  } catch {
+    /* storage disabled or full; neither list is worth failing over */
+  }
+}
+
+/**
+ * The item's own sprite, served from the app's image cache.
+ *
+ * The item list stores the wiki's filename, and `rpimg://` is already wired to
+ * fetch and cache those — so a starred item draws with the icon you would see
+ * on its article rather than a generic placeholder.
+ */
+export function itemIcon(icon: string | null): string | null {
+  return icon ? `rpimg://img/${encodeURIComponent(icon.replace(/ /g, '_'))}` : null
+}
+
 export function itemSlug(name: string): string {
   return name
     .toLowerCase()
@@ -53,7 +110,11 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
   // Seeded from the route, so "Price history" on an article can arrive here
   // already on the item rather than at an empty search box.
   const [slug, setSlug] = useState<string | undefined>(item ? itemSlug(item) : undefined)
-  const [showing, setShowing] = useState<string | null>(item ?? null)
+  const [showing, setShowing] = useState<RememberedItem | null>(
+    item ? { name: item, icon: null } : null
+  )
+  const [recent, setRecent] = useState<RememberedItem[]>(() => load(RECENT_KEY))
+  const [favourites, setFavourites] = useState<RememberedItem[]>(() => load(FAVOURITE_KEY))
   const [error, setError] = useState<string | null>(null)
   const inputRef = usePrimaryInput()
   const live = useRef(true)
@@ -133,13 +194,45 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
       }
       // The item list's spelling, not the typed one — it is what the slug has
       // to be built from.
+      const remembered: RememberedItem = { name: item.name, icon: item.icon }
       setSlug(itemSlug(item.name))
-      setShowing(item.name)
+      setShowing(remembered)
       setQuery('')
       setResults([])
+      setRecent((prev) => {
+        const next = [remembered, ...prev.filter((r) => r.name !== remembered.name)]
+        const capped = next.slice(0, MAX_RECENT)
+        save(RECENT_KEY, capped)
+        return capped
+      })
     } catch (err) {
       if (live.current) setError(err instanceof Error ? err.message : String(err))
     }
+  }
+
+  const isFavourite = !!showing && favourites.some((f) => f.name === showing.name)
+
+  const toggleFavourite = (): void => {
+    if (!showing) return
+    setFavourites((prev) => {
+      const next = prev.some((f) => f.name === showing.name)
+        ? prev.filter((f) => f.name !== showing.name)
+        : [...prev, showing].sort((a, b) => a.name.localeCompare(b.name))
+      save(FAVOURITE_KEY, next)
+      return next
+    })
+  }
+
+  /** Open a remembered item without going through the search. */
+  const openRemembered = (entry: RememberedItem): void => {
+    setError(null)
+    setSlug(itemSlug(entry.name))
+    setShowing(entry)
+    setRecent((prev) => {
+      const next = [entry, ...prev.filter((r) => r.name !== entry.name)].slice(0, MAX_RECENT)
+      save(RECENT_KEY, next)
+      return next
+    })
   }
 
   return (
@@ -196,8 +289,36 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
           )}
         </div>
 
-        {showing && <span className="tool-bar-title">{showing}</span>}
+        {showing && (
+          <>
+            {/* The star sits with the item's name rather than in the page,
+                because the page is theirs and this is ours. */}
+            <button
+              className={`ge-star ${isFavourite ? 'is-on' : ''}`}
+              title={isFavourite ? `Unstar ${showing.name}` : `Star ${showing.name}`}
+              aria-pressed={isFavourite}
+              onClick={toggleFavourite}
+            >
+              {isFavourite ? '★' : '☆'}
+            </button>
+            <span className="tool-bar-title">{showing.name}</span>
+          </>
+        )}
         {error && <span className="tool-bar-error">{error}</span>}
+
+        {/* Their own sign-in lives in the top bar the injection hides, so it
+            gets a place here instead. Premium features need an account and
+            there is no address bar to reach one without this. */}
+        <button
+          className="link-btn ge-signin"
+          title="Sign in to GE Tracker — premium features need an account"
+          onClick={() => {
+            setShowing(null)
+            setSlug(LOGIN_PATH)
+          }}
+        >
+          sign in
+        </button>
       </div>
 
       {slug ? (
@@ -206,15 +327,94 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
         // No pane until there is something to show in it. Mounting one for the
         // front page would load their signed-out splash, and an empty prompt
         // says more than a page asking you to register.
-        <div className="ge-tracker-empty">
-          <TrendIcon />
-          <h1>GE Tracker</h1>
-          <p>
-            Live margins, volume and price history from{' '}
-            <strong>ge&#8209;tracker.com</strong>. Search an item above to open it.
-          </p>
+        <div className="ge-tracker-home">
+          {favourites.length === 0 && recent.length === 0 ? (
+            <div className="ge-tracker-empty">
+              <TrendIcon />
+              <h1>GE Tracker</h1>
+              <p>
+                Live margins, volume and price history from{' '}
+                <strong>ge&#8209;tracker.com</strong>. Search an item above to open it, and star
+                the ones you watch to keep them here.
+              </p>
+            </div>
+          ) : (
+            <>
+              {favourites.length > 0 && (
+                <ItemGrid title="Starred" items={favourites} onOpen={openRemembered} />
+              )}
+              {recent.length > 0 && (
+                <ItemGrid
+                  title="Recent"
+                  items={recent}
+                  onOpen={openRemembered}
+                  onForget={(name) =>
+                    setRecent((prev) => {
+                      const next = prev.filter((r) => r.name !== name)
+                      save(RECENT_KEY, next)
+                      return next
+                    })
+                  }
+                />
+              )}
+            </>
+          )}
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * A run of remembered items, drawn with their own sprites.
+ *
+ * The icon is the point: a grid of names is a list, and a grid of item sprites
+ * is recognisable at a glance, which is what makes this worth landing on. An
+ * item whose icon never cached falls back to its initial rather than a gap.
+ */
+function ItemGrid({
+  title,
+  items,
+  onOpen,
+  onForget,
+}: {
+  title: string
+  items: RememberedItem[]
+  onOpen: (item: RememberedItem) => void
+  onForget?: (name: string) => void
+}): JSX.Element {
+  return (
+    <section className="ge-grid">
+      <h2>{title}</h2>
+      <ul>
+        {items.map((entry) => {
+          const src = itemIcon(entry.icon)
+          return (
+            <li key={entry.name}>
+              <button className="ge-grid-item" onClick={() => onOpen(entry)}>
+                <span className="ge-grid-icon">
+                  {src ? (
+                    <img src={src} alt="" draggable={false} />
+                  ) : (
+                    <span className="ge-grid-letter">{entry.name.slice(0, 1)}</span>
+                  )}
+                </span>
+                <span className="ge-grid-name">{entry.name}</span>
+              </button>
+              {onForget && (
+                <button
+                  className="profile-forget"
+                  title={`Forget ${entry.name}`}
+                  aria-label={`Forget ${entry.name}`}
+                  onClick={() => onForget(entry.name)}
+                >
+                  ×
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }

@@ -269,9 +269,15 @@ const PROFILE: ToolDef = {
 const GETRACKER: ToolDef = {
   id: 'getracker',
   label: 'GE Tracker',
-  // No arg is the front page — top flips and the item search. An arg is the
-  // slug their item URLs use: lowercase, non-alphanumerics to hyphens.
-  url: (slug) => `https://www.ge-tracker.com/${slug ? `item/${slug}` : ''}`,
+  /**
+   * An item slug, or a bare path when the argument already contains a slash.
+   *
+   * Item pages are the overwhelming case and get the `item/` prefix for free;
+   * the exception is sign-in, which is a page rather than an item and would
+   * otherwise need a second argument on the route to express.
+   */
+  url: (arg) =>
+    `https://www.ge-tracker.com/${!arg ? '' : arg.includes('/') ? arg : `item/${arg}`}`,
   css: (p) => `
     /**
      * Surfaces.
@@ -297,8 +303,23 @@ const GETRACKER: ToolDef = {
 
     .x_title { border-bottom-color: ${p.rim} !important; }
 
-    /* The strip across the top of the content. */
-    .nav_menu, .top_nav { background: ${p.raised} !important; }
+    /**
+     * Everything above the item name goes.
+     *
+     * Their top strip is a second search box for a page this app reaches by
+     * searching, and the block under it is a premium advertisement. Neither is
+     * content, and together they cost the first 280px of every item page.
+     *
+     * That takes the sign-in link with it, so the tool bar above the pane grows
+     * its own — see GeTracker.tsx. Better than keeping a whole bar for one
+     * link most people press once.
+     */
+    .top_nav, .nav_menu { display: none !important; }
+
+    /* The premium trial pitch. Their own id for it, rather than the wording,
+       which is seasonal — and rather than "the first row", which would take a
+       real one out with it the moment they reorder the page. */
+    #welcome_guest { display: none !important; }
 
     /**
      * The sidebar goes, and the content takes the width back.

@@ -30,7 +30,7 @@ export const DEFAULTS: Settings = {
   dropRateInTitle: false,
   dropRateOrder: 'common',
   normaliseDropRates: false,
-  priceHistoryInGeTracker: false,
+  geTrackerReplacesGe: true,
   acrylic: true,
   reduceMotion: false,
   bounds: null,
@@ -90,7 +90,8 @@ function sanitize(s: Settings): Settings {
     dropRateInTitle: Boolean(s.dropRateInTitle),
     dropRateOrder: s.dropRateOrder === 'rare' ? 'rare' : 'common',
     normaliseDropRates: Boolean(s.normaliseDropRates),
-    priceHistoryInGeTracker: Boolean(s.priceHistoryInGeTracker),
+    // Defaults on, so an absent key means true rather than false.
+    geTrackerReplacesGe: s.geTrackerReplacesGe !== false,
     acrylic: Boolean(s.acrylic),
     reduceMotion: Boolean(s.reduceMotion),
     bounds: sanitizeBounds(s.bounds),
