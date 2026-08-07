@@ -104,6 +104,7 @@ function registerIpc(): void {
   ipcMain.on(Send.PaneThemeCss, (event) => {
     event.returnValue = pane.themeCss()
   })
+  ipcMain.handle(Invoke.CapturePane, () => pane.capture())
   ipcMain.on(Send.SetPaneBounds, (_e, bounds: PaneBounds) => pane.setBounds(bounds))
   ipcMain.handle(Invoke.LookupProfile, (_e, username: string) => profile.lookup(username))
 

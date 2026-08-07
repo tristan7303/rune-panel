@@ -86,6 +86,7 @@ const api: RunePanelApi = {
 
   showTool: (id: ToolId, arg?: string) => ipcRenderer.send(Send.ShowTool, id, arg),
   hideTool: () => ipcRenderer.send(Send.HideTool),
+  capturePane: () => ipcRenderer.invoke(Invoke.CapturePane),
   setPaneBounds: (bounds: PaneBounds) => ipcRenderer.send(Send.SetPaneBounds, bounds),
   lookupProfile: (username: string): Promise<ProfileSummary> =>
     ipcRenderer.invoke(Invoke.LookupProfile, username),

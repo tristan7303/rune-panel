@@ -1,23 +1,28 @@
 /**
  * Host for the embedded browser pane.
  *
- * Renders nothing visible. A `WebContentsView` lives outside the DOM and always
- * composites above it, so it cannot be positioned by CSS — this component's
- * only job is to measure where the content area ended up and tell main, then
- * hide the pane again on unmount.
+ * A `WebContentsView` lives outside the DOM and always composites above it, so
+ * it cannot be positioned by CSS — this component measures where the content
+ * area ended up and tells main, then hides the pane again on unmount.
  *
  * The consequence worth remembering: while a tool is showing, the pane covers
- * that rectangle completely. Nothing the renderer draws there will be seen.
+ * that rectangle completely. Nothing the renderer draws there will be seen —
+ * which is why overlays get the freeze-frame treatment below.
  */
 
-import { useEffect, useRef, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import type { ToolId } from '@shared/ipc'
 import { useStore } from './store'
 
 export function ToolPane({ id, arg }: { id: ToolId; arg?: string }): JSX.Element {
   const slotRef = useRef<HTMLDivElement>(null)
-  const overlays = useStore((s) => s.overlays)
+  const overlaysOpen = useStore((s) => s.overlays) > 0
+  /** A still of the pane, standing in for it while an overlay is open. */
+  const [freeze, setFreeze] = useState<string | null>(null)
 
+  // Where the pane goes, published before it is ever shown. Bounds are
+  // window-relative, so anything that moves the slot invalidates them: window
+  // resize, and the rail or top bar changing size.
   useEffect(() => {
     const slot = slotRef.current
     if (!slot) return
@@ -28,38 +33,67 @@ export function ToolPane({ id, arg }: { id: ToolId; arg?: string }): JSX.Element
     }
 
     publish()
-
-    /**
-     * An overlay stands the pane down entirely rather than squeezing it.
-     *
-     * A `WebContentsView` composites above the DOM, so a dropdown opening over
-     * one is invisible unless the pane gets out of the way. It used to shrink,
-     * which worked — but resizing a pane relayouts the whole website inside it,
-     * and on a page of tables that is a visible jolt on every keystroke.
-     *
-     * Hiding costs nothing to lay out and gives nothing back to lay out again:
-     * the page keeps its size and its scroll position, and reappears exactly as
-     * it was. What you lose is sight of it for as long as a dropdown is open,
-     * which is the moment you are looking at the dropdown.
-     */
-    if (overlays > 0) window.rp.hideTool()
-    else window.rp.showTool(id, arg)
-
-    // Bounds are window-relative, so anything that moves the slot invalidates
-    // them: window resize, and the rail or top bar changing size.
     const observer = new ResizeObserver(publish)
     observer.observe(slot)
     window.addEventListener('resize', publish)
-
     return () => {
       observer.disconnect()
       window.removeEventListener('resize', publish)
-      // Critical: leaving the pane visible would cover whatever route comes
-      // next, with no way to click past it.
-      window.rp.hideTool()
     }
-  }, [id, arg, overlays])
+  }, [])
 
-  return <div className="tool-slot" ref={slotRef} />
+  /**
+   * Overlays get a photograph, not a hole.
+   *
+   * The pane must stand down while a dropdown is open — it composites above
+   * the DOM, so the dropdown is invisible under it. But both earlier answers
+   * were the wrong kind of visible: shrinking the pane relayouted the website
+   * inside it, and hiding it outright blanked the page you were reading.
+   *
+   * So the pane is photographed first, the still is laid into the slot at the
+   * same pixels, and only then does the real view hide. The page appears to
+   * stay exactly where it was — frozen for the moment the dropdown is up,
+   * which is the moment you are not interacting with it anyway — and the
+   * dropdown draws over the still like any other DOM.
+   *
+   * The still lingers briefly after the overlay closes so the real pane is
+   * back on screen before its stand-in leaves; the reverse order opens a gap.
+   */
+  useEffect(() => {
+    let live = true
+
+    if (!overlaysOpen) {
+      window.rp.showTool(id, arg)
+      const linger = window.setTimeout(() => {
+        if (live) setFreeze(null)
+      }, 120)
+      return () => {
+        live = false
+        window.clearTimeout(linger)
+      }
+    }
+
+    void window.rp.capturePane().then((still) => {
+      if (!live) return
+      if (still) setFreeze(still)
+      // A beat for the still to paint before the real thing vanishes. Without
+      // it the swap shows one frame of bare surface between the two.
+      window.setTimeout(() => {
+        if (live) window.rp.hideTool()
+      }, 30)
+    })
+    return () => {
+      live = false
+    }
+  }, [id, arg, overlaysOpen])
+
+  // Critical: leaving the pane visible after unmount would cover whatever
+  // route comes next, with no way to click past it.
+  useEffect(() => () => window.rp.hideTool(), [])
+
+  return (
+    <div className="tool-slot" ref={slotRef}>
+      {freeze && <img className="tool-freeze" src={freeze} alt="" draggable={false} />}
+    </div>
+  )
 }
-

@@ -539,6 +539,12 @@ export const Invoke = {
   GeDetail: 'ge:detail',
   GeFindByName: 'ge:find',
   Hiscores: 'hiscores:lookup',
+  /**
+   * A still of the pane as it looks right now, as a data URL — or null when
+   * nothing is showing. Taken just before the pane stands down for an overlay,
+   * so what the eye sees is the page staying put with a dropdown over it.
+   */
+  CapturePane: 'tools:capture',
   GetSetup: 'setup:state',
   GetUpdate: 'update:state',
 } as const
@@ -603,6 +609,7 @@ export interface RunePanelApi {
 
   showTool(id: ToolId, arg?: string): void
   hideTool(): void
+  capturePane(): Promise<string | null>
   setPaneBounds(bounds: PaneBounds): void
   lookupProfile(username: string): Promise<ProfileSummary>
 

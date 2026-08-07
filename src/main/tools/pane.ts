@@ -79,7 +79,14 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
          * the document paints, which is the one thing main cannot do from
          * outside. See src/preload/pane.ts.
          */
-        preload: join(__dirname, 'pane.js'),
+        /**
+         * `../preload/`, not `./` — this main chunk lives in out/main and the
+         * preloads are emitted to out/preload. The first version of this line
+         * pointed into out/main, where no pane.js exists, so the preload
+         * silently never loaded and every anti-flash measure built on it was
+         * fighting a file that was not there.
+         */
+        preload: join(__dirname, '../preload/pane.js'),
       },
     })
     host.contentView.addChildView(view)
@@ -107,6 +114,10 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
 
   await setCookies(tool.cookies)
   injectedKey = null
+
+  // Hidden for the duration of the navigation: leaving it visible showed the
+  // previous document — another tool, or about:blank — for the whole load.
+  view.setVisible(false)
 
   /**
    * Shown only once there is something to show.
@@ -203,6 +214,24 @@ export async function applyTheme(): Promise<void> {
     }
   } catch (err) {
     console.warn(`[tools] ${current.id} theme:`, err instanceof Error ? err.message : err)
+  }
+}
+
+/**
+ * The pane as it looks right now, for the freeze-frame swap.
+ *
+ * `capturePage` reads back what is already composited, so it is cheap and it
+ * cannot disturb the page. Null when there is nothing to photograph — the
+ * caller falls back to hiding with nothing in its place, which is merely the
+ * old behaviour.
+ */
+export async function capture(): Promise<string | null> {
+  if (!view || !current) return null
+  try {
+    const image = await view.webContents.capturePage()
+    return image.isEmpty() ? null : image.toDataURL()
+  } catch {
+    return null
   }
 }
 

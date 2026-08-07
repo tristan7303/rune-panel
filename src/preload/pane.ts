@@ -8,20 +8,24 @@
  *
  * Injecting from main is always too late. `insertCSS` needs a document to
  * insert into, so the earliest it can land is `dom-ready` — and by then the
- * page has painted its own background at least once. On a site that ships white
- * that is a full-pane white flash on every navigation, which in a dark theme is
- * the brightest thing on screen.
- *
- * A preload runs before any of the page's own scripts and before first paint,
- * so the styles are simply already there.
+ * page has painted at least once, in its own colours. A preload runs before any
+ * of the page's own scripts and before first paint, on every navigation, so the
+ * styles are simply already there.
  *
  * The fetch is synchronous, which is normally the wrong instinct and is right
  * here: the whole value is in having the answer *now*, and an async round trip
- * would put the injection back after the paint it exists to precede. It is one
- * message, at document start, to our own main process.
+ * would put the injection back after the paint it exists to precede.
+ *
+ * Injection is a `<style>` element rather than `webFrame.insertCSS`. Sandboxed
+ * preloads get a polyfilled subset of the electron module, and betting the
+ * feature on which webFrame methods the polyfill carries is how the first
+ * version of this file failed silently. A DOM node needs nothing but the
+ * document, and the document is always there.
  */
 
-import { ipcRenderer, webFrame } from 'electron'
+/// <reference lib="dom" />
+
+import { ipcRenderer } from 'electron'
 
 /** Must match `Send.PaneThemeCss` in shared/ipc.ts — imported by neither side. */
 const CHANNEL = 'tools:theme-css'
@@ -29,11 +33,30 @@ const CHANNEL = 'tools:theme-css'
 try {
   const css: unknown = ipcRenderer.sendSync(CHANNEL)
   if (typeof css === 'string' && css.length > 0) {
-    // Not awaited: the promise resolves after the stylesheet is registered, and
-    // registration itself is synchronous enough to beat the first paint.
-    void webFrame.insertCSS(css)
+    const inject = (): void => {
+      const style = document.createElement('style')
+      // A marker, so "did the preload actually run" is a query rather than an
+      // inference. The path bug this file has already survived was invisible
+      // precisely because nothing observable said it had not loaded.
+      style.setAttribute('data-rp-theme', '')
+      style.textContent = css
+      ;(document.head ?? document.documentElement).appendChild(style)
+    }
+
+    if (document.documentElement) {
+      inject()
+    } else {
+      // The preload can run before the document has a root element. Waiting for
+      // one via observer still lands before any content is parsed under it,
+      // which is all "before first paint" requires.
+      new MutationObserver((_mutations: MutationRecord[], observer: MutationObserver) => {
+        if (!document.documentElement) return
+        inject()
+        observer.disconnect()
+      }).observe(document, { childList: true })
+    }
   }
 } catch {
-  // A tool with no styling, or main not ready to answer. The page renders in
-  // its own colours, which is exactly what happened before this file existed.
+  // Main not ready to answer, or a tool with nothing to say. The page renders
+  // in its own colours, which is exactly what happened before this file existed.
 }

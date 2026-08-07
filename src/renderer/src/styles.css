@@ -810,16 +810,27 @@ kbd {
   box-shadow: 0 10px 28px rgb(0 0 0 / 34%);
 }
 
-/* Deliberately empty. The WebContentsView composites above the DOM and covers
-   this rectangle exactly; anything drawn here would be invisible. It exists
-   only to be measured — which is why it must still have a size.
+/* Nearly empty. The WebContentsView composites above the DOM and covers this
+   rectangle exactly; anything drawn here is invisible while a tool is showing.
+   It exists to be measured — which is why it must still have a size.
    `height: 100%` is load-bearing: routes that wrap it in `.tool-host` give it a
    1fr grid row, but the DPS route renders it bare, where an empty block
    collapses to zero height and the pane is set to a zero rectangle. The page
    loads, and nothing is ever shown. */
 .tool-slot {
+  position: relative;
   height: 100%;
   min-height: 0;
+}
+
+/* The freeze-frame: a still of the pane, shown in its exact place while an
+   overlay is open and the real view is stood down. Same rectangle, same
+   pixels — the page appears to hold still with the dropdown over it. */
+.tool-freeze {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 /* ── RuneProfile entry ──────────────────────────────────────────────── */
