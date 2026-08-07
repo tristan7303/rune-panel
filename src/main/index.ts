@@ -5,7 +5,7 @@
 import { app, BrowserWindow, globalShortcut, ipcMain } from 'electron'
 import {
   createWindow,
-  getWindow,
+  getContents,
   show,
   hide,
   toggle,
@@ -91,7 +91,7 @@ function registerIpc(): void {
   ipcMain.on(Send.StartCrawl, () => void sync.run())
   ipcMain.on(Send.StopCrawl, () => sync.stop())
 
-  sync.onProgress((state) => getWindow()?.webContents.send(On.CrawlProgress, state))
+  sync.onProgress((state) => getContents()?.send(On.CrawlProgress, state))
 
   ipcMain.on(Send.ShowTool, (_e, id: ToolId, arg?: string) => {
     void pane.show(id, arg).catch((err: unknown) => {
@@ -115,18 +115,18 @@ function registerIpc(): void {
   ipcMain.on(Send.RunSetup, (_e, options: { prices: boolean }) => {
     void setup.run(options)
   })
-  setup.onProgress((p) => getWindow()?.webContents.send(On.SetupProgress, p))
+  setup.onProgress((p) => getContents()?.send(On.SetupProgress, p))
 
   ipcMain.handle(Invoke.GetUpdate, () => updater.getStatus())
   ipcMain.on(Send.UpdateCheck, () => void updater.check())
   ipcMain.on(Send.UpdateDownload, () => void updater.download())
   ipcMain.on(Send.UpdateInstall, () => updater.install())
-  updater.onStatus((s) => getWindow()?.webContents.send(On.UpdateStatus, s))
+  updater.onStatus((s) => getContents()?.send(On.UpdateStatus, s))
 
   titles.onProgress((progress) => {
     // A finished sync replaced the rows the in-memory haystack was built from.
     if (progress.phase === 'done') search.invalidate()
-    getWindow()?.webContents.send(On.SyncProgress, progress)
+    getContents()?.send(On.SyncProgress, progress)
   })
 }
 
@@ -218,7 +218,7 @@ function main(): void {
       // An open tool pane repaints in place rather than waiting for the next
       // navigation to pick the new theme up.
       void pane.applyTheme()
-      getWindow()?.webContents.send(On.Settings, next)
+      getContents()?.send(On.Settings, next)
     })
 
     if (process.env.SMOKE) {
@@ -229,7 +229,10 @@ function main(): void {
       // this was not an automatic start. Windows launches it at login with
       // `--hidden`, where opening a panel at somebody who was logging in to do
       // something else is exactly the wrong greeting.
-      if (!startedHidden()) getWindow()?.once('ready-to-show', show)
+      // `ready-to-show` belongs to BrowserWindow, and the interface is a view
+      // in a BaseWindow now. `dom-ready` on that view is the same moment: the
+      // renderer has a document and will paint the instant it is shown.
+      if (!startedHidden()) getContents()?.once('dom-ready', show)
 
       onVisibilityChange(sync.setWindowVisible)
 

@@ -257,15 +257,36 @@ body,
 }
 
 /* The whole window: one panel, rounded to match the DWM corner radius. */
+/**
+ * The shell paints nothing itself; its parts do.
+ *
+ * The interface is a transparent view stacked *above* the embedded tool pane,
+ * so that dropdowns can draw over a website instead of being hidden behind it.
+ * That only works if there is a hole for the pane to show through — and a
+ * background on this element would cover the whole window, pane included.
+ *
+ * So the surface moves onto the rail and the main column, and the content area
+ * gives it up while a pane is showing. See `.content[data-pane='true']`.
+ */
 .shell {
   height: 100%;
   display: grid;
   grid-template-columns: var(--rail) 1fr;
-  background: var(--surface);
   border: 1px solid var(--rim);
   border-radius: var(--radius-shell);
   box-shadow: inset 0 1px 0 var(--rim-bright);
   overflow: hidden;
+}
+
+.rail,
+.main {
+  background: var(--surface);
+}
+
+/* The hole. Everything above and beside it still paints, so the app keeps its
+   edges; only the rectangle the pane occupies is left clear. */
+.content[data-pane='true'] {
+  background: none;
 }
 
 /* ── Rail ───────────────────────────────────────────────────────────── */

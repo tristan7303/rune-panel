@@ -8,7 +8,7 @@
 
 import { Tray, Menu, nativeImage } from 'electron'
 import { trayIcon } from './icon'
-import { getWindow, show } from './window'
+import { getContents, show } from './window'
 
 let tray: Tray | null = null
 
@@ -35,7 +35,7 @@ export function setHotkey(hotkey: string): void {
     Menu.buildFromTemplate([
       { label: 'Open', accelerator: hotkey, click: show },
       { type: 'separator' },
-      { label: 'Toggle DevTools', click: () => getWindow()?.webContents.toggleDevTools() },
+      { label: 'Toggle DevTools', click: () => getContents()?.toggleDevTools() },
       { type: 'separator' },
       { label: 'Quit', role: 'quit' },
     ])
