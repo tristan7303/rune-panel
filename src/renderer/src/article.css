@@ -589,6 +589,103 @@
   background: rgb(0 0 0 / 10%);
 }
 
+/* ── Quest details ──────────────────────────────────────────────────────
+ *
+ * The block at the top of every quest page: start point, description,
+ * requirements, items required, enemies to defeat.
+ *
+ * `table.questdetails` is not a `wikitable`, so none of the table rules above
+ * reached it and it rendered as a bare HTML table — no rules, no padding, rows
+ * butted against each other. That is survivable on a short quest and unreadable
+ * on a long one: Desert Treasure II lists fifty-nine requirement bullets across
+ * twenty-two nested lists, immediately below a twelve-hundred-character
+ * description, with nothing between them to say where one ends.
+ *
+ * So each row becomes a labelled section with a rule and real padding between
+ * them. The label sits in its own fixed column rather than above the content —
+ * at a glance the eye needs to find "Items required" without reading, and a
+ * ragged left edge defeats that.
+ */
+.article-body table.questdetails {
+  display: block;
+  width: 100%;
+  max-width: 96ch;
+  margin: 0 0 22px;
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: 10px;
+  font-size: 13.5px;
+}
+
+.article-body table.questdetails tbody {
+  display: block;
+}
+
+/* Grid rather than table-row: a table cell cannot be given the vertical padding
+   this needs without the label drifting off the top of a tall value. */
+.article-body table.questdetails tr {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 18px;
+  padding: 12px 16px;
+}
+
+.article-body table.questdetails tr + tr {
+  border-top: 1px solid var(--rim);
+}
+
+.article-body table.questdetails th {
+  padding: 0;
+  text-align: left;
+  vertical-align: top;
+  font-weight: 620;
+  color: var(--text-dim);
+}
+
+.article-body table.questdetails td {
+  padding: 0;
+  /* Without this a long unbroken value stretches the grid track instead of
+     wrapping, and takes the whole block wider than the column. */
+  min-width: 0;
+}
+
+/* The lists inside are the content, not an aside, so they lose the outer
+   indent and tighten up — at fifty-nine bullets the default spacing alone adds
+   most of a screen. */
+.article-body table.questdetails ul,
+.article-body table.questdetails ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.article-body table.questdetails li {
+  margin: 2px 0;
+}
+
+/* Nested requirements — a skill that needs a quest that needs another — get a
+   little air above and below so the tree reads as a tree. */
+.article-body table.questdetails ul ul {
+  margin: 3px 0 5px;
+}
+
+.article-body table.questdetails p {
+  margin: 0 0 8px;
+}
+
+.article-body table.questdetails p:last-child {
+  margin-bottom: 0;
+}
+
+/* Narrow windows cannot afford a 150px gutter and a wrapped value beside it;
+   the label goes above instead, keeping the rules that separate the sections.
+   Same breakpoint the infobox already un-floats at. */
+@media (max-width: 900px) {
+  .article-body table.questdetails tr {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+
 /* ── Message boxes and notices ──────────────────────────────────────── */
 
 .article-body .messagebox,
