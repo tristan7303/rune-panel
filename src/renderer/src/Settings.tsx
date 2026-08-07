@@ -70,6 +70,18 @@ export function SettingsView(): JSX.Element {
 
       <Group title="Window">
         <Field
+          label="Start with Windows"
+          hint="Launches hidden when you log in, so the hotkey works without remembering to open anything first. It waits in the tray; nothing appears until you summon it. Only applies to an installed build."
+        >
+          <Switch
+            checked={settings.startOnLogin}
+            onChange={(startOnLogin) => patch({ startOnLogin })}
+            label="Start with Windows"
+          />
+        </Field>
+
+
+        <Field
           label="Stay on top"
         hint="Keeps the window above other windows while it is open, including a borderless-fullscreen game client. On by default — that is what it is for."
       >

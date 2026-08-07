@@ -130,6 +130,33 @@ function registerIpc(): void {
   })
 }
 
+/**
+ * Was this launch the one Windows performs at login?
+ *
+ * The flag is ours, put on the command line by `applyLoginItem` below, rather
+ * than anything Electron reports — `getLoginItemSettings().wasOpenedAtLogin` is
+ * macOS-only.
+ */
+function startedHidden(): boolean {
+  return process.argv.includes('--hidden')
+}
+
+/**
+ * Keep the Windows startup entry in step with the setting.
+ *
+ * Only for a packaged build: in development the executable is Electron itself,
+ * and registering that would start a bare Electron at every login long after
+ * this checkout is gone.
+ */
+function applyLoginItem(startOnLogin: boolean): void {
+  if (!app.isPackaged) return
+  try {
+    app.setLoginItemSettings({ openAtLogin: startOnLogin, args: ['--hidden'] })
+  } catch (err) {
+    console.warn('[startup] could not update:', err instanceof Error ? err.message : err)
+  }
+}
+
 function registerHotkey(accelerator: string): void {
   if (accelerator === boundHotkey) return
   // Re-registering is the whole point: the hotkey is user-configurable, and a
@@ -187,6 +214,7 @@ function main(): void {
       applySettings(next)
       anim.setUserReducedMotion(next.reduceMotion)
       client.configure({ contact: next.contactEmail })
+      applyLoginItem(next.startOnLogin)
       // An open tool pane repaints in place rather than waiting for the next
       // navigation to pick the new theme up.
       void pane.applyTheme()
@@ -196,11 +224,19 @@ function main(): void {
     if (process.env.SMOKE) {
       void import('./smoke').then((m) => m.runSmoke(initial))
     } else {
-      // Nothing is shown until asked for. The window exists from launch so the
-      // first hotkey press is instant rather than paying for renderer startup.
-      getWindow()?.once('ready-to-show', show)
+      // The window exists from launch so the first hotkey press is instant
+      // rather than paying for renderer startup — but it only *appears* when
+      // this was not an automatic start. Windows launches it at login with
+      // `--hidden`, where opening a panel at somebody who was logging in to do
+      // something else is exactly the wrong greeting.
+      if (!startedHidden()) getWindow()?.once('ready-to-show', show)
 
       onVisibilityChange(sync.setWindowVisible)
+
+      // Asserted on every launch, not only when the setting changes: the entry
+      // records an absolute path, so an update that installs elsewhere would
+      // otherwise leave Windows starting a version that is no longer there.
+      applyLoginItem(initial.startOnLogin)
 
       // A first run is handed to the setup wizard rather than started silently:
       // the index takes four minutes and search finds nothing until it lands,

@@ -71,12 +71,28 @@ export function isProgrammatic(): boolean {
  * replaces last session's query instead of appending to it.
  */
 export function focusPrimary(opts?: { pageOnly?: boolean }): void {
-  const el = opts?.pageOnly ? pageInput : (pageInput ?? searchInput)
-  if (!el) return
+  /**
+   * Tried in order, and a candidate that cannot actually take focus is skipped
+   * rather than accepted.
+   *
+   * Both halves of that matter. A page input left behind by a view that has
+   * since unmounted still points at a detached node, and `focus()` on one
+   * succeeds silently while moving nothing — so reopening the window on an
+   * article put the caret nowhere instead of falling through to the wiki
+   * search. Confirming the focus actually landed is what makes the fallback a
+   * fallback rather than a preference.
+   */
+  const candidates = opts?.pageOnly ? [pageInput] : [pageInput, searchInput]
+
   programmatic = true
   try {
-    el.focus({ preventScroll: true })
-    el.select()
+    for (const candidate of candidates) {
+      if (!candidate?.isConnected) continue
+      candidate.focus({ preventScroll: true })
+      if (document.activeElement !== candidate) continue
+      candidate.select()
+      return
+    }
   } finally {
     // The focus event is dispatched synchronously by `focus()`, so handlers
     // have already run by here. The microtask is belt and braces for anything

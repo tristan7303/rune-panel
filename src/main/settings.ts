@@ -31,6 +31,7 @@ export const DEFAULTS: Settings = {
   dropRateOrder: 'common',
   normaliseDropRates: false,
   geTrackerReplacesGe: true,
+  startOnLogin: true,
   acrylic: true,
   reduceMotion: false,
   bounds: null,
@@ -92,6 +93,8 @@ function sanitize(s: Settings): Settings {
     normaliseDropRates: Boolean(s.normaliseDropRates),
     // Defaults on, so an absent key means true rather than false.
     geTrackerReplacesGe: s.geTrackerReplacesGe !== false,
+    // Defaults on, so an absent key means true rather than false.
+    startOnLogin: s.startOnLogin !== false,
     acrylic: Boolean(s.acrylic),
     reduceMotion: Boolean(s.reduceMotion),
     bounds: sanitizeBounds(s.bounds),

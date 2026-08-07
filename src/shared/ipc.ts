@@ -86,6 +86,15 @@ export interface Settings {
    */
   geTrackerReplacesGe: boolean
   /**
+   * Start with Windows, hidden.
+   *
+   * On by default, because the panel is summoned by a hotkey and a hotkey that
+   * only works once you have remembered to launch something is not a hotkey.
+   * Hidden is the whole point: it registers the shortcut and waits in the tray
+   * rather than opening a window at you every time you log in.
+   */
+  startOnLogin: boolean
+  /**
    * Draw the Windows 11 DWM acrylic backdrop behind the window. Turn off if the
    * blur costs frames or the compositor refuses it. The UI is designed to look
    * correct either way — acrylic is an accent, never load-bearing.
