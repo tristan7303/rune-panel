@@ -6,12 +6,28 @@
  * natively. Everything expensive happened before the HTML crossed the bridge.
  */
 
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import type { Article as ArticleData, Infobox as InfoboxData } from '@shared/ipc'
 import { useNav } from './nav'
+import { usePlayer, markRequirements } from './player'
 
 /** Cursor dwell before a link is speculatively fetched. */
 const HOVER_MS = 150
+
+/**
+ * Decode an href fragment without letting a bare `%` take the page down.
+ *
+ * Wiki headings are used verbatim as anchors, so drop tables link to `#100%` —
+ * and `decodeURIComponent('100%')` is a URIError, not a string. Every page with
+ * a 100% drop row was one click away from a dead handler.
+ */
+function decodeFragment(raw: string): string {
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
 
 export function Article({ title }: { title: string }): JSX.Element {
   const [article, setArticle] = useState<ArticleData | null>(null)
@@ -20,9 +36,12 @@ export function Article({ title }: { title: string }): JSX.Element {
   /** Bumped by the refresh control to re-run the fetch with force. */
   const [reloads, setReloads] = useState(0)
   const [variant, setVariant] = useState(0)
+  /** The footnote under the cursor, when it is too far away to just highlight. */
+  const [cite, setCite] = useState<CiteTipState | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const push = useNav((s) => s.push)
+  const levels = usePlayer((s) => s.levels)
 
   useEffect(() => {
     let live = true
@@ -55,11 +74,40 @@ export function Article({ title }: { title: string }): JSX.Element {
   // A fresh title starts from an un-forced fetch again.
   useEffect(() => setReloads(0), [title])
 
+  /**
+   * The body HTML, as one object that only changes when the article does.
+   *
+   * React compares `dangerouslySetInnerHTML` by reference, not by the string
+   * inside it — so building `{ __html }` inline in the JSX made every render of
+   * this component re-set `innerHTML` and rebuild the entire article DOM. That
+   * threw away everything written onto the body after the fact: the met/unmet
+   * requirement marks, the citation highlight, and which gear tab was open.
+   * Switching an infobox variant was enough to do it.
+   */
+  const bodyHtml = useMemo(() => ({ __html: article?.html ?? '' }), [article])
+
   // A new article starts at the top; without this the previous scroll position
   // survives the swap and you land mid-page.
   useEffect(() => {
     scrollRef.current?.scrollTo(0, 0)
   }, [title, article])
+
+  /**
+   * Mark skill requirements against your own levels.
+   *
+   * Run from the scroller rather than the body, because it has to reach both:
+   * the wiki's `.scp` requirement markers appear in the prose and inside the
+   * infobox, and the infobox is drawn natively as a sibling of the body. The
+   * variant matters too — switching an item's form re-renders those rows.
+   *
+   * Done here rather than in the transform on purpose. The page cache is shared
+   * and keyed by title alone, so an answer baked into the HTML would be one
+   * account's answer served to every reader, and wrong the moment you level up.
+   */
+  useEffect(() => {
+    if (!scrollRef.current || !article) return
+    markRequirements(scrollRef.current, levels)
+  }, [article, variant, levels])
 
   /**
    * One delegated listener rather than rebinding every anchor.
@@ -101,11 +149,12 @@ export function Article({ title }: { title: string }): JSX.Element {
       // sends them to the real browser.
       if (anchor.classList.contains('rp-external')) return
 
-      // In-page anchors: scroll rather than navigate.
+      // In-page anchors: scroll rather than navigate. Covers the contents box
+      // as well as the body's own links, since it is rendered inside here.
       const href = anchor.getAttribute('href') ?? ''
       if (href.startsWith('#')) {
         e.preventDefault()
-        const id = decodeURIComponent(href.slice(1))
+        const id = decodeFragment(href.slice(1))
         root.querySelector(`[id="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth' })
       }
     }
@@ -120,17 +169,27 @@ export function Article({ title }: { title: string }): JSX.Element {
     const clearHighlight = (): void => {
       highlighted?.classList.remove('rp-cite-target')
       highlighted = null
+      setCite(null)
     }
     const highlightCite = (e: MouseEvent): void => {
       const ref = (e.target as HTMLElement).closest<HTMLElement>('.reference a')
       if (!ref) return clearHighlight()
       const id = ref.getAttribute('href')?.slice(1)
       if (!id) return
-      const note = root.querySelector(`[id="${CSS.escape(decodeURIComponent(id))}"]`)
+      const note = root.querySelector(`[id="${CSS.escape(decodeFragment(id))}"]`)
       if (note === highlighted) return
       clearHighlight()
-      note?.classList.add('rp-cite-target')
+      if (!note) return
+      note.classList.add('rp-cite-target')
       highlighted = note
+
+      // Highlighting is only an answer when the note is on screen. On a gear
+      // table the markers are in the loadout and the notes are below it, often
+      // a screen away — which is the whole complaint: the marker says there is
+      // something to know and then nothing happens. Bring the note to the
+      // cursor instead, but only when it is not already in view.
+      if (isInView(note, scrollRef.current)) return
+      setCite({ html: noteHtml(note), anchor: ref.getBoundingClientRect() })
     }
 
     let timer: number | undefined
@@ -190,11 +249,13 @@ export function Article({ title }: { title: string }): JSX.Element {
           data-variant={variant}
           // Safe by construction: main strips script, style, event handlers and
           // javascript: URLs before this is ever cached. See wiki/transform.ts.
-          dangerouslySetInnerHTML={{ __html: article.html }}
+          dangerouslySetInnerHTML={bodyHtml}
         />
 
         <Footer article={article} onRefresh={() => setReloads((n) => n + 1)} />
       </article>
+
+      {cite && <CiteTip tip={cite} />}
     </div>
   )
 }
@@ -264,6 +325,93 @@ function PriceHeader({ title }: { title: string }): JSX.Element | null {
   )
 }
 
+/* ── Footnote hover card ─────────────────────────────────────────────────── */
+
+interface CiteTipState {
+  html: string
+  anchor: DOMRect
+}
+
+/** How wide the card may get. The clamp below budgets for exactly this. */
+const CITE_TIP_WIDTH = 340
+const CITE_TIP_GAP = 10
+
+/**
+ * Is the note near enough to the viewport to count as already answered?
+ *
+ * Measured against the article's own scroller rather than the window: the
+ * article scrolls inside `.article-scroll`, so a note 2000px down is still
+ * inside the window's coordinate space and only its position relative to that
+ * box says whether you can see it. The margin stops a two-pixel sliver at the
+ * bottom edge from counting as visible.
+ */
+function isInView(note: Element, scroller: HTMLElement | null): boolean {
+  if (!scroller) return false
+  const box = scroller.getBoundingClientRect()
+  const rect = note.getBoundingClientRect()
+  const margin = 24
+  return rect.bottom > box.top + margin && rect.top < box.bottom - margin
+}
+
+/**
+ * The note's own markup, minus the jump-back arrow.
+ *
+ * Cloned rather than read in place, because removing the backlink from the live
+ * node would break the note for everything else. The HTML came out of the body
+ * this component injected, so it has already been through main's sanitizer.
+ */
+function noteHtml(note: Element): string {
+  const clone = note.cloneNode(true) as HTMLElement
+  for (const back of clone.querySelectorAll('.mw-cite-backlink')) back.remove()
+  return clone.innerHTML.trim()
+}
+
+/**
+ * Fixed rather than absolute, so the scrolling article cannot clip it, and
+ * positioned from the marker's own rectangle. Inert to the pointer: the note
+ * may carry links, and a card that swallows clicks on its way to the text
+ * underneath is worse than one that cannot be clicked at all.
+ */
+function CiteTip({ tip }: { tip: CiteTipState }): JSX.Element {
+  const { anchor, html } = tip
+  const left = Math.max(
+    CITE_TIP_GAP,
+    Math.min(anchor.left, window.innerWidth - CITE_TIP_WIDTH - CITE_TIP_GAP)
+  )
+  // Above the marker, unless it is close enough to the top bar that the card
+  // would be cut off there.
+  const below = anchor.top < 140
+  const top = below ? anchor.bottom + CITE_TIP_GAP : anchor.top - CITE_TIP_GAP
+
+  return (
+    <div
+      className="rp-cite-tip"
+      role="tooltip"
+      style={{
+        left,
+        top,
+        transform: below ? undefined : 'translateY(-100%)',
+      }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
+}
+
+/** Widest an infobox picture can be and still be a sprite worth upscaling. */
+const SPRITE_MAX_PX = 128
+
+/**
+ * Is this infobox picture a small item sprite rather than a full render?
+ *
+ * MediaWiki states the rendered size on the tag itself and the transform leaves
+ * those attributes alone (see wiki/transform.ts), so the answer is already in
+ * the markup — no need to wait for the image to load and measure it.
+ */
+function isSprite(html: string): boolean {
+  const width = Number(/\bwidth="(\d+)"/.exec(html)?.[1])
+  return Number.isFinite(width) && width > 0 && width <= SPRITE_MAX_PX
+}
+
 function Infobox({
   box,
   variant,
@@ -299,7 +447,17 @@ function Infobox({
         </div>
       )}
 
-      {image && <div className="infobox-image" dangerouslySetInnerHTML={{ __html: image }} />}
+      {image && (
+        <div
+          className="infobox-image"
+          // Only a small sprite gets the crisp upscale. See article.css — the
+          // scale is a paint-time transform, so applying it to a full-size
+          // render pushes the picture outside the card without the layout ever
+          // knowing.
+          data-sprite={isSprite(image) ? 'true' : 'false'}
+          dangerouslySetInnerHTML={{ __html: image }}
+        />
+      )}
 
       <dl className="infobox-rows">
         {box.rows.map((row, i) => {

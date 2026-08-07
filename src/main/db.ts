@@ -111,6 +111,18 @@ const MIGRATIONS: string[] = [
   DELETE FROM images;
   DELETE FROM kv WHERE key = 'sync.recentchanges_at';
   `,
+
+  // The transform now moves gear notes below the loadout on guides that have no
+  // Tabber, which every cached row predates. Transform output is baked into
+  // `pages.html` at fetch time, so there is nothing to re-run over the cache —
+  // the rows have to come back from the wiki.
+  //
+  // `images` stays this time: image URLs did not change, and re-downloading the
+  // cache would be a few thousand requests for no difference on screen. Pages
+  // re-fetch one at a time as they are opened.
+  `
+  DELETE FROM pages;
+  `,
 ]
 
 export function open(): DatabaseSync {

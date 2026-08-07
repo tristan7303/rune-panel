@@ -23,6 +23,7 @@ export const DEFAULTS: Settings = {
   alwaysOnTop: true,
   hideOnBlur: false,
   contactEmail: '',
+  rsn: '',
   acrylic: true,
   reduceMotion: false,
   bounds: null,
@@ -76,6 +77,9 @@ function sanitize(s: Settings): Settings {
     alwaysOnTop: s.alwaysOnTop !== false,
     hideOnBlur: Boolean(s.hideOnBlur),
     contactEmail: typeof s.contactEmail === 'string' ? s.contactEmail.trim().slice(0, 200) : '',
+    // Jagex caps a display name at 12 characters, so anything longer is a
+    // mistake rather than a name and truncating it costs nothing real.
+    rsn: typeof s.rsn === 'string' ? s.rsn.trim().slice(0, 12) : '',
     acrylic: Boolean(s.acrylic),
     reduceMotion: Boolean(s.reduceMotion),
     bounds: sanitizeBounds(s.bounds),

@@ -6,8 +6,9 @@
  */
 
 import { useEffect, useState, type JSX } from 'react'
-import type { CrawlState, TitleIndexState, UpdateStatus } from '@shared/ipc'
+import type { AccountMode, CrawlState, TitleIndexState, UpdateStatus } from '@shared/ipc'
 import { useStore } from './store'
+import { usePlayer } from './player'
 
 export function SettingsView(): JSX.Element {
   const settings = useStore((s) => s.settings)
@@ -111,6 +112,10 @@ export function SettingsView(): JSX.Element {
         </Field>
       </Group>
 
+      <Group title="Account">
+        <RsnField />
+      </Group>
+
       <Group title="Wiki data">
         <Field
           label="Contact address"
@@ -144,6 +149,89 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
       <h2>{title}</h2>
       {children}
     </section>
+  )
+}
+
+const MODE_LABEL: Record<AccountMode, string> = {
+  main: 'main',
+  ironman: 'ironman',
+  hardcore: 'hardcore ironman',
+  ultimate: 'ultimate ironman',
+}
+
+/**
+ * Your RuneScape name, and proof it resolved to something.
+ *
+ * A name typed into a box and never confirmed is the worst version of this: the
+ * feature it turns on is subtle enough that a typo reads as "it does not work"
+ * rather than "that is not my name". So the field looks the name up, reports the
+ * account it found, and stores the hiscores' own spelling rather than yours.
+ *
+ * Nothing here needs an account or a login. The hiscores are public, and the
+ * levels are only used to colour requirements you are reading anyway.
+ */
+function RsnField(): JSX.Element {
+  const settings = useStore((s) => s.settings)
+  const patch = useStore((s) => s.patchSettings)
+  const levels = usePlayer((s) => s.levels)
+  const [checking, setChecking] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  const rsn = settings?.rsn ?? ''
+
+  const verify = (): void => {
+    const name = rsn.trim()
+    if (!name || checking) return
+    setChecking(true)
+    setResult(null)
+    setFailed(false)
+    window.rp
+      .hiscores(name)
+      .then((data) => {
+        // The hiscores' spelling, not yours — capitalisation and the space that
+        // is really an underscore both come back canonical.
+        patch({ rsn: data.name })
+        setResult(`${data.name} — ${MODE_LABEL[data.mode]}, total level ${data.totalLevel.toLocaleString()}.`)
+      })
+      .catch((err: unknown) => {
+        setFailed(true)
+        setResult(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => setChecking(false))
+  }
+
+  const hint = result
+    ? failed
+      ? `Could not look that up: ${result}`
+      : result
+    : rsn.trim() && levels
+      ? 'Skill requirements on articles are marked against these levels.'
+      : 'Marks skill requirements on wiki pages as met or not. Read from the public hiscores — no account, no login, and nothing is sent anywhere until you put a name here.'
+
+  return (
+    <Field label="RuneScape name" hint={hint}>
+      <div className="field-row">
+        <input
+          type="text"
+          value={rsn}
+          spellCheck={false}
+          maxLength={12}
+          placeholder="Your display name"
+          onChange={(e) => {
+            patch({ rsn: e.target.value })
+            setResult(null)
+            setFailed(false)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') verify()
+          }}
+        />
+        <button type="button" className="btn" disabled={!rsn.trim() || checking} onClick={verify}>
+          {checking ? 'Checking…' : 'Check'}
+        </button>
+      </div>
+    </Field>
   )
 }
 

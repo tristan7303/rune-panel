@@ -795,6 +795,19 @@ kbd {
   box-shadow: 0 0 0 1px var(--accent-a), 0 0 14px rgba(140, 110, 255, 0.22);
 }
 
+/* A field whose control is an input and a button rather than one of either.
+   The input gives up its fixed width so the pair together match the column the
+   other fields occupy. */
+.settings .field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings .field-row input[type='text'] {
+  width: 150px;
+}
+
 .btn {
   padding: 6px 14px;
   font: inherit;

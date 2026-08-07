@@ -10,11 +10,12 @@
  * schema migration for a list of names would be the wrong trade.
  */
 
-import { useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import type { Hiscores as Data, HiscoreActivity, HiscoreSkill } from '@shared/ipc'
 import { shortNumber } from '@shared/xp'
 import { TrophyIcon, SearchIcon } from './icons'
 import { usePrimaryInput } from './focus'
+import { useStore } from './store'
 import { activityIcon, skillIcon } from './hiscoreIcons'
 
 const STORAGE_KEY = 'rp.hiscores'
@@ -58,6 +59,20 @@ export function Hiscores(): JSX.Element {
       setBusy(false)
     }
   }
+
+  // Open on your own account when settings know who you are. The search box is
+  // left empty rather than prefilled, so looking someone else up is still just
+  // typing — the name in settings answers "show me mine", not "search for this".
+  const rsn = useStore((s) => s.settings?.rsn)
+  const opened = useRef(false)
+  useEffect(() => {
+    if (opened.current || primary || !rsn?.trim()) return
+    opened.current = true
+    // The ref, not the dependency list, is what stops this running twice —
+    // `look` is a new function every render and would defeat any guard built
+    // out of dependencies.
+    void look(rsn, 'primary')
+  }, [rsn, primary])
 
   return (
     <div className="hiscores">

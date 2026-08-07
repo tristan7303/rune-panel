@@ -44,6 +44,15 @@ export interface Settings {
    */
   contactEmail: string
   /**
+   * Your RuneScape display name.
+   *
+   * Read-only use: it identifies which hiscores account to check skill
+   * requirements against, and prefills the hiscores and profile lookups. Empty
+   * means the feature is simply off — nothing is sent anywhere until a name is
+   * here, and the hiscores are public either way.
+   */
+  rsn: string
+  /**
    * Draw the Windows 11 DWM acrylic backdrop behind the window. Turn off if the
    * blur costs frames or the compositor refuses it. The UI is designed to look
    * correct either way — acrylic is an accent, never load-bearing.

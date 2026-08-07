@@ -10,11 +10,12 @@
  * later, with no obvious way back to trying again.
  */
 
-import { useEffect, useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import type { ProfileSummary } from '@shared/ipc'
 import { ToolPane } from './ToolPane'
 import { UserIcon } from './icons'
 import { usePrimaryInput } from './focus'
+import { useStore } from './store'
 
 const STORAGE_KEY = 'rp.profiles'
 const MAX_SAVED = 8
@@ -30,6 +31,18 @@ export function Profile(): JSX.Element {
   useEffect(() => {
     if (viewing) setError(null)
   }, [viewing])
+
+  // The name from settings goes in the box rather than opening straight into
+  // the pane. Unlike the hiscores this loads a third-party page in an embedded
+  // view, which is not something to start on your behalf — but it should not
+  // need typing either.
+  const rsn = useStore((s) => s.settings?.rsn)
+  const seeded = useRef(false)
+  useEffect(() => {
+    if (seeded.current || !rsn?.trim()) return
+    seeded.current = true
+    setUsername((current) => (current ? current : rsn))
+  }, [rsn])
 
   const open = async (name: string): Promise<void> => {
     const trimmed = name.trim()

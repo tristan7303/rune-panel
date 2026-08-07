@@ -23,6 +23,7 @@ import { Hiscores } from './Hiscores'
 import { Setup } from './Setup'
 import { UpdateBanner } from './UpdateBanner'
 import { focusPrimary } from './focus'
+import { usePlayer, seedRsn } from './player'
 import { onBind } from './keys'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
@@ -78,6 +79,22 @@ export function App(): JSX.Element {
     void window.rp.getSettings().then(setSettings)
     return window.rp.onSettings(setSettings)
   }, [setSettings])
+
+  // Your levels, for marking requirements on articles. Driven off the setting
+  // rather than fetched on demand per page: one lookup answers every article
+  // you open, and main memoises it on top of that.
+  const rsn = useStore((s) => s.settings?.rsn)
+  const patchSettings = useStore((s) => s.patchSettings)
+  useEffect(() => {
+    if (rsn === undefined) return
+    const carried = seedRsn(rsn)
+    if (carried) {
+      patchSettings({ rsn: carried })
+      return
+    }
+    if (rsn.trim()) usePlayer.getState().load(rsn)
+    else usePlayer.getState().clear()
+  }, [rsn, patchSettings])
 
   // The theme lives on <html> rather than in React state so the whole
   // stylesheet — including the article CSS, which styles markup React never

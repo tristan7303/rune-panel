@@ -105,6 +105,114 @@
   border-top: 1px solid var(--rim);
 }
 
+/* ── Contents ───────────────────────────────────────────────────────────
+ *
+ * Built from the section list rather than the wiki's own markup, but shaped
+ * like it: an inline box between the lead and the first heading, sized to its
+ * contents instead of stretching the column. Long pages exist — the Achievement
+ * Diary has 55 sections — so it scrolls internally rather than pushing the
+ * article a screen and a half down.
+ */
+.article-body .rp-toc {
+  display: inline-block;
+  min-width: 260px;
+  max-width: min(100%, 460px);
+  margin: 0 0 18px;
+  padding: 10px 16px 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.article-body .rp-toc-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.article-body .rp-toc-head h2 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 14px;
+  font-weight: 620;
+}
+
+/* Collapsing with no script: a hidden checkbox, a label that toggles it, and a
+   sibling selector. The same trick the wiki uses, and the only one available —
+   nothing this transform emits is allowed to carry a handler. */
+.article-body .rp-toc-toggle {
+  display: none;
+}
+
+.article-body .rp-toc-label {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--accent-b);
+}
+
+.article-body .rp-toc-label::after {
+  content: 'hide';
+}
+
+.article-body .rp-toc-toggle:checked ~ .rp-toc-list {
+  display: none;
+}
+
+.article-body .rp-toc-toggle:checked ~ .rp-toc-head .rp-toc-label::after {
+  content: 'show';
+}
+
+.article-body .rp-toc-list {
+  max-height: 60vh;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* Nested levels indent; the outermost list must not, or the box gains a gutter
+   of empty space down its left edge. */
+.article-body .rp-toc-list .rp-toc-list {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  max-height: none;
+  overflow: visible;
+}
+
+.article-body .rp-toc-list li {
+  margin: 1px 0;
+}
+
+.article-body .rp-toc-list a {
+  display: flex;
+  gap: 8px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.article-body .rp-toc-list a:hover {
+  background: var(--surface-hover);
+  text-decoration: underline;
+}
+
+/* Fixed column so the titles line up rather than stepping in and out as the
+   numbers gain a digit. */
+.article-body .rp-toc-num {
+  flex: 0 0 auto;
+  min-width: 2.2em;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.article-body .rp-toc-text {
+  min-width: 0;
+}
+
 /**
  * Preformatted text wraps.
  *
@@ -346,12 +454,79 @@
   white-space: nowrap;
 }
 
-.article-body .rp-table tr:hover td {
+/* Rarity cells opt out: the hover is more specific than the colour rules below
+   and would otherwise wipe the one thing you are scanning the table for. */
+.article-body .rp-table tr:hover td:not([class*='table-bg-']) {
   background: var(--surface-hover);
 }
 
 .article-body .table-na {
   color: var(--text-faint);
+}
+
+/* ── Drop rarity ────────────────────────────────────────────────────────
+ *
+ * The wiki colours a drop table by how rare the row is, and the classes that
+ * say which is which survive the transform intact — `table-bg-green` and
+ * friends are on the cells already. What does not survive is the stylesheet
+ * that gives them a colour, since `style` and `link` elements are stripped
+ * (see wiki/transform.ts), so every rarity read as a plain unlit cell.
+ *
+ * These are the wiki's own values, lifted from its `site.styles`, including the
+ * black text. It defines them once for every theme rather than per theme, and
+ * so do we: the backgrounds are opaque and carry their own contrast, and a drop
+ * table where "very rare" is a different red depending on your theme is worse
+ * than one that matches the site you are used to.
+ *
+ * Both spellings of each class are covered — pages use the colour names and the
+ * rarity names interchangeably.
+ */
+.article-body .table-bg-always,
+.article-body .table-bg-blue {
+  background: #afeeee;
+  color: #000;
+}
+
+.article-body .table-bg-common,
+.article-body .table-bg-green {
+  background: #56e156;
+  color: #000;
+}
+
+.article-body .table-bg-uncommon,
+.article-body .table-bg-yellow {
+  background: #ffed4c;
+  color: #000;
+}
+
+.article-body .table-bg-rare,
+.article-body .table-bg-orange {
+  background: #ff863c;
+  color: #000;
+}
+
+.article-body .table-bg-veryrare,
+.article-body .table-bg-red {
+  background: #ff6262;
+  color: #000;
+}
+
+.article-body .table-bg-random,
+.article-body .table-bg-pink {
+  background: #ffa3ff;
+  color: #000;
+}
+
+/* Links inside a coloured cell — a rarity that reads "1/128 (varies)" with the
+   note linked — inherit the dark text rather than staying accent-coloured,
+   which is unreadable on yellow. */
+.article-body [class*='table-bg-'] a {
+  color: #1a3f8f;
+}
+
+.article-body .table-bg-fade {
+  opacity: 0.6;
+  background: rgb(0 0 0 / 10%);
 }
 
 /* ── Message boxes and notices ──────────────────────────────────────── */
@@ -420,10 +595,29 @@
   border-radius: var(--radius);
 }
 
+/**
+ * Every image cap in this file is scoped under `.article-body`, and the card is
+ * a *sibling* of it rather than a descendant — so none of them reach in here and
+ * this rule is the only thing holding the image inside the box.
+ */
 .infobox-card .infobox-image img {
   max-width: 100%;
-  /* Item sprites are tiny and pixel-art; scaling them smoothly turns them to
-     mush, so upscale them crisply instead. */
+  max-height: 240px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Item sprites are tiny and pixel-art; scaling them smoothly turns them to
+   mush, so upscale them crisply instead.
+
+   Only sprites. `transform` is applied at paint time and leaves the layout box
+   the size it was, so scaling unconditionally defeated the `max-width` above:
+   Phosani's Nightmare ships a 250px render, which fits and was then painted at
+   400px, hanging 60-odd pixels off each side of a 300px card. The 128px ceiling
+   is what makes this safe rather than lucky — 128 x 1.6 = 205px, inside the
+   ~256px the card leaves for content. */
+.infobox-card .infobox-image[data-sprite='true'] img {
   image-rendering: pixelated;
   transform: scale(1.6);
 }
@@ -451,8 +645,13 @@
   overflow-wrap: anywhere;
 }
 
+/* Height as well as width: a chathead or a tall area badge in a value cell sets
+   the height of the whole row otherwise. */
 .infobox-row dd img {
   max-width: 100%;
+  max-height: 120px;
+  width: auto;
+  height: auto;
   vertical-align: middle;
 }
 
@@ -918,6 +1117,45 @@
   cursor: help;
 }
 
+/**
+ * The note itself, when it is too far away for the highlight to be any use.
+ *
+ * Same construction as the hiscores hover card in styles.css — fixed so the
+ * scrolling article cannot clip it, blurred so it reads as floating, and inert
+ * to the pointer. Not scoped under `.article-body`: it is rendered beside the
+ * article, since it is positioned against the window rather than the text.
+ */
+.rp-cite-tip {
+  position: fixed;
+  z-index: 60;
+  width: max-content;
+  max-width: 340px;
+  padding: 8px 11px;
+  pointer-events: none;
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 var(--rim-bright), 0 6px 18px rgb(0 0 0 / 34%);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
+  backdrop-filter: blur(14px);
+}
+
+/* Notes are list items on the page they came from; in here they are the whole
+   content, so they lose the marker and the indent. */
+.rp-cite-tip p {
+  margin: 0;
+}
+
+.rp-cite-tip img {
+  max-width: 100%;
+  max-height: 90px;
+  width: auto;
+  height: auto;
+  vertical-align: middle;
+}
+
 /* Hovering a marker lights up the note it points at. */
 .article-body .rp-cite-target {
   background: color-mix(in srgb, var(--accent-a) 20%, transparent);
@@ -925,6 +1163,43 @@
   border-radius: 0 4px 4px 0;
   padding-left: 6px;
   margin-left: -8px;
+}
+
+/* ── Skill requirements ─────────────────────────────────────────────────
+ *
+ * The wiki writes a requirement as `<span class="scp" data-skill data-level>` —
+ * an icon and a number — and with a name in settings the renderer marks each
+ * one against your hiscores. Colour on the number only: these sit mid-sentence
+ * and in dense tables, and a badge or a background per requirement turns a gear
+ * list into a traffic light.
+ *
+ * A requirement is left unmarked unless we actually know. The hiscores report an
+ * unranked skill as level 1, so an account with no rank in it is absent from the
+ * lookup rather than assumed to have failed.
+ *
+ * Not scoped to `.article-body`: requirement rows appear in the infobox too,
+ * which is drawn natively beside it.
+ */
+.scp.rp-req-met {
+  color: #5fbf7a;
+  font-weight: 620;
+}
+
+.scp.rp-req-unmet {
+  color: #e08a8a;
+  font-weight: 620;
+}
+
+/* The same pair the hiscores use for ahead and behind, darkened for the light
+   surfaces — the dark-theme greens are unreadable on parchment. */
+:root[data-theme='light'] .scp.rp-req-met,
+:root[data-theme='parchment'] .scp.rp-req-met {
+  color: #1f7a3d;
+}
+
+:root[data-theme='light'] .scp.rp-req-unmet,
+:root[data-theme='parchment'] .scp.rp-req-unmet {
+  color: #a33b3b;
 }
 
 /* Gear notes, moved below the table by the transform. */

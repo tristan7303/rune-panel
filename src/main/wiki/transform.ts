@@ -147,6 +147,12 @@ export function transform(html: string, pageTitle: string): TransformResult {
   // 7 ── body content that follows the infobox tabs
   markSyncedSwitches($)
   buildTabbers($)
+  // After the tabbers, so anything already moved into a tab is left alone.
+  moveSectionNotesBelowTable($)
+
+  // Last, so the contents box lands above the final heading order rather than
+  // above whatever it was before the notes moved.
+  buildToc($)
 
   // The variant buttons are drawn natively on the infobox card, so the copies
   // the wiki puts on every in-body switch table are duplicates.
@@ -440,6 +446,13 @@ function buildTabbers($: cheerio.CheerioAPI): void {
   $('.tabber').each((_, el) => {
     const $tabber = $(el)
     const tabs = $tabber.children('.tabbertab')
+
+    // Before the strip-count check, not after it. Reordering the notes is worth
+    // doing whether or not there is more than one loadout to switch between,
+    // and gating it on the tab bar left single-tab guides — Theatre of Blood's
+    // entry mode among them — reading back to front.
+    tabs.each((_, tab) => moveNotesBelowTable($, $(tab)))
+
     if (tabs.length < 2) return
 
     const titles: string[] = []
@@ -455,8 +468,6 @@ function buildTabbers($: cheerio.CheerioAPI): void {
           `<button type="button" class="rp-tab${i === 0 ? ' is-active' : ''}" data-tab="${i}">${escapeHtml(title)}</button>`
       )
       .join('')
-
-    tabs.each((_, tab) => moveNotesBelowTable($, $(tab)))
 
     $tabber.addClass('rp-tabber').attr('data-active-tab', '0')
     $tabber.prepend(`<div class="rp-tabbar" role="tablist">${bar}</div>`)
@@ -507,6 +518,153 @@ function moveNotesBelowTable($: cheerio.CheerioAPI, $tab: cheerio.Cheerio<Elemen
   // Kept in source order so the list still follows its own heading.
   for (const el of notes) wrapper.append($(el))
   target.after(wrapper)
+}
+
+/**
+ * The contents box.
+ *
+ * MediaWiki's own is stripped above and `disabletoc` is sent with the request,
+ * because a table of contents built for a skin we do not use is more work to
+ * restyle than to rebuild. This is the rebuild, and it is deliberately the same
+ * shape as the site's: the wiki runs Vector *legacy*, so its index is an inline
+ * box sitting between the lead and the first heading, numbered 1 / 4.1 / 4.2 and
+ * collapsible — not the sticky sidebar the newer skin has.
+ *
+ * Built here rather than in the renderer, from the headings rather than from the
+ * API's section list. Both were tried. A node inserted into the article body
+ * after render does not survive: React owns that element through
+ * `dangerouslySetInnerHTML` and re-sets its content wholesale, taking anything
+ * inserted by hand with it. Emitting the box as part of the HTML makes it part
+ * of the thing React is preserving. Reading the headings rather than the section
+ * list also means the anchors are the ones actually in the document, instead of
+ * a parallel list that has to agree with it.
+ *
+ * Collapsing is a checkbox and a sibling selector, which is how MediaWiki does
+ * it too — no script, and none of this markup can carry any.
+ */
+
+/** Below this many headings the site shows no contents box, and neither do we. */
+const TOC_MIN_HEADINGS = 4
+
+function buildToc($: cheerio.CheerioAPI): void {
+  const headings = $('h2, h3, h4, h5')
+    .toArray()
+    .filter((el) => ($(el).attr('id') ?? '').length > 0)
+  if (headings.length < TOC_MIN_HEADINGS) return
+
+  const base = Math.min(...headings.map((el) => Number(el.tagName.slice(1))))
+  const counters: number[] = []
+  let previous = -1
+  let current = -1
+  let html = ''
+
+  for (const el of headings) {
+    // Relative depth: pages start at h2, and a few skip a level outright. A
+    // skipped level nests one step rather than two, so the numbering stays 1.1
+    // instead of growing an empty 1.0.1.
+    const depth = Math.max(0, Math.min(Number(el.tagName.slice(1)) - base, previous + 1))
+    previous = depth
+
+    counters.length = depth + 1
+    for (let i = 0; i <= depth; i++) counters[i] ??= 0
+    counters[depth] += 1
+
+    if (current === -1 || depth > current) {
+      html += '<ul class="rp-toc-list">'
+    } else {
+      html += '</li>'
+      for (let k = current; k > depth; k--) html += '</ul></li>'
+    }
+
+    const anchor = encodeURIComponent($(el).attr('id') ?? '')
+    const text = escapeHtml($(el).text().trim())
+    html +=
+      `<li><a href="#${anchor}">` +
+      `<span class="rp-toc-num">${counters.join('.')}</span>` +
+      `<span class="rp-toc-text">${text}</span></a>`
+    current = depth
+  }
+
+  html += '</li>'
+  for (let k = current; k > 0; k--) html += '</ul></li>'
+  html += '</ul>'
+
+  const first = $(headings[0])
+  const block = first.closest('.mw-heading')
+  const box =
+    '<nav class="rp-toc" role="navigation" aria-label="Contents">' +
+    '<input type="checkbox" id="rp-toc-toggle" class="rp-toc-toggle">' +
+    '<div class="rp-toc-head"><h2>Contents</h2>' +
+    '<label class="rp-toc-label" for="rp-toc-toggle"></label></div>' +
+    html +
+    '</nav>'
+  ;(block.length > 0 ? block : first).before(box)
+}
+
+/** A recommended-loadout table, in any of the shapes the wiki builds one from. */
+const GEAR_TABLE = 'table.equipmenttable, table.inventorytable, .equipment-div'
+
+/** Anything that ends the run of prose belonging to the gear below it. */
+const HEADING = '.mw-heading, h1, h2, h3, h4, h5, h6'
+
+/**
+ * The same reordering, for gear that is not in a tab.
+ *
+ * `moveNotesBelowTable` can only work inside a `.tabbertab`, because it moves
+ * everything in its container that precedes the table — correct when the
+ * container is one loadout, catastrophic when it is the whole article. Plenty of
+ * guides present a single loadout with no Tabber at all, and those kept the
+ * wiki's order: a screen of caveats about items you have not seen yet, then the
+ * table you opened the page for.
+ *
+ * So the run is bounded by the heading above it instead of by a tab, and only
+ * prose moves. A gallery, a message box or a second table between the heading
+ * and the gear ends the run rather than being dragged along with it.
+ */
+function moveSectionNotesBelowTable($: cheerio.CheerioAPI): void {
+  const parserOutput = $('.mw-parser-output').first()
+  const done = new Set<Element>()
+
+  $(GEAR_TABLE).each((_, table) => {
+    const $table = $(table)
+    // Tabbed loadouts are already handled, and by a function that knows how to
+    // keep the Inventory heading with its own panels.
+    if ($table.closest('.tabber').length > 0) return
+
+    // The table's outermost ancestor still inside the article — the table is
+    // usually wrapped, and the notes have to move relative to that wrapper.
+    // Without a parser-output wrapper to stop at, the outermost ancestor in the
+    // fragment is the same thing.
+    const chain = parserOutput.length > 0 ? $table.parentsUntil(parserOutput) : $table.parents()
+    const block = chain.length > 0 ? chain.last() : $table
+    const blockEl = block[0]
+    // Two loadout tables in one wrapper would otherwise move the notes twice.
+    if (!blockEl || done.has(blockEl)) return
+    done.add(blockEl)
+
+    const notes: Element[] = []
+    for (let prev = block.prev(); prev.length > 0; prev = prev.prev()) {
+      if (!prev.is('p, ul, ol, dl')) break
+      notes.unshift(prev[0])
+    }
+    if (notes.length === 0) return
+
+    // After the footnotes if this section has any, so the lettered markers stay
+    // against the table that cites them — but only a reflist belonging to this
+    // section, which is why the walk stops at the next heading.
+    let target = block
+    for (let next = block.next(); next.length > 0; next = next.next()) {
+      if (next.is(HEADING)) break
+      if (next.is('.reflist, .mw-references-wrap')) {
+        target = next
+        break
+      }
+    }
+
+    const wrapper = $('<div class="rp-gear-notes"></div>')
+    for (const el of notes) wrapper.append($(el))
+    target.after(wrapper)
+  })
 }
 
 /** Minimal escaping for text taken from a wiki attribute. */
