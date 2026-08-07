@@ -315,11 +315,6 @@ export function App(): JSX.Element {
         <main
           className="content"
           data-scroll={route.kind === 'page' || route.kind === 'tool' ? 'inner' : 'outer'}
-          // The interface is a transparent view above the tool pane, so the
-          // content area has to stop painting for the pane to be visible at
-          // all. Only tool routes have one; every other route keeps the
-          // surface it has always had.
-          data-pane={route.kind === 'tool' ? 'true' : 'false'}
         >
           <Body route={route} />
         </main>

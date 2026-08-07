@@ -18,7 +18,7 @@
 import { app, globalShortcut, shell, Tray } from 'electron'
 import { writeFileSync, writeSync } from 'fs'
 import { join } from 'path'
-import { getWindow, getContents, show, hide } from './window'
+import { getWindow, show, hide } from './window'
 import * as anim from './anim'
 import { MOTION, WINDOW, type Settings } from '../shared/ipc'
 import * as db from './db'
@@ -47,39 +47,37 @@ function check(name: string, pass: boolean, detail = ''): void {
 
 export async function runSmoke(initial: Settings): Promise<void> {
   const win = getWindow()
-  const contents = getContents()
 
   check('window created', win !== null)
-  check('interface view created', contents !== null)
   check('hotkey registered', globalShortcut.isRegistered(initial.hotkey), initial.hotkey)
   check('tray created', Tray.prototype !== undefined)
 
-  if (win && contents) {
+  if (win) {
     try {
-      await waitForLoad(contents)
+      await waitForLoad(win.webContents)
 
       check('window starts hidden', !win.isVisible(), 'nothing shows until asked for')
 
-      const bridge = await contents.executeJavaScript('typeof window.rp')
+      const bridge = await win.webContents.executeJavaScript('typeof window.rp')
       check('preload bridge exposed', bridge === 'object', `typeof window.rp = ${bridge}`)
 
-      await checkCloseButton(contents)
-      await checkSetupAndUpdater(contents)
+      await checkCloseButton(win.webContents)
+      await checkSetupAndUpdater(win.webContents)
 
       checkSafeOpen()
       checkDatabase()
       checkClient()
-      await checkSettingsRoundTrip(contents, initial)
-      await checkTitleIndex(contents)
-      await checkSearch(contents)
+      await checkSettingsRoundTrip(win.webContents, initial)
+      await checkTitleIndex(win.webContents)
+      await checkSearch(win.webContents)
       checkTransform()
-      await checkArticle(contents)
-      await checkCrawl(contents)
+      await checkArticle(win.webContents)
+      await checkCrawl(win.webContents)
       checkToolRegistry()
       if (process.env.SMOKE_FETCH) {
-        await checkPrices(contents)
-        await checkProfileLookup(contents)
-        await checkHiscores(contents)
+        await checkPrices(win.webContents)
+        await checkProfileLookup(win.webContents)
+        await checkHiscores(win.webContents)
         await checkToolPane(win)
       }
       await checkShowHide(win)
@@ -641,10 +639,7 @@ function checkToolRegistry(): void {
  * are other people's pages and they get redeployed — which is exactly why the
  * selectors are asserted rather than assumed.
  */
-async function checkToolPane(win: Electron.BaseWindow): Promise<void> {
-  // The window has no page of its own now; the interface is a view inside it.
-  const contents = getContents()
-  if (!contents) return
+async function checkToolPane(win: Electron.BrowserWindow): Promise<void> {
   pane.attach(win)
   pane.setBounds({ x: 60, y: 50, width: 900, height: 600 })
 
@@ -664,12 +659,12 @@ async function checkToolPane(win: Electron.BaseWindow): Promise<void> {
   // The pane is sized from a rectangle the renderer measures. A zero-height
   // slot loads the page perfectly and shows nothing, which is exactly the
   // failure this catches — and exactly what a CSS change reintroduced once.
-  await contents.executeJavaScript(
+  await win.webContents.executeJavaScript(
     `window.__rpNav.getState().push({ kind: 'tool', id: 'dps' }); true`
   )
   await settle(1200)
   const slot = JSON.parse(
-    await contents.executeJavaScript(`
+    await win.webContents.executeJavaScript(`
       (() => {
         const el = document.querySelector('.tool-slot')
         if (!el) return JSON.stringify({ found: false })
@@ -683,7 +678,7 @@ async function checkToolPane(win: Electron.BaseWindow): Promise<void> {
     slot.found && (slot.w ?? 0) > 200 && (slot.h ?? 0) > 200,
     `${slot.w}x${slot.h}`
   )
-  await contents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
+  await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
   await settle(300)
 
   const dps = JSON.parse(
@@ -718,7 +713,7 @@ async function checkToolPane(win: Electron.BaseWindow): Promise<void> {
   // anything, so any menu opening over the content area is invisible until the
   // pane stands down. Driven through the real store, since that is the
   // mechanism the UI uses.
-  await contents.executeJavaScript(
+  await win.webContents.executeJavaScript(
     `window.__rpNav.getState().push({ kind: 'tool', id: 'dps' }); true`
   )
   await settle(900)
@@ -727,7 +722,7 @@ async function checkToolPane(win: Electron.BaseWindow): Promise<void> {
   const fullBounds = pane.debugBounds()
 
   // A theme-picker-shaped overlay: bottom-left of the content area.
-  await contents.executeJavaScript(`
+  await win.webContents.executeJavaScript(`
     (() => {
       const s = window.__rpStore.getState()
       s.pushOverlay()
@@ -738,7 +733,7 @@ async function checkToolPane(win: Electron.BaseWindow): Promise<void> {
   const shrunk = pane.debugBounds()
   const stillVisible = pane.debugVisible()
 
-  await contents.executeJavaScript(`window.__rpStore.getState().popOverlay(); true`)
+  await win.webContents.executeJavaScript(`window.__rpStore.getState().popOverlay(); true`)
   await settle(500)
   const restored = pane.debugBounds()
 
@@ -763,27 +758,20 @@ async function checkToolPane(win: Electron.BaseWindow): Promise<void> {
     visibleWithTool && stillVisible,
     `shown=${visibleWithTool} stillVisible=${stillVisible}`
   )
-  /**
-   * The pane no longer moves for an overlay, and that is the assertion.
-   *
-   * It used to shrink out of the way, because a `BrowserWindow`'s page is the
-   * bottom layer and a dropdown drawn in it would have been hidden behind the
-   * website. The interface is a view stacked *above* the pane now, so it draws
-   * over the top and the pane can hold still — which is the whole reason for
-   * that change. A pane that resizes relayouts the site inside it, and on a
-   * page of tables that is a visible jolt every time you type.
-   */
+  // Which edge gives way depends on where the overlay is, so the assertion is
+  // about area rather than a particular dimension — and about the origin
+  // staying put, since a shifted pane slides the whole page sideways.
   const area = (r: { width: number; height: number }): number => r.width * r.height
   check(
-    'tools: pane holds still under an overlay',
-    area(shrunk) === area(fullBounds) &&
+    'tools: pane shrinks clear of the overlay, then restores',
+    area(shrunk) < area(fullBounds) &&
       shrunk.x === fullBounds.x &&
       shrunk.y === fullBounds.y &&
       area(restored) === area(fullBounds),
     `${fullBounds.width}x${fullBounds.height} -> ${shrunk.width}x${shrunk.height} -> ${restored.width}x${restored.height}`
   )
 
-  await contents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
+  await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
   await settle(300)
 
   const calcDark = await probe(
@@ -1072,15 +1060,12 @@ async function checkNoHorizontalOverflow(wc: Electron.WebContents): Promise<void
  * than by calling `hide()` here, because the renderer's Escape handler is the
  * path that actually ships.
  */
-async function checkShowHide(win: Electron.BaseWindow): Promise<void> {
-  // The window has no page of its own now; the interface is a view inside it.
-  const contents = getContents()
-  if (!contents) return
+async function checkShowHide(win: Electron.BrowserWindow): Promise<void> {
   // Install the listener and park its promise on `window`, awaiting only the
   // installation. Awaiting the listener promise itself would deadlock, and
   // firing show() without awaiting anything races the subscription — the event
   // arrives before onShown is wired and the check fails for no real reason.
-  await contents.executeJavaScript(`
+  await win.webContents.executeJavaScript(`
     window.__shown = new Promise((r) => {
       const timer = setTimeout(() => r(false), 3000)
       const off = window.rp.onShown(() => { clearTimeout(timer); off(); r(true) })
@@ -1099,7 +1084,7 @@ async function checkShowHide(win: Electron.BaseWindow): Promise<void> {
   )
   check(
     'renderer received the shown event',
-    (await contents.executeJavaScript('window.__shown')) === true
+    (await win.webContents.executeJavaScript('window.__shown')) === true
   )
 
   // The rectangle a hide/show cycle has to give back untouched. The open and
@@ -1108,7 +1093,7 @@ async function checkShowHide(win: Electron.BaseWindow): Promise<void> {
   // window to settings and it never grows back.
   const before = win.getBounds()
 
-  await contents.executeJavaScript('window.rp.hide()')
+  await win.webContents.executeJavaScript('window.rp.hide()')
   await settle()
   check('renderer can close the window', !win.isVisible())
   check('hidden window drops always-on-top', !win.isAlwaysOnTop())
@@ -1160,12 +1145,9 @@ async function checkShowHide(win: Electron.BaseWindow): Promise<void> {
  * automation goes to whatever window happens to be focused, which is not
  * reliably this one.
  */
-async function checkAutoFocus(_win: Electron.BaseWindow): Promise<void> {
-  // The window has no page of its own now; the interface is a view inside it.
-  const contents = getContents()
-  if (!contents) return
+async function checkAutoFocus(win: Electron.BrowserWindow): Promise<void> {
   const active = (): Promise<string> =>
-    contents.executeJavaScript(
+    win.webContents.executeJavaScript(
       `(() => { const el = document.activeElement
                 return el && el.tagName === 'INPUT' ? (el.placeholder || 'unlabelled input') : (el ? el.tagName : 'nothing') })()`
     )
@@ -1178,7 +1160,7 @@ async function checkAutoFocus(_win: Electron.BaseWindow): Promise<void> {
   ]
 
   for (const { route, expect, what } of cases) {
-    await contents.executeJavaScript(
+    await win.webContents.executeJavaScript(
       `window.__rpNav.getState().push(${route}); true`
     )
     await settle(120)
@@ -1187,7 +1169,7 @@ async function checkAutoFocus(_win: Electron.BaseWindow): Promise<void> {
 
     // Blur, then re-show. Without the blur a pass could just be the focus the
     // route change already left behind.
-    await contents.executeJavaScript('document.activeElement?.blur(); true')
+    await win.webContents.executeJavaScript('document.activeElement?.blur(); true')
     show()
     await settle(120)
     const onShow = await active()
@@ -1198,11 +1180,11 @@ async function checkAutoFocus(_win: Electron.BaseWindow): Promise<void> {
   // OS. Both halves matter and they are wired separately: it navigates from
   // elsewhere, and focuses without navigating once you are already there.
   const pressGe = (): Promise<void> =>
-    contents.executeJavaScript(
+    win.webContents.executeJavaScript(
       `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', ctrlKey: true, bubbles: true })); true`
     )
 
-  await contents.executeJavaScript(
+  await win.webContents.executeJavaScript(
     `window.__rpNav.getState().push({ kind: 'home' }); true`
   )
   await settle(120)
@@ -1210,7 +1192,7 @@ async function checkAutoFocus(_win: Electron.BaseWindow): Promise<void> {
   await settle(150)
   // Which price view it lands on is a setting, so the assertion is that the two
   // agree — not that it is one of them. `geTrackerReplacesGe` defaults on.
-  const routed = await contents.executeJavaScript(
+  const routed = await win.webContents.executeJavaScript(
     `(() => {
       const s = window.__rpNav.getState();
       const r = s.entries[s.index];
@@ -1226,7 +1208,7 @@ async function checkAutoFocus(_win: Electron.BaseWindow): Promise<void> {
   )
   check('Ctrl+G leaves the item box focused', (await active()).startsWith('Find an item'), '')
 
-  await contents.executeJavaScript('document.activeElement?.blur(); true')
+  await win.webContents.executeJavaScript('document.activeElement?.blur(); true')
   await pressGe()
   await settle(120)
   const refocused = await active()
@@ -1239,7 +1221,7 @@ async function checkAutoFocus(_win: Electron.BaseWindow): Promise<void> {
   // The one route that deliberately does not take focus for itself. Reopening
   // still does — that is issue #1 — but it lands in the header wiki search
   // rather than in anything the article owns.
-  await contents.executeJavaScript(
+  await win.webContents.executeJavaScript(
     `window.__rpNav.getState().push({ kind: 'settings' }); true`
   )
   await settle(120)
@@ -1296,7 +1278,7 @@ function peakStepPx(windowWidth: number): number {
 /**
  * The rectangle the window shrinks to on the way out.
  */
-function checkCollapsedRect(win: Electron.BaseWindow, full: Electron.Rectangle): void {
+function checkCollapsedRect(win: Electron.BrowserWindow, full: Electron.Rectangle): void {
   const exit = anim.collapsedRect(full, MOTION.exit)
   const enter = anim.enterRect(full)
 
@@ -1362,12 +1344,9 @@ function checkCollapsedRect(win: Electron.BaseWindow, full: Electron.Rectangle):
  * Global input automation types into whatever happens to be focused, which is
  * emphatically not always this window.
  */
-async function screenshot(win: Electron.BaseWindow): Promise<void> {
-  // The window has no page of its own now; the interface is a view inside it.
-  const contents = getContents()
-  if (!contents) return
+async function screenshot(win: Electron.BrowserWindow): Promise<void> {
   const shoot = async (name: string): Promise<boolean> => {
-    const image = await contents.capturePage()
+    const image = await win.webContents.capturePage()
     // Not app.getAppPath(): running the built entry directly makes that
     // out/main, which would nest the file one level too deep.
     writeFileSync(join(process.cwd(), 'out', name), image.toPNG())
@@ -1380,7 +1359,7 @@ async function screenshot(win: Electron.BaseWindow): Promise<void> {
   // A tight crop of the search field, because the spacing there has been
   // judged from full-window shots where 60px reads as nothing.
   {
-    const image = await contents.capturePage()
+    const image = await win.webContents.capturePage()
     const scale = image.getSize().width / win.getBounds().width
     const crop = image.crop({
       x: Math.round(280 * scale),
@@ -1393,11 +1372,11 @@ async function screenshot(win: Electron.BaseWindow): Promise<void> {
 
   // Hiscores, with a comparison loaded, so the diff column is in the shot.
   if (process.env.SMOKE_FETCH) {
-    await contents.executeJavaScript(
+    await win.webContents.executeJavaScript(
       `window.__rpNav.getState().push({ kind: 'hiscores' }); true`
     )
     await settle(400)
-    await contents.executeJavaScript(`
+    await win.webContents.executeJavaScript(`
       (async () => {
         const set = (v) => {
           const i = document.querySelector('.hs-form input')
@@ -1417,7 +1396,7 @@ async function screenshot(win: Electron.BaseWindow): Promise<void> {
     await settle(4000)
     // With a tooltip up, since it only exists on hover and is otherwise
     // impossible to eyeball.
-    await contents.executeJavaScript(`
+    await win.webContents.executeJavaScript(`
       (() => {
         const cell = document.querySelectorAll('.hs-grid .hs-cell')[7]
         cell?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
@@ -1430,7 +1409,7 @@ async function screenshot(win: Electron.BaseWindow): Promise<void> {
 
     // And an account with holes in it, because the full grid never shows what
     // an empty slot looks like. Zezima predates almost every boss in the game.
-    await contents.executeJavaScript(`
+    await win.webContents.executeJavaScript(`
       (async () => {
         const i = document.querySelector('.hs-form input')
         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
@@ -1443,24 +1422,24 @@ async function screenshot(win: Electron.BaseWindow): Promise<void> {
     await settle(3000)
     await shoot('smoke-hiscores-sparse.png')
 
-    await contents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
+    await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
     await settle(300)
   }
 
   // The Grand Exchange view, so the chart gets an eye on it too.
-  await contents.executeJavaScript(
+  await win.webContents.executeJavaScript(
     `window.__rpNav.getState().push({ kind: 'ge', itemId: 4151 }); true`
   )
-  await waitFor(contents, '.chart-svg', 12000)
+  await waitFor(win.webContents, '.chart-svg', 12000)
   await settle(800)
   await shoot('smoke-ge.png')
-  await contents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
+  await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
   await settle(300)
 
   // Every theme, so a light-mode regression shows up without a manual pass.
   if (process.env.SMOKE_THEMES) {
     for (const theme of ['light', 'parchment', 'dark'] as const) {
-      await contents.executeJavaScript(
+      await win.webContents.executeJavaScript(
         `window.rp.setSettings({ theme: '${theme}' }); true`
       )
       await settle(500)
@@ -1469,16 +1448,16 @@ async function screenshot(win: Electron.BaseWindow): Promise<void> {
 
     // Settings too: the toggles live there, and their "on" state is the one
     // control that has to look right against all three surfaces.
-    await contents.executeJavaScript(
+    await win.webContents.executeJavaScript(
       `window.__rpNav.getState().push({ kind: 'settings' }); true`
     )
     await settle(400)
     for (const theme of ['parchment', 'light', 'dark'] as const) {
-      await contents.executeJavaScript(`window.rp.setSettings({ theme: '${theme}' }); true`)
+      await win.webContents.executeJavaScript(`window.rp.setSettings({ theme: '${theme}' }); true`)
       await settle(500)
       await shoot(`smoke-settings-${theme}.png`)
     }
-    await contents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
+    await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
     await settle(300)
   }
 
@@ -1494,10 +1473,10 @@ async function screenshot(win: Electron.BaseWindow): Promise<void> {
 
   let article = true
   if (cached) {
-    await contents.executeJavaScript(`
+    await win.webContents.executeJavaScript(`
       window.__rpNav.getState().push({ kind: 'page', title: ${JSON.stringify(cached.title)} }); true
     `)
-    await waitFor(contents, '.article-body', 8000)
+    await waitFor(win.webContents, '.article-body', 8000)
     // Images resolve through the protocol handler; give them a moment to paint.
     await settle(2500)
     article = await shoot('smoke-article.png')
@@ -1505,7 +1484,7 @@ async function screenshot(win: Electron.BaseWindow): Promise<void> {
     // Scroll to the worn-equipment panel when there is one, so the capture
     // shows the layout rather than the top of the page.
     if (process.env.SMOKE_SCROLL) {
-      await contents.executeJavaScript(`
+      await win.webContents.executeJavaScript(`
         document.querySelector(${JSON.stringify(process.env.SMOKE_SCROLL)})
           ?.scrollIntoView({ block: 'center' }); true
       `)
@@ -1515,14 +1494,14 @@ async function screenshot(win: Electron.BaseWindow): Promise<void> {
 
     if (process.env.SMOKE_THEMES) {
       for (const theme of ['parchment', 'dark'] as const) {
-        await contents.executeJavaScript(`window.rp.setSettings({ theme: '${theme}' }); true`)
+        await win.webContents.executeJavaScript(`window.rp.setSettings({ theme: '${theme}' }); true`)
         await settle(700)
         await shoot(`smoke-article-${theme}.png`)
       }
     }
 
     if (process.env.SMOKE_IMAGES) {
-      const report = await contents.executeJavaScript(`
+      const report = await win.webContents.executeJavaScript(`
         (() => {
           const broken = []
           for (const img of document.querySelectorAll('.article, .infobox-card')) {}
@@ -1535,8 +1514,8 @@ async function screenshot(win: Electron.BaseWindow): Promise<void> {
       `)
       console.log('[images] ' + report)
     }
-    await checkNoHorizontalOverflow(contents)
-    await checkTabber(contents)
+    await checkNoHorizontalOverflow(win.webContents)
+    await checkTabber(win.webContents)
   }
 
   check(

@@ -19,7 +19,7 @@
  * agree with each other, which is all this needs.
  */
 
-import type { BaseWindow, Rectangle } from 'electron'
+import type { BrowserWindow, Rectangle } from 'electron'
 import { MOTION, WINDOW, type MotionMode } from '../shared/ipc'
 
 /**
@@ -172,7 +172,7 @@ interface Leg {
  * compositor owns. The last step lands on the endpoints exactly rather than on
  * whatever the easing rounds to, because "almost the saved bounds" accumulates.
  */
-function run(win: BaseWindow, leg: Leg): Promise<void> {
+function run(win: BrowserWindow, leg: Leg): Promise<void> {
   // Not "jump to the destination" — do nothing at all. The destination of a
   // collapse is a rectangle nobody is meant to see, and `show()` skips the
   // collapsed start when this is off, so both legs are already where they
@@ -233,7 +233,7 @@ function run(win: BaseWindow, leg: Leg): Promise<void> {
  * and the `hide()` that follows is invisible because there was nothing left to
  * hide.
  */
-export function collapse(win: BaseWindow, target: Rectangle): Promise<void> {
+export function collapse(win: BrowserWindow, target: Rectangle): Promise<void> {
   if (mode() === 'fade') {
     return run(win, { fromOpacity: 1, toOpacity: 0, duration: MOTION.fadeDuration })
   }
@@ -248,7 +248,7 @@ export function collapse(win: BaseWindow, target: Rectangle): Promise<void> {
 }
 
 /** Arrive. The window must already be visible, small and transparent. */
-export function expand(win: BaseWindow, target: Rectangle): Promise<void> {
+export function expand(win: BrowserWindow, target: Rectangle): Promise<void> {
   if (mode() === 'fade') {
     return run(win, { fromOpacity: 0, toOpacity: 1, duration: MOTION.fadeDuration })
   }
@@ -269,6 +269,6 @@ export function expand(win: BaseWindow, target: Rectangle): Promise<void> {
  * bail-out, or the mode changing mid-flight — because a window left at zero
  * opacity is indistinguishable from one that failed to open.
  */
-export function reset(win: BaseWindow): void {
+export function reset(win: BrowserWindow): void {
   if (!win.isDestroyed()) win.setOpacity(1)
 }

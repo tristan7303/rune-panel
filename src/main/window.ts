@@ -16,7 +16,7 @@
  * ever adds depth.
  */
 
-import { BaseWindow, WebContentsView, screen, type WebContents } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import {
   WINDOW,
@@ -32,21 +32,7 @@ import * as settings from './settings'
 import * as anim from './anim'
 import * as pane from './tools/pane'
 
-let win: BaseWindow | null = null
-/**
- * The app's own UI, as a view rather than the window's page.
- *
- * A `BaseWindow`'s page is always the bottom layer: child views composite
- * above it and nothing can be put on top of them. That is why a dropdown over
- * an embedded tool used to be invisible, and why the pane had to shrink out of
- * the way whenever one opened.
- *
- * Making the UI a view too means the two can be ordered, so the interface sits
- * *above* the pane and draws over it. It is transparent, and the stylesheet
- * leaves the content area unpainted while a pane is showing, so the tool below
- * shows through the hole rather than being covered by our surface.
- */
-let ui: WebContentsView | null = null
+let win: BrowserWindow | null = null
 /** Debounce handle for persisting bounds; move/resize fire per frame while dragging. */
 let saveBoundsTimer: NodeJS.Timeout | null = null
 
@@ -89,10 +75,10 @@ function usableBounds(saved: WindowBounds | null): WindowBounds {
   }
 }
 
-export function createWindow(initial: Settings): BaseWindow {
+export function createWindow(initial: Settings): BrowserWindow {
   const bounds = usableBounds(initial.bounds)
 
-  win = new BaseWindow({
+  win = new BrowserWindow({
     ...bounds,
     minWidth: WINDOW.minWidth,
     minHeight: WINDOW.minHeight,
@@ -109,9 +95,6 @@ export function createWindow(initial: Settings): BaseWindow {
     skipTaskbar: true,
     title: 'Rune Panel',
     icon: appIcon(),
-  })
-
-  ui = new WebContentsView({
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       // How main intends to animate, which the renderer has to know
@@ -130,18 +113,11 @@ export function createWindow(initial: Settings): BaseWindow {
     },
   })
 
-  // Transparent, so the pane beneath shows through wherever the interface does
-  // not paint. Without this the view's own white would cover it entirely.
-  ui.setBackgroundColor('#00000000')
-  win.contentView.addChildView(ui)
-  fitUi()
-  win.on('resize', fitUi)
-
   win.setMenuBarVisibility(false)
 
   // Anything that tries to open a new window goes to the real browser instead —
   // http and https only. See safe-open.ts for why that matters.
-  ui.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url }) => {
     openExternal(url)
     return { action: 'deny' }
   })
@@ -150,9 +126,9 @@ export function createWindow(initial: Settings): BaseWindow {
   // emits it to out/renderer for a built app.
   const devUrl = process.env['ELECTRON_RENDERER_URL']
   if (devUrl) {
-    void ui.webContents.loadURL(devUrl)
+    void win.loadURL(devUrl)
   } else {
-    void ui.webContents.loadFile(join(__dirname, '../renderer/index.html'))
+    void win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
   win.on('move', scheduleSaveBounds)
@@ -166,30 +142,13 @@ export function createWindow(initial: Settings): BaseWindow {
 
   win.on('closed', () => {
     win = null
-    ui = null
   })
 
   return win
 }
 
-/** The UI view fills the window; the pane is positioned inside it by pane.ts. */
-function fitUi(): void {
-  if (!win || win.isDestroyed() || !ui) return
-  const { width, height } = win.getContentBounds()
-  ui.setBounds({ x: 0, y: 0, width, height })
-}
-
-export function getWindow(): BaseWindow | null {
+export function getWindow(): BrowserWindow | null {
   return win && !win.isDestroyed() ? win : null
-}
-
-/**
- * The renderer's contents, for everything that used to reach through
- * `win.webContents`. A `BaseWindow` has no page of its own.
- */
-export function getContents(): WebContents | null {
-  if (!win || win.isDestroyed() || !ui) return null
-  return ui.webContents.isDestroyed() ? null : ui.webContents
 }
 
 export function isVisible(): boolean {
@@ -222,7 +181,7 @@ function announceVisibility(visible: boolean): void {
  */
 let restingBounds: WindowBounds | null = null
 
-function target(w: BaseWindow): WindowBounds {
+function target(w: BrowserWindow): WindowBounds {
   return restingBounds ?? w.getBounds()
 }
 
@@ -251,10 +210,10 @@ export function show(): void {
   w.focus()
   // Not the same as `w.focus()`. On a tool route the WebContentsView holds
   // keyboard focus, and the renderer's auto-focus would have nothing to take.
-  getContents()?.focus()
+  w.webContents.focus()
 
-  getContents()?.send(On.Motion, motionEvent('open', motion, full))
-  getContents()?.send(On.Shown)
+  w.webContents.send(On.Motion, motionEvent('open', motion, full))
+  w.webContents.send(On.Shown)
   announceVisibility(true)
 
   void anim.expand(w, full).then(() => {
@@ -281,7 +240,7 @@ export async function hide(): Promise<void> {
   restingBounds = full
 
   pane.suspend()
-  getContents()?.send(On.Motion, motionEvent('close', anim.mode(), full))
+  w.webContents.send(On.Motion, motionEvent('close', anim.mode(), full))
   await anim.collapse(w, full)
 
   if (w.isDestroyed()) return

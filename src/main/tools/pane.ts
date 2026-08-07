@@ -15,11 +15,10 @@
  * something, because there is no underneath.
  */
 
-import { WebContentsView, session, type BaseWindow, type Input, type Rectangle } from 'electron'
+import { WebContentsView, session, type BrowserWindow, type Input, type Rectangle } from 'electron'
 import { TOOLS, PALETTES, type ToolCookie, type ToolId } from './registry'
 import { openExternal } from '../safe-open'
 import * as settings from '../settings'
-import { getContents } from '../window'
 import { On, type PaneShortcut } from '../../shared/ipc'
 import { parseCombo } from '../../shared/keys'
 
@@ -27,14 +26,14 @@ import { parseCombo } from '../../shared/keys'
 const PARTITION = 'persist:tools'
 
 let view: WebContentsView | null = null
-let host: BaseWindow | null = null
+let host: BrowserWindow | null = null
 let current: { id: ToolId; arg?: string } | null = null
 let bounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
 let injectionEnabled = true
 /** Handle for the stylesheet we injected, so a re-theme can replace it. */
 let injectedKey: string | null = null
 
-export function attach(window: BaseWindow): void {
+export function attach(window: BrowserWindow): void {
   host = window
   // Bounds are given in DIP relative to the window, so a resize invalidates
   // them and the renderer has to re-measure.
@@ -64,11 +63,7 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
         // No preload: these are third-party pages and get no bridge to us.
       },
     })
-    // Index 0: beneath the interface view, which was added first and must stay
-    // on top. That ordering is the whole point — it lets a dropdown in the DOM
-    // draw over the website instead of the website covering it, so nothing has
-    // to be moved out of the way when one opens.
-    host.contentView.addChildView(view, 0)
+    host.contentView.addChildView(view)
     wire(view)
   }
 
@@ -262,10 +257,10 @@ function wire(v: WebContentsView): void {
     // pane holds it at the OS level, so calling `.focus()` on a DOM input in
     // the host window would move nothing and the next keystroke would still go
     // to the website.
-    const contents = getContents()
-    if (!contents) return
-    contents.focus()
-    contents.send(On.PaneShortcut, which)
+    const window = getHost()
+    if (!window) return
+    window.webContents.focus()
+    window.webContents.send(On.PaneShortcut, which)
   })
 
   /**
@@ -304,6 +299,11 @@ async function setCookies(cookies: ToolCookie[] | undefined): Promise<void> {
         })
     )
   )
+}
+
+/** The host window, for sending forwarded shortcuts back to the renderer. */
+function getHost(): BrowserWindow | null {
+  return host && !host.isDestroyed() ? host : null
 }
 
 /** Does this keystroke belong to the app rather than the page under it? */
