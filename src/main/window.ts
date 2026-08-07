@@ -18,10 +18,19 @@
 
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
-import { WINDOW, On, type Settings, type WindowBounds } from '../shared/ipc'
+import {
+  WINDOW,
+  On,
+  type MotionEvent,
+  type MotionMode,
+  type Settings,
+  type WindowBounds,
+} from '../shared/ipc'
 import { appIcon } from './icon'
 import { openExternal } from './safe-open'
 import * as settings from './settings'
+import * as anim from './anim'
+import * as pane from './tools/pane'
 
 let win: BrowserWindow | null = null
 /** Debounce handle for persisting bounds; move/resize fire per frame while dragging. */
@@ -88,6 +97,12 @@ export function createWindow(initial: Settings): BrowserWindow {
     icon: appIcon(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
+      // How main intends to animate, which the renderer has to know
+      // *synchronously* at startup — it holds itself collapsed until the first
+      // open, and a collapsed transform reports shifted coordinates to anything
+      // that measures layout. An IPC round trip would answer a frame or two too
+      // late. Later changes ride along on each motion event instead.
+      additionalArguments: [`--rp-motion=${anim.mode()}`],
       contextIsolation: true,
       nodeIntegration: false,
       // Inherited as `false` from the project this forked, whose preload
@@ -120,7 +135,9 @@ export function createWindow(initial: Settings): BrowserWindow {
   win.on('resize', scheduleSaveBounds)
 
   win.on('blur', () => {
-    if (settings.get().hideOnBlur) hide()
+    // The guard inside hide() covers the animation, but checking here keeps a
+    // blur fired *by* the collapse from queueing a second close behind it.
+    if (settings.get().hideOnBlur && !anim.isBusy()) void hide()
   })
 
   win.on('closed', () => {
@@ -155,9 +172,35 @@ function announceVisibility(visible: boolean): void {
   for (const listener of visibilityListeners) listener(visible)
 }
 
+/**
+ * The rectangle the window belongs at.
+ *
+ * While an animation is in flight `getBounds()` returns an intermediate, so the
+ * full-size rectangle is held here for the duration rather than read back off a
+ * window that is mid-collapse.
+ */
+let restingBounds: WindowBounds | null = null
+
+function target(w: BrowserWindow): WindowBounds {
+  return restingBounds ?? w.getBounds()
+}
+
 export function show(): void {
   const w = getWindow()
-  if (!w) return
+  if (!w || anim.isBusy()) return
+
+  const full = target(w)
+  restingBounds = full
+  const motion = anim.mode()
+
+  // Start small and invisible, before the first frame is on screen. The
+  // renderer is already collapsed — it stays that way for as long as the window
+  // is hidden — so there is nothing to prepare and nothing flashes at full size.
+  if (!w.isVisible() && motion !== 'none') {
+    if (motion === 'scale') w.setBounds(anim.enterRect(full))
+    w.setOpacity(0)
+  }
+
   // 'screen-saver' is the level that clears a borderless-fullscreen game
   // client. Re-asserted on every show because another app can steal the top
   // slot while we are hidden.
@@ -165,23 +208,68 @@ export function show(): void {
   else w.setAlwaysOnTop(false)
   w.show()
   w.focus()
+  // Not the same as `w.focus()`. On a tool route the WebContentsView holds
+  // keyboard focus, and the renderer's auto-focus would have nothing to take.
+  w.webContents.focus()
+
+  w.webContents.send(On.Motion, motionEvent('open', motion, full))
   w.webContents.send(On.Shown)
   announceVisibility(true)
+
+  void anim.expand(w, full).then(() => {
+    // Never leave a visible window part-way transparent, whatever happened on
+    // the way here.
+    anim.reset(w)
+    restingBounds = null
+    pane.resume()
+  })
 }
 
-export function hide(): void {
+/**
+ * Close, after playing the collapse.
+ *
+ * Async now, which every caller has to respect: the window is still on screen
+ * when this returns control to the event loop, and acting on it in between is
+ * how you get two animations fighting over one rectangle.
+ */
+export async function hide(): Promise<void> {
   const w = getWindow()
-  if (!w || !w.isVisible()) return
+  if (!w || !w.isVisible() || anim.isBusy()) return
+
+  const full = target(w)
+  restingBounds = full
+
+  pane.suspend()
+  w.webContents.send(On.Motion, motionEvent('close', anim.mode(), full))
+  await anim.collapse(w, full)
+
+  if (w.isDestroyed()) return
   // Dropping always-on-top while hidden keeps the flag from outliving the
   // window in the compositor's bookkeeping.
   w.setAlwaysOnTop(false)
   w.hide()
+  // Opaque again while nobody is looking. `show()` sets it back to zero if it
+  // is going to animate, and a window that never gets one is simply visible.
+  anim.reset(w)
+  // The rectangle is left collapsed, and `restingBounds` deliberately stays set
+  // to remember what it should grow back to. Restoring it here instead is the
+  // obvious move and the wrong one: `setBounds` on a window that was hidden a
+  // moment ago puts it back on screen.
   announceVisibility(false)
 }
 
 export function toggle(): void {
-  if (isVisible()) hide()
+  if (anim.isBusy()) return
+  if (isVisible()) void hide()
   else show()
+}
+
+function motionEvent(
+  phase: MotionEvent['phase'],
+  mode: MotionMode,
+  full: WindowBounds
+): MotionEvent {
+  return { phase, mode, width: full.width, height: full.height }
 }
 
 /** Apply a settings change that the window itself owns. */
@@ -196,11 +284,24 @@ export function applySettings(next: Settings): void {
   }
 }
 
+/**
+ * Persist the window rectangle, 400ms after it stops moving.
+ *
+ * The open/close animation fires `move` and `resize` on every frame, and a
+ * shrunken rectangle written to settings would be permanent — the window would
+ * reopen at 85% forever. So an animation both skips the save and cancels any
+ * save already armed, and `hide()` restores the full rectangle before the
+ * window is shown again.
+ */
 function scheduleSaveBounds(): void {
   if (saveBoundsTimer) clearTimeout(saveBoundsTimer)
+  saveBoundsTimer = null
+  if (anim.isBusy()) return
   saveBoundsTimer = setTimeout(() => {
     saveBoundsTimer = null
     const w = getWindow()
-    if (w) settings.update({ bounds: w.getBounds() })
+    // Hidden means the window is sitting at its collapsed rectangle waiting to
+    // grow back, which is not a size anyone chose.
+    if (w && w.isVisible() && !anim.isBusy()) settings.update({ bounds: w.getBounds() })
   }, 400)
 }

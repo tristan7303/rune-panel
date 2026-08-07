@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState, type JSX } from 'react'
-import type { CrawlState, TitleIndexState } from '@shared/ipc'
+import type { CrawlState, TitleIndexState, UpdateStatus } from '@shared/ipc'
 import { useStore } from './store'
 
 export function SettingsView(): JSX.Element {
@@ -19,33 +19,53 @@ export function SettingsView(): JSX.Element {
     <div className="settings">
       <h1>Settings</h1>
 
-      <Field
-        label="Hotkey"
-        hint="Global shortcut that opens and closes Rune Panel. Electron accelerator syntax, e.g. Control+Shift+Space."
-      >
-        <input
-          type="text"
-          value={settings.hotkey}
-          spellCheck={false}
-          onChange={(e) => patch({ hotkey: e.target.value })}
-        />
-      </Field>
+      {/* Keybinds first, and together. The global one is genuinely different
+          from the other two — it is registered with Windows and can be lost to
+          another program — so it says so rather than sitting unmarked beside
+          shortcuts that always work. */}
+      <Group title="Keyboard">
+        <Field
+          label="Open and close"
+          hint="Works anywhere in Windows, including over a game. Electron accelerator syntax, e.g. Control+Shift+Space. Registered with the OS, so another program holding the same combination wins it."
+        >
+          <input
+            type="text"
+            value={settings.hotkey}
+            spellCheck={false}
+            onChange={(e) => patch({ hotkey: e.target.value })}
+          />
+        </Field>
 
-      <Field
-        label="Quick search"
-        hint="Focuses the wiki search box in the title bar. In-app only, so it cannot collide with another program's shortcut. Ctrl+K always works too."
-      >
-        <input
-          type="text"
-          value={settings.searchKey}
-          spellCheck={false}
-          placeholder="Ctrl+F"
-          onChange={(e) => patch({ searchKey: e.target.value })}
-        />
-      </Field>
+        <Field
+          label="Search the wiki"
+          hint="Focuses the search box in the title bar. Ctrl+K always works too."
+        >
+          <input
+            type="text"
+            value={settings.searchKey}
+            spellCheck={false}
+            placeholder="Ctrl+F"
+            onChange={(e) => patch({ searchKey: e.target.value })}
+          />
+        </Field>
 
-      <Field
-        label="Stay on top"
+        <Field
+          label="Grand Exchange"
+          hint="Opens the Grand Exchange with the item box focused, or just focuses it if you are already there."
+        >
+          <input
+            type="text"
+            value={settings.geKey}
+            spellCheck={false}
+            placeholder="Ctrl+G"
+            onChange={(e) => patch({ geKey: e.target.value })}
+          />
+        </Field>
+      </Group>
+
+      <Group title="Window">
+        <Field
+          label="Stay on top"
         hint="Keeps the window above other windows while it is open, including a borderless-fullscreen game client. On by default — that is what it is for."
       >
         <Switch
@@ -55,44 +75,126 @@ export function SettingsView(): JSX.Element {
         />
       </Field>
 
-      <Field
-        label="Close when it loses focus"
-        hint="Off by default. You will click into the game while reading, and vanishing mid-sentence is worse than pressing Escape."
-      >
-        <Switch
-          checked={settings.hideOnBlur}
-          onChange={(hideOnBlur) => patch({ hideOnBlur })}
+        <Field
           label="Close when it loses focus"
-        />
-      </Field>
+          hint="Off by default. You will click into the game while reading, and vanishing mid-sentence is worse than pressing Escape."
+        >
+          <Switch
+            checked={settings.hideOnBlur}
+            onChange={(hideOnBlur) => patch({ hideOnBlur })}
+            label="Close when it loses focus"
+          />
+        </Field>
+      </Group>
 
-      <Field
-        label="Acrylic backdrop"
-        hint="Frosts the window against whatever is behind it. Windows 11 only, and purely cosmetic — the interface is designed to look right without it."
-      >
-        <Switch
-          checked={settings.acrylic}
-          onChange={(acrylic) => patch({ acrylic })}
+      <Group title="Appearance">
+        <Field
           label="Acrylic backdrop"
-        />
-      </Field>
+          hint="Frosts the window against whatever is behind it. Windows 11 only, and purely cosmetic — the interface is designed to look right without it."
+        >
+          <Switch
+            checked={settings.acrylic}
+            onChange={(acrylic) => patch({ acrylic })}
+            label="Acrylic backdrop"
+          />
+        </Field>
 
-      <Field
-        label="Contact address"
-        hint="Sent in the User-Agent on wiki requests. The OSRS Wiki asks automated clients to say who they are and how to reach them; it costs nothing and keeps you off their block list."
-      >
-        <input
-          type="text"
-          value={settings.contactEmail}
-          spellCheck={false}
-          placeholder="you@example.com"
-          onChange={(e) => patch({ contactEmail: e.target.value })}
-        />
-      </Field>
+        <Field
+          label="Reduce motion"
+          hint="Replaces the open and close animation with a quick fade. Forced on anyway if Windows is set to minimise animations."
+        >
+          <Switch
+            checked={settings.reduceMotion}
+            onChange={(reduceMotion) => patch({ reduceMotion })}
+            label="Reduce motion"
+          />
+        </Field>
+      </Group>
 
-      <TitleIndexField />
-      <PageCacheField />
+      <Group title="Wiki data">
+        <Field
+          label="Contact address"
+          hint="Sent in the User-Agent on wiki requests. The OSRS Wiki asks automated clients to say who they are and how to reach them; it costs nothing and keeps you off their block list."
+        >
+          <input
+            type="text"
+            value={settings.contactEmail}
+            spellCheck={false}
+            placeholder="you@example.com"
+            onChange={(e) => patch({ contactEmail: e.target.value })}
+          />
+        </Field>
+
+        <TitleIndexField />
+        <PageCacheField />
+      </Group>
+
+      <Group title="About">
+        <UpdateField />
+      </Group>
     </div>
+  )
+}
+
+/** A titled run of fields. The heading carries the top rule, so the first
+ *  field in each group does not draw a second one under it. */
+function Group({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <section className="settings-group">
+      <h2>{title}</h2>
+      {children}
+    </section>
+  )
+}
+
+/**
+ * Updates — the version you are on, and a manual check.
+ *
+ * Rune Panel checks on its own twenty seconds after launch and once a day
+ * after, but "is there a new one" is a question people ask on their own
+ * schedule, usually right after seeing a release mentioned somewhere.
+ *
+ * Every state answers in the same place, including the boring ones. A check
+ * that silently does nothing when you are already current is indistinguishable
+ * from a broken button.
+ */
+function UpdateField(): JSX.Element {
+  const [status, setStatus] = useState<UpdateStatus | null>(null)
+
+  useEffect(() => {
+    void window.rp.getUpdate().then(setStatus)
+    return window.rp.onUpdateStatus(setStatus)
+  }, [])
+
+  const version = status ? `Rune Panel ${status.currentVersion}` : 'Rune Panel'
+  const hint = !status
+    ? 'Checking…'
+    : {
+        idle: `${version}. Checked automatically after launch and once a day.`,
+        checking: 'Asking GitHub…',
+        available: `Version ${status.version} is available — the banner at the top of the window will download it.`,
+        downloading: `Downloading ${status.version} — ${status.progress}%.`,
+        ready: `Version ${status.version} is downloaded and installs on restart.`,
+        current: `${version}, which is the latest release.`,
+        error: `Could not check: ${status.message ?? 'unknown error'}. Usually just no network.`,
+        // The development build. Saying so is kinder than a button that
+        // reports "up to date" from a source it never contacted.
+        unsupported: `${version}, running from source. Updates only apply to an installed build.`,
+      }[status.state]
+
+  const busy = status?.state === 'checking' || status?.state === 'downloading'
+
+  return (
+    <Field label="Updates" hint={hint}>
+      <button
+        type="button"
+        className="btn"
+        disabled={busy || status?.state === 'unsupported'}
+        onClick={() => window.rp.checkUpdate()}
+      >
+        {status?.state === 'checking' ? 'Checking…' : 'Check now'}
+      </button>
+    </Field>
   )
 }
 

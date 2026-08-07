@@ -129,6 +129,33 @@ export function hide(): void {
   // setVisible(false) rather than removeChildView: the page keeps its state, so
   // returning to a half-filled DPS loadout does not start over.
   view?.setVisible(false)
+  suspended = false
+}
+
+/** Set only by `suspend`, so `resume` knows whether there was anything to restore. */
+let suspended = false
+
+/**
+ * Take the pane off screen for the duration of the open/close animation.
+ *
+ * The view composites above the DOM and is not affected by a CSS transform, so
+ * without this, closing on the DPS calculator would show a shrinking frame with
+ * a full-size browser rectangle stapled on top of it.
+ */
+export function suspend(): void {
+  if (!view || !view.getVisible()) return
+  view.setVisible(false)
+  suspended = true
+}
+
+/** Put it back, if `suspend` was the thing that took it away. */
+export function resume(): void {
+  if (!view || !suspended) return
+  suspended = false
+  view.setVisible(true)
+  // The shell was frozen at its full size throughout, so the rectangle the
+  // renderer last measured is still the right one.
+  applyBounds()
 }
 
 export function destroy(): void {

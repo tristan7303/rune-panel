@@ -26,7 +26,23 @@ import { userAgent } from './client'
 
 export const SCHEME = 'rpimg'
 
-const ORIGIN = 'https://oldschool.runescape.wiki/images/'
+/**
+ * Where a cached image can come from, keyed by the URL's host segment.
+ *
+ * Two sources, because the wiki does not have everything. The hiscores draw
+ * their own boss icons — the ones anyone who has looked at the hiscores already
+ * recognises — and the wiki's equivalents are different artwork entirely, often
+ * a full monster render where the hiscores use a tight icon.
+ *
+ * Adding an origin is deliberately this narrow: a fixed allow-list keyed by a
+ * host we control, not a URL the renderer passes in. This protocol reaches the
+ * network on the renderer's behalf, and one that fetched arbitrary hosts would
+ * be a proxy around every protection the sandbox provides.
+ */
+const ORIGINS: Record<string, string> = {
+  img: 'https://oldschool.runescape.wiki/images/',
+  hs: 'https://www.runescape.com/img/rsp777/',
+}
 /** Roughly what a browser opens to one host. */
 const MAX_CONCURRENT = 8
 /** A wiki image that large is a mistake; refuse rather than fill the disk. */
@@ -57,43 +73,64 @@ export function registerScheme(): void {
 /** Install the handler. Call once, after `app.ready`. */
 export function serve(): void {
   protocol.handle(SCHEME, async (request) => {
-    const name = decodeName(request.url)
-    if (!name) return new Response('bad image name', { status: 400 })
+    const ref = decodeName(request.url)
+    if (!ref) return new Response('bad image name', { status: 400 })
 
     try {
-      const bytes = await fetchImage(name)
+      const bytes = await fetchImage(ref)
       if (!bytes) return new Response('not found', { status: 404 })
       return new Response(new Uint8Array(bytes), {
         status: 200,
         headers: {
-          'Content-Type': mimeFor(name),
+          'Content-Type': mimeFor(ref.path),
           // Cached on disk by us; letting Chromium hold it in memory too saves
           // a read per repeated icon on a page that uses one 40 times.
           'Cache-Control': 'max-age=86400',
         },
       })
     } catch (err) {
-      console.warn(`[images] ${name}:`, err instanceof Error ? err.message : err)
+      console.warn(`[images] ${ref.key}:`, err instanceof Error ? err.message : err)
       return new Response('fetch failed', { status: 502 })
     }
   })
 }
 
 /**
- * `rpimg://img/Abyssal_whip.png` -> `Abyssal_whip.png`.
+ * `rpimg://img/Abyssal_whip.png` -> the wiki, `Abyssal_whip.png`.
+ * `rpimg://hs/game_icon_nex.png` -> the hiscores, `game_icon_nex.png`.
  *
- * The `img` host is a constant placeholder, and everything after it is the
- * name. That indirection exists because a `standard` scheme parses as
- * `scheme://host/path`: without a fixed host, `rpimg://thumb/X.png/130px-X.png`
- * would put `thumb` in the host, where Chromium lowercases it and the path
- * silently loses a segment. Thumbnails are exactly the case that breaks.
+ * The host names the origin and everything after it is the path. It began as a
+ * constant placeholder for a different reason, which still applies: a
+ * `standard` scheme parses as `scheme://host/path`, so without something
+ * occupying the host, `rpimg://thumb/X.png/130px-X.png` would put `thumb` there
+ * — where Chromium lowercases it and the path silently loses a segment.
+ * Thumbnails are exactly the case that breaks.
  */
-function decodeName(url: string): string | null {
+interface ImageRef {
+  origin: string
+  path: string
+  /**
+   * Cache key, which the on-disk filename is hashed from.
+   *
+   * Wiki images keep the bare path they have always used. Qualifying every key
+   * with its host would have been tidier and would also have changed every
+   * hash, orphaning a cache of thousands of already-downloaded images to
+   * re-fetch one at a time. Other origins take an `@host/` prefix, which no
+   * MediaWiki path can begin with, so the two can never collide.
+   */
+  key: string
+}
+
+function decodeName(url: string): ImageRef | null {
   try {
-    const name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ''))
+    const parsed = new URL(url)
+    const origin = ORIGINS[parsed.host]
+    if (!origin) return null
+    const path = decodeURIComponent(parsed.pathname.replace(/^\//, ''))
     // No traversal, no NUL — this becomes part of a filesystem path.
-    if (!name || name.includes('..') || name.includes('\0')) return null
-    return name
+    if (!path || path.includes('..') || path.includes('\0')) return null
+    const key = parsed.host === 'img' ? path : `@${parsed.host}/${path}`
+    return { origin, path, key }
   } catch {
     return null
   }
@@ -110,29 +147,29 @@ function encodePath(name: string): string {
   return name.split('/').map(encodeURIComponent).join('/')
 }
 
-async function fetchImage(name: string): Promise<Buffer | null> {
-  const path = cachePath(name)
+async function fetchImage(ref: ImageRef): Promise<Buffer | null> {
+  const file = cachePath(ref.key)
 
   try {
-    return await readFile(path)
+    return await readFile(file)
   } catch {
     // Not cached; fall through and download.
   }
 
-  const existing = inFlight.get(name)
+  const existing = inFlight.get(ref.key)
   if (existing) return existing
 
-  const job = download(name, path).finally(() => inFlight.delete(name))
-  inFlight.set(name, job)
+  const job = download(ref, file).finally(() => inFlight.delete(ref.key))
+  inFlight.set(ref.key, job)
   return job
 }
 
-async function download(name: string, path: string): Promise<Buffer | null> {
+async function download(ref: ImageRef, file: string): Promise<Buffer | null> {
   await acquire()
   try {
     // Electron's `net` rather than global fetch: it goes through Chromium's
     // stack, so it picks up the system proxy and certificate store.
-    const res = await net.fetch(ORIGIN + encodePath(name), {
+    const res = await net.fetch(ref.origin + encodePath(ref.path), {
       headers: { 'User-Agent': userAgent() },
     })
     if (!res.ok) return null
@@ -140,15 +177,15 @@ async function download(name: string, path: string): Promise<Buffer | null> {
     const bytes = Buffer.from(await res.arrayBuffer())
     if (bytes.length === 0 || bytes.length > MAX_BYTES) return null
 
-    await mkdir(dirname(path), { recursive: true })
-    await writeFile(path, bytes)
+    await mkdir(dirname(file), { recursive: true })
+    await writeFile(file, bytes)
 
     db.get()
       .prepare(
         `INSERT INTO images (name, ext, fetched_at) VALUES (?, ?, ?)
          ON CONFLICT(name) DO UPDATE SET fetched_at = excluded.fetched_at`
       )
-      .run(name, extOf(name), Date.now())
+      .run(ref.key, extOf(ref.path), Date.now())
 
     return bytes
   } finally {

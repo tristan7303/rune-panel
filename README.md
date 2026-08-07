@@ -29,8 +29,12 @@ finishes.
 |---|---|
 | **Ctrl+Shift+Space** | Open or close, from anywhere |
 | **Ctrl+F** | Search the wiki |
+| **Ctrl+G** | Grand Exchange, ready to type |
 | **Esc** | Back a step, then close |
 | **Alt+←** / **Alt+→** | Back and forward |
+
+Opening puts the caret in a search box, so you can start typing straight away.
+All three shortcuts are configurable in settings.
 
 The rail on the left switches between the DPS calculator, prices, hiscores,
 calculators and RuneProfile. The mark at the top goes home; the sliders at the
@@ -44,9 +48,9 @@ The tray icon is the only way to quit.
 ## Updates
 
 Rune Panel checks for a new version shortly after launch and once a day after
-that. A strip appears at the top of the window when one exists — nothing
-downloads or installs until you click it, and it will never restart itself while
-you are using it.
+that, and there is a **Check now** button in settings. A strip appears at the top
+of the window when one exists — nothing downloads or installs until you click it,
+and it will never restart itself while you are using it.
 
 ## Where it keeps things
 

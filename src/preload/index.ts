@@ -18,6 +18,8 @@ import {
   type GeItem,
   type Hiscores,
   type GeItemDetail,
+  type MotionEvent,
+  type MotionMode,
   type GeTimestep,
   type PaneBounds,
   type ProfileSummary,
@@ -30,6 +32,19 @@ import {
   type TitleIndexState,
   type ToolId,
 } from '../shared/ipc'
+
+/**
+ * How main will animate the window, passed down as a launch argument by
+ * `window.ts` because the renderer needs the answer before its first paint.
+ *
+ * Only the value at launch. Later changes ride along on each motion event,
+ * which is the authoritative one — this exists solely so the very first frame
+ * knows whether to hold itself collapsed.
+ */
+const motionMode: MotionMode =
+  (process.argv
+    .find((a) => a.startsWith('--rp-motion='))
+    ?.slice('--rp-motion='.length) as MotionMode | undefined) ?? 'scale'
 
 function subscribe(channel: string, cb: () => void): () => void {
   const handler = (): void => cb()
@@ -51,6 +66,8 @@ const api: RunePanelApi = {
   hide: () => ipcRenderer.send(Send.Hide),
   log: (message: string) => ipcRenderer.send(Send.Log, message),
   quit: () => ipcRenderer.send(Send.Quit),
+  motionMode,
+  reportReduceMotion: (reduce: boolean) => ipcRenderer.send(Send.ReduceMotion, reduce),
 
   getSettings: (): Promise<Settings> => ipcRenderer.invoke(Invoke.GetSettings),
   setSettings: (patch: Partial<Settings>) => ipcRenderer.send(Send.SetSettings, patch),
@@ -92,6 +109,7 @@ const api: RunePanelApi = {
   onUpdateStatus: (cb) => subscribeWith<UpdateStatus>(On.UpdateStatus, cb),
 
   onShown: (cb) => subscribe(On.Shown, cb),
+  onMotion: (cb) => subscribeWith<MotionEvent>(On.Motion, cb),
   onSettings: (cb) => subscribeWith<Settings>(On.Settings, cb),
   onSyncProgress: (cb) => subscribeWith<SyncProgress>(On.SyncProgress, cb),
   onCrawlProgress: (cb) => subscribeWith<CrawlState>(On.CrawlProgress, cb),

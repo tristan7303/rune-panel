@@ -15,58 +15,8 @@ import type { SearchResult } from '@shared/ipc'
 import { useNav } from './nav'
 import { useStore } from './store'
 import { SearchIcon } from './icons'
-
-/**
- * A keybind written the way people write them — "Ctrl+F", "Alt+S" — turned into
- * something comparable against a KeyboardEvent.
- *
- * Deliberately forgiving about separators and case, and deliberately narrow
- * about what counts: a single character or a function key, with any of the
- * three usual modifiers. Anything it cannot parse yields null and the caller
- * falls back, so a mistyped setting loses the shortcut rather than the app.
- */
-interface Combo {
-  ctrl: boolean
-  alt: boolean
-  shift: boolean
-  key: string
-}
-
-function parseCombo(spec: string): Combo | null {
-  const parts = spec
-    .split(/[+\-\s]+/)
-    .map((p) => p.trim().toLowerCase())
-    .filter(Boolean)
-  if (parts.length === 0) return null
-
-  const combo: Combo = { ctrl: false, alt: false, shift: false, key: '' }
-  for (const part of parts) {
-    if (part === 'ctrl' || part === 'control' || part === 'cmd' || part === 'meta') combo.ctrl = true
-    else if (part === 'alt' || part === 'option') combo.alt = true
-    else if (part === 'shift') combo.shift = true
-    else combo.key = part
-  }
-  if (!combo.key || (combo.key.length > 1 && !/^f\d{1,2}$/.test(combo.key))) return null
-  return combo
-}
-
-function matches(combo: Combo, e: KeyboardEvent): boolean {
-  return (
-    combo.ctrl === (e.ctrlKey || e.metaKey) &&
-    combo.alt === e.altKey &&
-    combo.shift === e.shiftKey &&
-    e.key.toLowerCase() === combo.key
-  )
-}
-
-/** "Ctrl+F" -> "Ctrl F", for the hint chip. */
-function prettyCombo(spec: string): string {
-  return spec
-    .split(/[+\-\s]+/)
-    .filter(Boolean)
-    .map((p) => (p.length === 1 ? p.toUpperCase() : p[0].toUpperCase() + p.slice(1)))
-    .join(' ')
-}
+import { isProgrammatic, useSearchInput } from './focus'
+import { matches, parseCombo, prettyCombo } from './keys'
 
 export function HeaderSearch(): JSX.Element {
   const [query, setQuery] = useState('')
@@ -76,6 +26,10 @@ export function HeaderSearch(): JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const push = useNav((s) => s.push)
+
+  // Every route falls back to this box, so it is the one that gets focused when
+  // the panel opens on a page with nothing of its own to type into.
+  useSearchInput(inputRef)
 
   // Monotonic request id; only the newest reply paints. Search returns in about
   // 10ms but IPC replies can still land out of order.
@@ -188,7 +142,13 @@ export function HeaderSearch(): JSX.Element {
           autoComplete="off"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setOpen(true)}
+          // Only a deliberate click or Ctrl+F reopens the last results. When
+          // the panel simply reappeared and put the caret here, an old result
+          // list dropping over the page is noise. Typing brings it back — the
+          // search effect opens it as soon as there is something to show.
+          onFocus={() => {
+            if (!isProgrammatic()) setOpen(true)
+          }}
           onKeyDown={onKeyDown}
         />
         {!query && <kbd className="search-hint">{prettyCombo(searchKey)}</kbd>}

@@ -14,6 +14,8 @@ import { useState, type JSX } from 'react'
 import type { Hiscores as Data, HiscoreActivity, HiscoreSkill } from '@shared/ipc'
 import { shortNumber } from '@shared/xp'
 import { TrophyIcon, SearchIcon } from './icons'
+import { usePrimaryInput } from './focus'
+import { activityIcon, skillIcon } from './hiscoreIcons'
 
 const STORAGE_KEY = 'rp.hiscores'
 const MAX_SAVED = 10
@@ -32,6 +34,7 @@ export function Hiscores(): JSX.Element {
   const [saved, setSaved] = useState<string[]>(() => loadSaved())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const inputRef = usePrimaryInput()
 
   const look = async (name: string, as: 'primary' | 'compare'): Promise<void> => {
     const trimmed = name.trim()
@@ -79,6 +82,7 @@ export function Hiscores(): JSX.Element {
         <div className="search-field">
           <SearchIcon />
           <input
+            ref={inputRef}
             type="text"
             className="search-input"
             placeholder="Username"
@@ -200,7 +204,7 @@ function SkillTable({ primary, compare }: { primary: Data; compare: Data | null 
       <thead>
         <tr>
           <th>Skill</th>
-          <th className="hs-num">Level</th>
+          <th className="hs-level">Level</th>
           <th className="hs-num">XP</th>
           <th className="hs-num">Rank</th>
           <th className="hs-bar-head">To next</th>
@@ -225,11 +229,18 @@ function SkillRow({
   against: HiscoreSkill | null
 }): JSX.Element {
   const diff = against ? skill.level - against.level : 0
+  // 99 is the ceiling the hiscores report; anything past it lives in the
+  // virtual level. Marking the row is the same idea as the gold Exchange row on
+  // an item page — one figure on the page is the one you came to look at.
+  const maxed = skill.level >= 99
 
   return (
-    <tr>
-      <td className="hs-skill">{skill.name}</td>
-      <td className="hs-num">
+    <tr className={maxed ? 'is-maxed' : ''}>
+      <td className="hs-skill">
+        <img className="hs-skill-icon" src={skillIcon(skill.name)} alt="" draggable={false} />
+        {skill.name}
+      </td>
+      <td className="hs-level">
         {skill.level}
         {skill.progress.virtualLevel > skill.level && (
           <span className="hs-virtual" title="Virtual level past 99">
@@ -240,13 +251,19 @@ function SkillRow({
       </td>
       <td className="hs-num">{shortNumber(skill.xp)}</td>
       <td className="hs-num hs-rank">{skill.rank > 0 ? skill.rank.toLocaleString() : '—'}</td>
+      {/* The flex lives on a wrapper, not on the cell. A `display: flex` td
+          stops being a table-cell, so its bottom border no longer sits on the
+          row's baseline with the others — which is why this column's rule read
+          as a pixel out of line all the way down the table. */}
       <td className="hs-bar-cell">
-        <span className="hs-bar" title={`${Math.round(skill.progress.fraction * 100)}% to level`}>
-          <span className="hs-bar-fill" style={{ width: `${skill.progress.fraction * 100}%` }} />
-        </span>
-        <span className="hs-to-next">
-          {skill.progress.toNextLevel !== null ? shortNumber(skill.progress.toNextLevel) : 'max'}
-        </span>
+        <div className="hs-bar-wrap">
+          <span className="hs-bar" title={`${Math.round(skill.progress.fraction * 100)}% to level`}>
+            <span className="hs-bar-fill" style={{ width: `${skill.progress.fraction * 100}%` }} />
+          </span>
+          <span className="hs-to-next">
+            {skill.progress.toNextLevel !== null ? shortNumber(skill.progress.toNextLevel) : 'max'}
+          </span>
+        </div>
       </td>
       {against && <td className="hs-num">{against.level}</td>}
       {against && (
@@ -261,62 +278,156 @@ function SkillRow({
 /**
  * Kill counts, clues and everything else the hiscores track.
  *
- * The API returns all 91 rows whether or not the account has done them, with
- * -1 in both fields; only scored ones survive the fetch. They arrive in a fixed
- * order whose id ranges are the only grouping available — there is no category
- * field — so the boundaries below are read off that order rather than inferred
- * from names, which change.
+ * The API returns all 91 rows in a fixed order whose id ranges are the only
+ * grouping available — there is no category field — so the boundaries below are
+ * read off that order rather than inferred from names, which change.
  */
 const CLUE_IDS = { from: 7, to: 13 }
 const BOSS_FROM = 20
 
-function group(activities: HiscoreActivity[]): Array<{ title: string; rows: HiscoreActivity[] }> {
+function group(
+  activities: HiscoreActivity[]
+): Array<{ title: string; unit: string; rows: HiscoreActivity[] }> {
   const clues = activities.filter((a) => a.id >= CLUE_IDS.from && a.id <= CLUE_IDS.to)
-  const bosses = activities.filter((a) => a.id >= BOSS_FROM)
-  const other = activities.filter((a) => a.id < CLUE_IDS.from || (a.id > CLUE_IDS.to && a.id < BOSS_FROM))
+  // Alphabetical, so a boss can be found by name in a grid of pictures. The
+  // API's own order is roughly alphabetical already but not reliably —
+  // "Phosani's Nightmare" sits under "Nightmare", and the newest additions are
+  // wherever they were appended.
+  const bosses = activities
+    .filter((a) => a.id >= BOSS_FROM)
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const other = activities.filter(
+    (a) => a.id < CLUE_IDS.from || (a.id > CLUE_IDS.to && a.id < BOSS_FROM)
+  )
 
   return [
-    { title: 'Bosses', rows: bosses },
-    { title: 'Clue scrolls', rows: clues },
-    { title: 'Other', rows: other },
+    // Clues and the rest keep the API's order, which for clues is the
+    // difficulty ladder — alphabetising that would be actively worse.
+    //
+    // `unit` is what the number means, which a grid of bare figures cannot say
+    // for itself: the same column holds kill counts, completed clues and
+    // league points.
+    { title: 'Bosses', unit: 'kills', rows: bosses },
+    { title: 'Clue scrolls', unit: 'completed', rows: clues },
+    { title: 'Other', unit: 'score', rows: other },
   ].filter((g) => g.rows.length > 0)
 }
 
+/**
+ * A grid of artwork rather than a list of names.
+ *
+ * Seventy-one bosses as text is a wall nobody reads. As pictures it is
+ * scannable, and the absences carry as much information as the entries — an
+ * empty slot is a boss you have never killed, which a filtered list simply
+ * would not have shown you.
+ *
+ * Three across, filling left to right, so alphabetical order reads like a page.
+ */
 function Activities({ data }: { data: Data }): JSX.Element {
   const groups = group(data.activities)
-
-  if (groups.length === 0) {
-    return (
-      <aside className="hs-activities">
-        <p className="search-note">
-          Nothing tracked yet. Boss kills, clue scrolls and minigame scores appear here once the
-          hiscores record them.
-        </p>
-      </aside>
-    )
-  }
+  const [tip, setTip] = useState<Tip | null>(null)
 
   return (
-    <aside className="hs-activities">
+    <aside className="hs-activities" onMouseLeave={() => setTip(null)}>
       {groups.map((g) => (
         <section key={g.title}>
           <h2>{g.title}</h2>
-          <ul>
+          <div className="hs-grid">
             {g.rows.map((a) => (
-              <li key={a.id}>
-                <span className="hs-act-name" title={a.name}>
-                  {a.name}
-                </span>
-                <span className="hs-act-score">{a.score.toLocaleString()}</span>
-                <span className="hs-act-rank">
-                  {a.rank > 0 ? `#${a.rank.toLocaleString()}` : ''}
-                </span>
-              </li>
+              <ActivityCell key={a.id} activity={a} unit={g.unit} onHover={setTip} />
             ))}
-          </ul>
+          </div>
         </section>
       ))}
+      {tip && <ActivityTip tip={tip} />}
     </aside>
+  )
+}
+
+interface Tip {
+  activity: HiscoreActivity
+  unit: string
+  /** The cell's viewport rectangle, to anchor against. */
+  anchor: DOMRect
+}
+
+function ActivityCell({
+  activity,
+  unit,
+  onHover,
+}: {
+  activity: HiscoreActivity
+  unit: string
+  onHover: (tip: Tip | null) => void
+}): JSX.Element {
+  // The hiscores use -1 for both fields on anything the account has not done.
+  const done = activity.score > 0
+
+  return (
+    <div
+      className={`hs-cell ${done ? '' : 'is-empty'}`}
+      // No `title`. The native tooltip cannot be styled at all, waits half a
+      // second before appearing, and renders in the OS font over a grid where
+      // the label is the only way to know what you are looking at.
+      aria-label={activity.name}
+      onMouseEnter={(e) =>
+        onHover({ activity, unit, anchor: e.currentTarget.getBoundingClientRect() })
+      }
+      onMouseLeave={() => onHover(null)}
+    >
+      <img className="hs-cell-img" src={activityIcon(activity.name)} alt="" draggable={false} />
+      <span className="hs-cell-score">{done ? activity.score.toLocaleString() : '--'}</span>
+    </div>
+  )
+}
+
+/** How wide the tooltip is allowed to get. Also what the clamp below budgets for. */
+const TIP_WIDTH = 210
+const TIP_GAP = 8
+
+/**
+ * The hover card for one cell.
+ *
+ * Fixed rather than absolute, so it is not clipped by the scrolling content
+ * area — a cell in the last row would otherwise have its tooltip cut in half by
+ * the edge of the pane.
+ *
+ * Position is clamped rather than measured. The card has a fixed maximum width,
+ * so where it will land can be worked out before it is laid out, which avoids a
+ * measure-then-reposition pass that shows one frame in the wrong place.
+ */
+function ActivityTip({ tip }: { tip: Tip }): JSX.Element {
+  const { activity, unit, anchor } = tip
+  const done = activity.score > 0
+
+  // Left-aligned with the cell, pulled back if that would run off the right.
+  const left = Math.max(TIP_GAP, Math.min(anchor.left, window.innerWidth - TIP_WIDTH - TIP_GAP))
+  // Above, unless there is not room — the top rows of the grid sit near the
+  // title bar.
+  const below = anchor.top < 96
+  const top = below ? anchor.bottom + TIP_GAP : anchor.top - TIP_GAP
+
+  return (
+    <div
+      className="hs-tip"
+      role="tooltip"
+      style={{ left, top, transform: below ? undefined : 'translateY(-100%)' }}
+    >
+      <strong>{activity.name}</strong>
+      {done ? (
+        <>
+          <span className="hs-tip-score">
+            {activity.score.toLocaleString()} <em>{unit}</em>
+          </span>
+          <span className="hs-tip-rank">
+            {activity.rank > 0 ? `Rank ${activity.rank.toLocaleString()}` : 'Unranked'}
+          </span>
+        </>
+      ) : (
+        <span className="hs-tip-rank">None recorded</span>
+      )}
+    </div>
   )
 }
 

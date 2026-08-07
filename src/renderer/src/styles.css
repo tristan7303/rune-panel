@@ -121,6 +121,59 @@ body,
   cursor: auto;
 }
 
+/**
+ * The open and close animation — this half of it. See `motion.ts`.
+ *
+ * Main shrinks the real window rectangle, anchored at its bottom-right corner,
+ * and this scales `#root` to match so the content rides the frame down instead
+ * of reflowing inside it. The origin has to be the same corner main is
+ * anchoring to, or the content slides against the frame.
+ *
+ * Three things have to agree with `main/anim.ts`, and each one looks wrong in a
+ * different way when it does not:
+ *
+ *  - **The curve shape.** These are the standard cubics, matching the easing
+ *    functions main steps its rectangle with. An ease-in here against an
+ *    ease-out there does not read as a mistimed scale; the window outruns the
+ *    content and the panel appears to be *cropped* rather than shrunk.
+ *  - **The direction.** Out on the way in, in on the way out. Decelerating into
+ *    a close means slowing to a crawl immediately before the window blinks out
+ *    of existence, which puts the eye exactly where you least want it.
+ *  - **The duration, matched.** These were deliberately mismatched once, to
+ *    keep the content a shade larger than the window clipping it. That margin
+ *    grows with velocity, and at speed it was cropping the whole rail off the
+ *    left edge. The margin is now a flat few percent of scale (`MOTION.slack`,
+ *    applied to `--rp-collapsed`), which does not.
+ *
+ * `--rp-collapsed` differs per leg: an open starts at 0.85, a close ends near
+ * 0.7. `motion.ts` sets it, and parks it back at the opening value once the
+ * window is hidden.
+ *
+ * The opacity here is a light touch — the real fade is main ramping the whole
+ * window, acrylic included, to zero so that the moment it stops existing there
+ * is nothing left to see go. This one only lets the content recede a little
+ * ahead of its frame. Taking it further would double up with the window's own
+ * fade and empty the panel long before it finished leaving.
+ */
+#root {
+  transform-origin: 100% 100%;
+  transition: transform 150ms cubic-bezier(0.33, 1, 0.68, 1), opacity 110ms ease-out;
+}
+
+#root.is-collapsed {
+  transform: scale(var(--rp-collapsed, 0.85));
+  opacity: 0.55;
+  /* Smoothstep, the same shape main steps its rectangle with. */
+  transition: transform 210ms cubic-bezier(0.65, 0, 0.35, 1),
+    opacity 210ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* Setting the state rather than animating to it — the initial collapse, and
+   re-parking the scale between a close and the next open. */
+#root.is-instant {
+  transition: none;
+}
+
 /* The whole window: one panel, rounded to match the DWM corner radius. */
 .shell {
   height: 100%;
@@ -668,6 +721,20 @@ kbd {
   font-weight: 600;
 }
 
+.settings-group {
+  margin-bottom: 26px;
+}
+
+.settings-group h2 {
+  margin: 0;
+  padding-bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
 .field {
   display: flex;
   align-items: flex-start;
@@ -801,9 +868,15 @@ kbd {
   transform: translateX(16px);
 }
 
+/**
+ * Main's half of the open/close animation is switched off separately — it is a
+ * window rectangle, not a stylesheet, so it cannot see this. `motion.ts`
+ * reports the same preference over IPC and main matches it.
+ */
 @media (prefers-reduced-motion: reduce) {
   * {
     transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
   }
 }
 
@@ -1453,8 +1526,44 @@ kbd {
   background: var(--surface-hover);
 }
 
+/**
+ * The skill name, sized to its content.
+ *
+ * `width: 1%` is the table trick for "as narrow as the contents allow" — the
+ * browser cannot honour it, and resolves it by giving the column exactly what
+ * it needs. Without it this column soaked up every spare pixel in the table and
+ * left "Construction" sitting in a column wide enough for a sentence.
+ *
+ * The slack goes to the progress bar instead, which is the one thing here that
+ * can actually use it.
+ */
 .hs-skill {
+  width: 1%;
+  white-space: nowrap;
   font-weight: 500;
+}
+
+.hs-skill-icon {
+  width: 15px;
+  height: 15px;
+  margin-right: 7px;
+  object-fit: contain;
+  vertical-align: -3px;
+  image-rendering: crisp-edges;
+}
+
+/**
+ * Levels read left.
+ *
+ * Right-aligned they looked correct until a 99 picked up its virtual level and
+ * the cell became "99 (108)" — which pushed the number everyone actually reads
+ * away from the column edge, differently on every row.
+ */
+.hs-level {
+  width: 1%;
+  white-space: nowrap;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
 }
 
 .hs-num {
@@ -1467,6 +1576,35 @@ kbd {
   color: var(--text-dim);
 }
 
+/**
+ * A capped skill, marked the way the Exchange row on an item page is.
+ *
+ * Same three ingredients as `.infobox-row.is-price`: a gold rule down the
+ * leading edge, a ten-percent gold wash, and the number itself in gold. The
+ * wash has to go on the cells rather than the row — `tr` does not paint a
+ * background under `border-collapse: collapse`, so a rule set there is silently
+ * dropped and only the rule down the side survives.
+ */
+.hs-table tr.is-maxed td {
+  background: color-mix(in srgb, var(--accent-gold) 10%, transparent);
+}
+
+.hs-table tr.is-maxed td:first-child {
+  box-shadow: inset 2px 0 0 var(--accent-gold);
+}
+
+.hs-table tr.is-maxed .hs-level {
+  color: var(--accent-gold);
+  font-weight: 620;
+}
+
+/* Hover still has to read as hover on a row that is already tinted, so the two
+   stack rather than one replacing the other. */
+.hs-table tr.is-maxed:hover td {
+  background: linear-gradient(var(--surface-hover), var(--surface-hover)),
+    color-mix(in srgb, var(--accent-gold) 10%, transparent);
+}
+
 .hs-virtual {
   font-size: 11px;
   color: var(--text-faint);
@@ -1476,7 +1614,16 @@ kbd {
   width: 210px;
 }
 
-.hs-bar-cell {
+/**
+ * The "to next" cell stays a table cell.
+ *
+ * It used to carry `display: flex` directly, which stops an element being a
+ * `table-cell` at all. The row then treats it as an anonymous box laid out on
+ * its own terms, and its bottom border settles a pixel off the rule its
+ * neighbours draw — a hairline step down the whole column that reads as the
+ * table being subtly broken. The flex belongs on something inside it.
+ */
+.hs-bar-wrap {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -1537,9 +1684,11 @@ kbd {
  * and were not shown at all. `minmax(0, ...)` on both so a long boss name
  * cannot push the grid wider than the page.
  */
+/* The activities pane got wider when it became a three-across grid, and the
+   skill table gave up the room when its name column stopped stretching. */
 .hs-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
   gap: 18px;
   align-items: start;
 }
@@ -1589,49 +1738,124 @@ kbd {
   color: var(--text-faint);
 }
 
-.hs-activities ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.hs-activities li {
+/**
+ * Three across, filling left to right, so alphabetical order reads like a page.
+ *
+ * Fixed at three rather than auto-fitting: "three wide" is the layout, and an
+ * auto-fit grid would quietly become two or four with the window, moving every
+ * boss to a different place each time you resized.
+ */
+.hs-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 8px;
-  align-items: baseline;
-  padding: 3px 5px;
-  border-radius: 4px;
-  font-size: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
 }
 
-.hs-activities li:hover {
+.hs-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hs-cell:hover {
   background: var(--surface-hover);
 }
 
-.hs-act-name {
+/**
+ * Jagex's own hiscores icons, drawn at 19-20px and shown at that size.
+ *
+ * No `image-rendering: crisp-edges` here, unlike the skill icons beside them.
+ * These are anti-aliased artwork rather than the wiki's pixel art, and nearest
+ * neighbour on a slight upscale gives them a ragged edge the originals do not
+ * have. Sized to the source instead, so there is nothing to resample.
+ */
+.hs-cell-img {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.hs-cell-score {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 600;
+}
+
+/**
+ * Never killed.
+ *
+ * Dimmed rather than hidden: an empty slot is information — it is the boss you
+ * have not done — and it is only readable as such if it is still on the page.
+ */
+.hs-cell.is-empty {
+  opacity: 0.32;
+}
+
+.hs-cell.is-empty .hs-cell-score {
+  font-weight: 400;
   color: var(--text-dim);
 }
 
-.hs-act-score {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+/**
+ * The hover card, replacing the native tooltip.
+ *
+ * A grid of pictures needs a label on hover to be usable at all, which makes
+ * this load-bearing rather than decoration — and the OS tooltip it replaces is
+ * unstyleable, half a second slow, and rendered in a font from a different
+ * decade. `position: fixed` so the scrolling pane cannot clip it; the
+ * coordinates come from the cell's own rectangle in `Hiscores.tsx`.
+ */
+.hs-tip {
+  position: fixed;
+  z-index: 60;
+  width: max-content;
+  max-width: 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  pointer-events: none;
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 var(--rim-bright), 0 6px 18px rgba(0, 0, 0, 0.34);
+  font-size: 12px;
+  line-height: 1.35;
+  /* Backdrop-blurred rather than flat, so it reads as floating above the pane
+     the way the window itself floats above the desktop. */
+  backdrop-filter: blur(14px);
 }
 
-/* Rank is context, not the number you came for. */
-.hs-act-rank {
-  width: 62px;
-  text-align: right;
-  font-size: 10.5px;
+.hs-tip strong {
+  font-size: 12.5px;
+  font-weight: 620;
+}
+
+.hs-tip-score {
   font-variant-numeric: tabular-nums;
-  color: var(--text-faint);
+  font-weight: 600;
+  color: var(--accent-gold);
+}
+
+/* The unit rides with the number but is not part of it. */
+.hs-tip-score em {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.hs-tip-rank {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
 }
 
 /* ── First-run setup ────────────────────────────────────────────────── */

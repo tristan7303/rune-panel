@@ -22,6 +22,8 @@ import { Grand } from './Grand'
 import { Hiscores } from './Hiscores'
 import { Setup } from './Setup'
 import { UpdateBanner } from './UpdateBanner'
+import { focusPrimary } from './focus'
+import { onBind } from './keys'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
 import {
@@ -88,6 +90,39 @@ export function App(): JSX.Element {
   // Reopening keeps whatever was on screen. Resetting made sense when search
   // was a destination you had to navigate to; now that Ctrl+F reaches it from
   // anywhere, throwing away the article you were mid-way through is pure loss.
+  //
+  // What it does do is put the caret in a search box, on every route. Summoning
+  // the panel is nearly always the first half of "look something up", and the
+  // second half should not need a click. The cost is real and accepted: reopen
+  // on an article and Space scrolls nothing until you click into the page.
+  useEffect(() => window.rp.onShown(() => focusPrimary()), [])
+
+  // Arriving somewhere with a search box focuses it, for the same reason. Keyed
+  // on the kind rather than the whole route, so choosing a GE item does not
+  // yank the caret back out of the results you are reading.
+  const focusTarget = focusOnEnter(route)
+  useEffect(() => {
+    if (focusTarget) focusPrimary({ pageOnly: focusTarget === 'page-input' })
+  }, [focusTarget])
+
+  // Straight to the Grand Exchange, ready to type. Pressing it again once you
+  // are there focuses the box rather than doing nothing, so the same key gets
+  // you from anywhere to looking up a second item.
+  //
+  // Navigating there already focuses the box, via the effect above — but only
+  // when the route actually changes, which is precisely the case this has to
+  // handle itself. The route is read from the store rather than from `route`,
+  // so the listener is not torn down and rebuilt on every navigation.
+  const geKey = useStore((s) => s.settings?.geKey ?? 'Ctrl+G')
+  useEffect(
+    () =>
+      onBind(geKey, () => {
+        const { entries, index } = useNav.getState()
+        if (entries[index].kind === 'ge') focusPrimary()
+        else push({ kind: 'ge' })
+      }),
+    [geKey, push]
+  )
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -359,6 +394,34 @@ function Placeholder({ title, note }: { title: string; note: string }): JSX.Elem
       <p>{note}</p>
     </div>
   )
+}
+
+/**
+ * Whether arriving at a route should put the caret in a box, and which box.
+ *
+ * Returns a string rather than a boolean so the value can key an effect: it
+ * changes when you move between these routes and stays put when only a route's
+ * argument changes, which is what keeps choosing a GE item from stealing focus
+ * back to the search field.
+ *
+ * `page-input` means the route's own input or nothing — never the header wiki
+ * search. Used for the RuneProfile route, where "no input of its own" means the
+ * embedded pane is up and holding focus for a reason.
+ *
+ * Articles are absent deliberately. Following a link is reading, not searching,
+ * and the header box is one Ctrl+F away.
+ */
+function focusOnEnter(route: Route): string | null {
+  switch (route.kind) {
+    case 'home':
+    case 'hiscores':
+    case 'ge':
+      return route.kind
+    case 'tool':
+      return route.id === 'profile' ? 'page-input' : null
+    default:
+      return null
+  }
 }
 
 /** The rail highlights the family a route belongs to, not an exact match. */

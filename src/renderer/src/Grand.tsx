@@ -13,16 +13,19 @@ import { useStore } from './store'
 import { useNav } from './nav'
 import { PriceChart, SERIES, chartMode, fmt } from './PriceChart'
 import { CoinsIcon, SearchIcon } from './icons'
+import { usePrimaryInput } from './focus'
 
 export function Grand({ itemId }: { itemId?: number }): JSX.Element {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
+  const [selected, setSelected] = useState(0)
   const [detail, setDetail] = useState<GeItemDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [timestep, setTimestep] = useState<GeTimestep>('6h')
   const theme = useStore((s) => s.settings?.theme ?? 'dark')
   const replace = useNav((s) => s.replace)
+  const inputRef = usePrimaryInput()
 
   useEffect(() => {
     if (itemId === undefined) return
@@ -39,10 +42,13 @@ export function Grand({ itemId }: { itemId?: number }): JSX.Element {
   }, [itemId, timestep])
 
   useEffect(() => {
+    setSelected(0)
     if (query.trim().length < 2) return setResults([])
     let live = true
     void window.rp.search(query).then((hits) => {
-      if (live) setResults(hits.slice(0, 12))
+      if (!live) return
+      setResults(hits.slice(0, 12))
+      setSelected(0)
     })
     return () => {
       live = false
@@ -62,8 +68,6 @@ export function Grand({ itemId }: { itemId?: number }): JSX.Element {
     replace({ kind: 'ge', itemId: item.id })
   }
 
-  const showingItem = itemId !== undefined && (detail !== null || loading)
-
   // The search bar stays mounted above whatever is showing. Having to navigate
   // back to reach it made switching items feel like leaving the view and
   // returning to it, when it is really one continuous task.
@@ -73,17 +77,31 @@ export function Grand({ itemId }: { itemId?: number }): JSX.Element {
         <div className="search-field">
           <SearchIcon />
           <input
+            // Focus is driven from the route change rather than `autoFocus`,
+            // which fires on mount — and this remounts on every item, so it
+            // used to pull the caret back here each time you picked a result.
+            ref={inputRef}
             type="text"
             className="search-input"
             placeholder="Find an item…"
             spellCheck={false}
             autoComplete="off"
-            autoFocus={!showingItem}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            // Same keyboard contract as the wiki search in the header: arrows
+            // move the highlight, Enter takes it. Typing an item name and
+            // pressing Enter should never need a look at the screen.
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && results[0]) void open(results[0].title)
-              if (e.key === 'Escape' && query) {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setSelected((i) => Math.min(i + 1, results.length - 1))
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setSelected((i) => Math.max(i - 1, 0))
+              } else if (e.key === 'Enter' && results[selected]) {
+                e.preventDefault()
+                void open(results[selected].title)
+              } else if (e.key === 'Escape' && query) {
                 // Clear the query before the window-level handler closes the app.
                 e.stopPropagation()
                 setQuery('')
@@ -92,9 +110,19 @@ export function Grand({ itemId }: { itemId?: number }): JSX.Element {
           />
         </div>
         {results.length > 0 && (
-          <ul className="results ge-results">
-            {results.map((r) => (
-              <li key={r.title} className="result" onClick={() => void open(r.title)}>
+          <ul className="results ge-results" role="listbox">
+            {results.map((r, i) => (
+              <li
+                key={r.title}
+                role="option"
+                aria-selected={i === selected}
+                className={`result ${i === selected ? 'is-selected' : ''}`}
+                // The highlight follows the pointer, so mousing over a row and
+                // pressing Enter opens the row you are looking at rather than
+                // the one the keyboard last left behind.
+                onMouseEnter={() => setSelected(i)}
+                onClick={() => void open(r.title)}
+              >
                 <span className="result-title">{r.title}</span>
                 {r.matchedVia && <span className="result-alias">matched “{r.matchedVia}”</span>}
               </li>

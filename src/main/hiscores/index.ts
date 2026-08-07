@@ -138,9 +138,12 @@ async function fetchMode(name: string, mode: AccountMode): Promise<Hiscores> {
     mode,
     // Overall is a summary row, not a skill; it is surfaced separately.
     skills: skills.filter((s) => s.name.toLowerCase() !== 'overall'),
-    // Every activity is listed whether or not the account has done it, with
-    // -1 for both fields. Showing 90 empty rows helps nobody.
-    activities: (body.activities ?? []).filter((a) => a.score > 0),
+    // Every activity is listed whether or not the account has done it, with -1
+    // for both fields, and all of them are kept. That was a filter once, back
+    // when this rendered as a list where an empty row was only noise. As a grid
+    // of artwork the absences are the point — a boss you have never killed sits
+    // in its place with a dash, which is how you notice it is there at all.
+    activities: body.activities ?? [],
     totalLevel: overall?.level ?? 0,
     totalXp: overall?.xp ?? 0,
     overallRank: overall?.rank ?? -1,

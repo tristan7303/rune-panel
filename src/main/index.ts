@@ -28,6 +28,7 @@ import * as ge from './prices/ge'
 import * as hiscores from './hiscores'
 import * as setup from './setup'
 import * as updater from './updater'
+import * as anim from './anim'
 import type { PaneBounds, ToolId } from '../shared/ipc'
 
 /**
@@ -61,9 +62,12 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 function registerIpc(): void {
-  ipcMain.on(Send.Hide, hide)
+  ipcMain.on(Send.Hide, () => void hide())
   ipcMain.on(Send.Log, (_e, message: string) => console.log('[renderer]', message))
   ipcMain.on(Send.Quit, () => app.quit())
+  // Main owns half the open/close animation and cannot read a media query, so
+  // the renderer reports the preference and main turns its half off to match.
+  ipcMain.on(Send.ReduceMotion, (_e, reduce: boolean) => anim.setReducedMotion(reduce))
 
   ipcMain.handle(Invoke.GetSettings, () => settings.get())
   ipcMain.on(Send.SetSettings, (_e, patch) => settings.update(patch))
@@ -158,6 +162,14 @@ function main(): void {
       return
     }
 
+    // Before the window is created: the renderer is told at construction
+    // whether to expect an animation, so this cannot wait for the smoke branch
+    // further down. The suite asserts window state and on-screen geometry the
+    // instant show/hide returns, and an animation would only make it assert the
+    // easing curve.
+    if (process.env.SMOKE) anim.disable()
+    anim.setUserReducedMotion(initial.reduceMotion)
+
     const win = createWindow(initial)
     pane.attach(win)
     createTray(initial.hotkey)
@@ -173,6 +185,7 @@ function main(): void {
       registerHotkey(next.hotkey)
       setHotkey(next.hotkey)
       applySettings(next)
+      anim.setUserReducedMotion(next.reduceMotion)
       client.configure({ contact: next.contactEmail })
       // An open tool pane repaints in place rather than waiting for the next
       // navigation to pick the new theme up.

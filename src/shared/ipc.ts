@@ -24,6 +24,11 @@ export interface Settings {
    */
   searchKey: string
   /**
+   * Jumps to the Grand Exchange and focuses its item box — or just focuses it,
+   * if you are already there. In-app only, like `searchKey`.
+   */
+  geKey: string
+  /**
    * Keep the window above other windows while it is open. On by default: it is
    * meant to be read beside a game client.
    */
@@ -44,6 +49,14 @@ export interface Settings {
    * correct either way — acrylic is an accent, never load-bearing.
    */
   acrylic: boolean
+  /**
+   * Replace the open/close animation with a plain fade.
+   *
+   * Off by default. Independent of the OS `prefers-reduced-motion` setting,
+   * which forces the same thing — this is for people who simply want the panel
+   * to appear rather than arrive.
+   */
+  reduceMotion: boolean
   /** Last window bounds, restored on next launch. Null until first move/resize. */
   bounds: WindowBounds | null
 }
@@ -62,6 +75,107 @@ export const WINDOW = {
   minWidth: 900,
   minHeight: 600,
 } as const
+
+/**
+ * The open/close animation, shared because both processes animate half of it.
+ *
+ * Main walks the real window rectangle and its opacity; the renderer scales
+ * `#root` to match, so the content rides the frame instead of reflowing inside
+ * it. The renderer runs deliberately faster on the way in and slower on the way
+ * out, keeping its content fractionally larger than the window clipping it.
+ * See `main/anim.ts`.
+ */
+export const MOTION = {
+  /**
+   * Opening: grow from `enter` up to full, decelerating.
+   *
+   * A short travel is right here. The window arrives already recognisable and
+   * settles, which is what makes a summoned panel feel immediate rather than
+   * animated at you.
+   */
+  enter: 0.85,
+  enterDuration: 150,
+
+  /**
+   * Closing: shrink to `exit` on a smoothstep, fading out as it goes.
+   *
+   * These numbers are the answer to "why is the close jagged", and they are
+   * smaller than they look like they should be.
+   *
+   * The window is resized by the main process, one `setBounds` per timer tick,
+   * so the animation is genuinely stepped in a way a compositor transition is
+   * not. What the eye reads as jagged is simply the size of one step. An
+   * accelerating close to 28% put its largest steps at the very end — 258px of
+   * width in a single frame on a 1400px window, measured. A smoothstep to 70%
+   * peaks at 49px.
+   *
+   * Losing most of the travel costs nothing, because opacity is what actually
+   * makes the window disappear and it runs in parallel: by the time the window
+   * has faded to a tenth, the old curve had only shrunk it to 75% anyway. The
+   * rest of that 72% travel happened behind an invisible window. All it ever
+   * contributed was the jitter.
+   *
+   * Smoothstep rather than an ease-in for the same reason — it has the lowest
+   * peak velocity of the curves that still finish decisively. The instant
+   * feedback that an ease-in was there to provide comes from the fade instead,
+   * which starts moving on the first frame.
+   */
+  exit: 0.7,
+  exitDuration: 210,
+
+  /**
+   * How much larger than the window the renderer's content is asked to be.
+   *
+   * The window steps on a main-process timer and the content glides on a
+   * compositor transition — two clocks that cannot be held in sync to better
+   * than a frame. A frame of skew in one direction crops the content, which is
+   * invisible; in the other it opens a strip of bare desktop along the window
+   * edge, which very much is not. Scaling the content a few percent large makes
+   * the second impossible.
+   *
+   * Free at the end of a close, where the window is fully transparent by the
+   * time the difference is at its largest.
+   */
+  slack: 1.05,
+
+  /**
+   * The reduced-motion alternative: opacity only, no geometry at all.
+   *
+   * Short, because a fade has nothing to look at. Anything slower than this
+   * reads as the window struggling to appear.
+   */
+  fadeDuration: 90,
+
+  /**
+   * Requested step interval for the main-side rectangle walk.
+   *
+   * Eight, not sixteen, and not because anyone wants 120fps. Windows ticks its
+   * timers every 15.6ms, so `setTimeout(…, 16)` does not fire at 16ms — it
+   * misses the tick it was aiming for and lands on the next one at ~31ms, which
+   * is 32fps and visibly steppy. Asking for 8 lands on the very next tick.
+   * Measured: 31ms gaps at `frame: 16`, 15-16ms gaps at `frame: 8`.
+   */
+  frame: 8,
+} as const
+
+/**
+ * How the window comes and goes.
+ *
+ * `scale` is the real thing. `fade` is opacity only, for reduced motion —
+ * chosen over doing nothing because a fade is not motion, and something is
+ * easier to follow than an instant appearance. `none` is the smoke suite, which
+ * asserts window state and should not have to wait for a curve.
+ */
+export type MotionMode = 'scale' | 'fade' | 'none'
+
+export interface MotionEvent {
+  phase: 'open' | 'close'
+  /** Only `scale` asks anything of the renderer; the others are main's alone. */
+  mode: MotionMode
+  /** The full-size rectangle, so the renderer can freeze its layout at it. */
+  width: number
+  height: number
+}
 
 // ── Wiki title index ────────────────────────────────────────────────────────
 
@@ -89,6 +203,11 @@ export interface TitleIndexState {
 export const Send = {
   /** Close the window. Escape, or the close control. */
   Hide: 'window:hide',
+  /**
+   * The renderer reporting `prefers-reduced-motion`. Main cannot read a media
+   * query, and it owns half the open/close animation, so it has to be told.
+   */
+  ReduceMotion: 'window:reduce-motion',
   Log: 'app:log',
   Quit: 'app:quit',
   /** Persist a settings change. */
@@ -290,7 +409,10 @@ export type UpdateState =
 
 export interface UpdateStatus {
   state: UpdateState
+  /** The version being offered, downloaded or installed. Null when there is none. */
   version: string | null
+  /** The version running right now. Constant for the session. */
+  currentVersion: string
   /** Download percentage, 0-100. */
   progress: number
   message?: string
@@ -348,6 +470,11 @@ export const On = {
    * deliberately does not decide what "opening" means beyond showing pixels.
    */
   Shown: 'window:shown',
+  /**
+   * Run the renderer's half of the open/close animation. Sent immediately
+   * before main starts walking the window rectangle, so the two move together.
+   */
+  Motion: 'window:motion',
   /** Settings changed. */
   Settings: 'settings:changed',
   /** One step of a title-index sync. */
@@ -363,6 +490,13 @@ export interface RunePanelApi {
   hide(): void
   log(message: string): void
   quit(): void
+  /**
+   * How main animated the window at launch. Not a live value — later changes
+   * arrive on each motion event. See `preload/index.ts`.
+   */
+  motionMode: MotionMode
+  /** Tell main whether the OS has asked for reduced motion. */
+  reportReduceMotion(reduce: boolean): void
 
   getSettings(): Promise<Settings>
   setSettings(patch: Partial<Settings>): void
@@ -398,6 +532,7 @@ export interface RunePanelApi {
   onUpdateStatus(cb: (status: UpdateStatus) => void): () => void
 
   onShown(cb: () => void): () => void
+  onMotion(cb: (event: MotionEvent) => void): () => void
   onSettings(cb: (settings: Settings) => void): () => void
   onSyncProgress(cb: (progress: SyncProgress) => void): () => void
   onCrawlProgress(cb: (state: CrawlState) => void): () => void

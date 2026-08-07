@@ -14,6 +14,7 @@ import { useEffect, useState, type JSX } from 'react'
 import type { ProfileSummary } from '@shared/ipc'
 import { ToolPane } from './ToolPane'
 import { UserIcon } from './icons'
+import { usePrimaryInput } from './focus'
 
 const STORAGE_KEY = 'rp.profiles'
 const MAX_SAVED = 8
@@ -24,6 +25,7 @@ export function Profile(): JSX.Element {
   const [viewing, setViewing] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const inputRef = usePrimaryInput()
 
   useEffect(() => {
     if (viewing) setError(null)
@@ -100,6 +102,10 @@ export function Profile(): JSX.Element {
         }}
       >
         <input
+          // Registered only while the search view is up. Once the pane is
+          // showing a profile there is nothing here to focus, which is what
+          // stops the route change from pulling focus off the pane.
+          ref={inputRef}
           type="text"
           className="profile-input"
           placeholder="Username"

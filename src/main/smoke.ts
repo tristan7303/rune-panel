@@ -19,7 +19,8 @@ import { app, globalShortcut, shell, Tray } from 'electron'
 import { writeFileSync, writeSync } from 'fs'
 import { join } from 'path'
 import { getWindow, show, hide } from './window'
-import type { Settings } from '../shared/ipc'
+import * as anim from './anim'
+import { MOTION, WINDOW, type Settings } from '../shared/ipc'
 import * as db from './db'
 import * as client from './wiki/client'
 import * as titles from './wiki/titles'
@@ -80,6 +81,7 @@ export async function runSmoke(initial: Settings): Promise<void> {
         await checkToolPane(win)
       }
       await checkShowHide(win)
+      await checkAutoFocus(win)
 
       if (process.env.SMOKE_SHOT) await screenshot(win)
     } catch (err) {
@@ -526,6 +528,29 @@ async function checkImageProtocol(wc: Electron.WebContents, html: string): Promi
   `)
 
   check('rpimg: serves cached images', String(result).startsWith('ok:'), `${match[0]} -> ${result}`)
+
+  const load = (url: string): Promise<string> =>
+    wc.executeJavaScript(`
+      new Promise((resolve) => {
+        const img = new Image()
+        const timer = setTimeout(() => resolve('timeout'), 8000)
+        img.onload = () => { clearTimeout(timer); resolve('ok:' + img.naturalWidth + 'x' + img.naturalHeight) }
+        img.onerror = () => { clearTimeout(timer); resolve('error') }
+        img.src = ${JSON.stringify('URL')}.replace('URL', ${JSON.stringify(url)})
+      })
+    `)
+
+  // The second origin. The host selects where an image comes from, so this is
+  // the same protocol reaching a different CDN — and the boss grid is blank
+  // without it.
+  const boss = await load('rpimg://hs/game_icon_abyssalsire.png')
+  check('rpimg: serves hiscores icons from the second origin', boss.startsWith('ok:'), boss)
+
+  // And only from origins on the list. This handler fetches from the network on
+  // the renderer's behalf; one that honoured any host would be an open proxy
+  // wrapped around the sandbox.
+  const stranger = await load('rpimg://evil.example.com/x.png')
+  check('rpimg: refuses an origin that is not allow-listed', stranger === 'error', stranger)
 }
 
 /**
@@ -874,6 +899,50 @@ async function checkHiscores(wc: Electron.WebContents): Promise<void> {
   // unreachable level.
   const maxed = h.skills?.find((s) => s.level === 99)
   check('hiscores: a maxed skill reads as complete', maxed?.progress.fraction === 1, String(maxed?.progress.fraction))
+
+  await checkActivityGrid(wc)
+}
+
+/**
+ * The activity grid, including the entries an account has *not* done.
+ *
+ * Those used to be filtered out in main, and the grid is the reason they are
+ * not: a boss with no kills is a slot with a dash in it, which is information a
+ * list of only-what-you-have-done cannot convey.
+ *
+ * Two accounts, at opposite ends, because either alone proves half of it. A
+ * build that dropped the empties would still look right for the one with a full
+ * grid; a build that lost the scores would still look right for the empty one.
+ *
+ * Not Lynx Titan for the full end, despite being this suite's usual reference —
+ * maxed every skill and killed almost nothing, so 70 of the 71 are empty.
+ */
+async function checkActivityGrid(wc: Electron.WebContents): Promise<void> {
+  const counts = async (player: string): Promise<{ bosses: number; empty: number }> => {
+    const raw = await wc.executeJavaScript(
+      `window.rp.hiscores(${JSON.stringify(player)}).then(h => JSON.stringify(h.activities)).catch(() => 'null')`
+    )
+    const acts = JSON.parse(raw) as Array<{ id: number; score: number }> | null
+    if (!acts) return { bosses: 0, empty: 0 }
+    const bosses = acts.filter((a) => a.id >= 20)
+    return { bosses: bosses.length, empty: bosses.filter((a) => a.score <= 0).length }
+  }
+
+  // Zezima predates almost every boss in the game, so nearly the whole grid is
+  // empty — the case that used to render as nothing at all.
+  const sparse = await counts('Zezima')
+  check(
+    'hiscores: unattempted bosses survive the fetch',
+    sparse.bosses > 50 && sparse.empty > 40,
+    `${sparse.empty} empty of ${sparse.bosses}`
+  )
+
+  const complete = await counts('Framed')
+  check(
+    'hiscores: a full account fills the same grid',
+    complete.bosses === sparse.bosses && complete.empty === 0,
+    `${complete.bosses} bosses, ${complete.empty} empty`
+  )
 }
 
 /** RuneProfile lookup, against the live API. */
@@ -999,11 +1068,24 @@ async function checkShowHide(win: Electron.BrowserWindow): Promise<void> {
 
   show()
   check('show() makes the window visible', win.isVisible())
-  check('shown window is pinned on top', win.isAlwaysOnTop())
+  // Against the setting, not against the default. `alwaysOnTop` is a user
+  // choice and the suite runs on a real profile, so asserting the default
+  // failed for anyone who had turned it off — which says nothing about show().
+  const pinned = settingsModule.get().alwaysOnTop
+  check(
+    `shown window ${pinned ? 'is pinned on top' : 'is not pinned, per settings'}`,
+    win.isAlwaysOnTop() === pinned
+  )
   check(
     'renderer received the shown event',
     (await win.webContents.executeJavaScript('window.__shown')) === true
   )
+
+  // The rectangle a hide/show cycle has to give back untouched. The open and
+  // close animation walks it down to 85% and the persistence debounce is
+  // watching every frame of that, so getting this wrong writes a shrunken
+  // window to settings and it never grows back.
+  const before = win.getBounds()
 
   await win.webContents.executeJavaScript('window.rp.hide()')
   await settle()
@@ -1013,6 +1095,228 @@ async function checkShowHide(win: Electron.BrowserWindow): Promise<void> {
   // Restore a visible window so SMOKE_SHOT captures something.
   show()
   await settle()
+
+  const after = win.getBounds()
+  check(
+    'a hide/show cycle gives the rectangle back',
+    after.x === before.x &&
+      after.y === before.y &&
+      after.width === before.width &&
+      after.height === before.height,
+    `${before.width}x${before.height} at ${before.x},${before.y} -> ${after.width}x${after.height} at ${after.x},${after.y}`
+  )
+
+  // The debounce is 400ms and the animation is 150ms, so a frame that slipped
+  // through would land after the checks above. Wait it out.
+  await settle(600)
+  const saved = settingsModule.get().bounds
+  check(
+    'no intermediate rectangle reaches settings',
+    saved === null || (saved.width === before.width && saved.height === before.height),
+    saved ? `${saved.width}x${saved.height}` : 'never saved'
+  )
+
+  check(
+    'a shown window is fully opaque',
+    win.getOpacity() === 1,
+    String(win.getOpacity())
+  )
+
+  checkCollapsedRect(win, before)
+}
+
+/**
+ * The caret lands in the right box.
+ *
+ * Two triggers, and both are asserted because they are wired separately:
+ * arriving at a route, and the window being shown while already there. The
+ * second is the one that cannot be tested by hand without a stopwatch — it is
+ * driven by an IPC event, so a missing subscription looks exactly like a slow
+ * machine.
+ *
+ * Routes are pushed through the app's own store rather than by clicking the
+ * rail, for the same reason nothing here sends synthetic keystrokes: input
+ * automation goes to whatever window happens to be focused, which is not
+ * reliably this one.
+ */
+async function checkAutoFocus(win: Electron.BrowserWindow): Promise<void> {
+  const active = (): Promise<string> =>
+    win.webContents.executeJavaScript(
+      `(() => { const el = document.activeElement
+                return el && el.tagName === 'INPUT' ? (el.placeholder || 'unlabelled input') : (el ? el.tagName : 'nothing') })()`
+    )
+
+  const cases: Array<{ route: string; expect: string; what: string }> = [
+    { route: `{ kind: 'home' }`, expect: 'Search the OSRS Wiki', what: 'home' },
+    { route: `{ kind: 'hiscores' }`, expect: 'Username', what: 'hiscores' },
+    { route: `{ kind: 'ge' }`, expect: 'Find an item', what: 'grand exchange' },
+    { route: `{ kind: 'tool', id: 'profile' }`, expect: 'Username', what: 'runeprofile' },
+  ]
+
+  for (const { route, expect, what } of cases) {
+    await win.webContents.executeJavaScript(
+      `window.__rpNav.getState().push(${route}); true`
+    )
+    await settle(120)
+    const onEnter = await active()
+    check(`focus: arriving at ${what} focuses its box`, onEnter.startsWith(expect), onEnter)
+
+    // Blur, then re-show. Without the blur a pass could just be the focus the
+    // route change already left behind.
+    await win.webContents.executeJavaScript('document.activeElement?.blur(); true')
+    show()
+    await settle(120)
+    const onShow = await active()
+    check(`focus: reopening on ${what} focuses its box`, onShow.startsWith(expect), onShow)
+  }
+
+  // Ctrl+G, dispatched as a real keydown on the window rather than through the
+  // OS. Both halves matter and they are wired separately: it navigates from
+  // elsewhere, and focuses without navigating once you are already there.
+  const pressGe = (): Promise<void> =>
+    win.webContents.executeJavaScript(
+      `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', ctrlKey: true, bubbles: true })); true`
+    )
+
+  await win.webContents.executeJavaScript(
+    `window.__rpNav.getState().push({ kind: 'home' }); true`
+  )
+  await settle(120)
+  await pressGe()
+  await settle(150)
+  const routed = await win.webContents.executeJavaScript(
+    `(() => { const s = window.__rpNav.getState(); return s.entries[s.index].kind })()`
+  )
+  check('Ctrl+G routes to the Grand Exchange', routed === 'ge', String(routed))
+  check('Ctrl+G leaves the item box focused', (await active()).startsWith('Find an item'), '')
+
+  await win.webContents.executeJavaScript('document.activeElement?.blur(); true')
+  await pressGe()
+  await settle(120)
+  const refocused = await active()
+  check(
+    'Ctrl+G refocuses without renavigating when already there',
+    refocused.startsWith('Find an item'),
+    refocused
+  )
+
+  // The one route that deliberately does not take focus for itself. Reopening
+  // still does — that is issue #1 — but it lands in the header wiki search
+  // rather than in anything the article owns.
+  await win.webContents.executeJavaScript(
+    `window.__rpNav.getState().push({ kind: 'settings' }); true`
+  )
+  await settle(120)
+  const onSettings = await active()
+  check(
+    'focus: arriving at settings takes no focus',
+    !onSettings.startsWith('Username') && !onSettings.startsWith('Find an item'),
+    onSettings
+  )
+}
+
+/**
+ * Roughly where a stepped resize starts reading as a jump rather than motion.
+ * Judged by eye, then held by the check.
+ */
+const MAX_STEP_PX = 120
+
+/**
+ * A large but real panel width to judge against.
+ *
+ * Not the width of a 4K display: the check is about how this actually gets
+ * used, and nobody drags a reference panel to 3840. The number for that width
+ * is reported anyway, because it is the same animation and it does step
+ * further there.
+ */
+const WIDE_WINDOW_PX = 2560
+
+/**
+ * The largest single-frame width change the close will make, in pixels.
+ *
+ * Stepped at the interval the timer *achieves*, not the one it asks for.
+ * `MOTION.frame` is 8ms precisely because Windows rounds it up to its own
+ * 15.6ms tick — simulating the request rather than the tick would report half
+ * the real jump and quietly pass a close that stutters.
+ *
+ * Walks the curve rather than differentiating it, so it stays honest if the
+ * easing changes.
+ */
+const WINDOWS_TICK_MS = 15.6
+
+function peakStepPx(windowWidth: number): number {
+  const travel = windowWidth * (1 - MOTION.exit)
+  let peak = 0
+  let previous = 0
+  for (let elapsed = WINDOWS_TICK_MS; ; elapsed += WINDOWS_TICK_MS) {
+    const t = Math.min(1, elapsed / MOTION.exitDuration)
+    const moved = anim.smoothstep(t) * travel
+    peak = Math.max(peak, moved - previous)
+    previous = moved
+    if (t >= 1) return peak
+  }
+}
+
+/**
+ * The rectangle the window shrinks to on the way out.
+ */
+function checkCollapsedRect(win: Electron.BrowserWindow, full: Electron.Rectangle): void {
+  const exit = anim.collapsedRect(full, MOTION.exit)
+  const enter = anim.enterRect(full)
+
+  // What makes both legs read as being pulled toward the tray rather than
+  // folding up into their own top-left corner.
+  for (const [name, r] of [
+    ['closing', exit],
+    ['opening', enter],
+  ] as const) {
+    check(
+      `the ${name} rectangle pins the bottom-right corner`,
+      r.x + r.width === full.x + full.width && r.y + r.height === full.y + full.height,
+      `${r.width}x${r.height} at ${r.x},${r.y}`
+    )
+  }
+
+  // What "jagged" measures out as.
+  //
+  // The window is resized by a main-process timer, so the animation really is
+  // stepped and the largest single step is what the eye picks up. Simulated on
+  // a large display rather than on this window, because the failure is worst
+  // where the travel is longest — and a laptop-sized window passing does not
+  // mean a 4K one will.
+  //
+  // The number that motivated this check: an accelerating close to 28% peaked
+  // at 258px per frame on a 1400px window.
+  check(
+    'the close never steps more than a readable jump',
+    peakStepPx(WIDE_WINDOW_PX) <= MAX_STEP_PX,
+    `${peakStepPx(full.width).toFixed(0)}px at ${full.width} wide, ` +
+      `${peakStepPx(WIDE_WINDOW_PX).toFixed(0)}px at ${WIDE_WINDOW_PX}, ` +
+      `${peakStepPx(3840).toFixed(0)}px at 3840`
+  )
+
+  // Why the animation lifts the minimum size for its duration. Asserted at the
+  // minimum rather than at whatever size this window happens to be, because
+  // that is the case where the clamp bites — a large window can collapse and
+  // still be above the floor, and then this proves nothing.
+  const fromMinimum = anim.collapsedRect(
+    { x: 0, y: 0, width: WINDOW.minWidth, height: WINDOW.minHeight },
+    MOTION.exit
+  )
+  check(
+    'collapsing from the minimum size would hit the clamp',
+    fromMinimum.width < WINDOW.minWidth && fromMinimum.height < WINDOW.minHeight,
+    `${fromMinimum.width}x${fromMinimum.height} vs min ${WINDOW.minWidth}x${WINDOW.minHeight}`
+  )
+
+  // And that the lift is temporary. A window left resizable down to a pixel is
+  // a quieter bug than a broken animation and a longer-lived one.
+  const [minW, minH] = win.getMinimumSize()
+  check(
+    'the minimum size is restored after the animation',
+    minW === WINDOW.minWidth && minH === WINDOW.minHeight,
+    `${minW}x${minH}`
+  )
 }
 
 /**
@@ -1072,7 +1376,34 @@ async function screenshot(win: Electron.BrowserWindow): Promise<void> {
       })()
     `)
     await settle(4000)
+    // With a tooltip up, since it only exists on hover and is otherwise
+    // impossible to eyeball.
+    await win.webContents.executeJavaScript(`
+      (() => {
+        const cell = document.querySelectorAll('.hs-grid .hs-cell')[7]
+        cell?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+        cell?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }))
+        return true
+      })()
+    `)
+    await settle(300)
     await shoot('smoke-hiscores.png')
+
+    // And an account with holes in it, because the full grid never shows what
+    // an empty slot looks like. Zezima predates almost every boss in the game.
+    await win.webContents.executeJavaScript(`
+      (async () => {
+        const i = document.querySelector('.hs-form input')
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+        setter.call(i, 'Zezima')
+        i.dispatchEvent(new Event('input', { bubbles: true }))
+        await new Promise((r) => setTimeout(r, 80))
+        document.querySelector('.hs-form button[type=submit]').click()
+      })()
+    `)
+    await settle(3000)
+    await shoot('smoke-hiscores-sparse.png')
+
     await win.webContents.executeJavaScript(`window.__rpNav.getState().reset(); true`)
     await settle(300)
   }
@@ -1234,7 +1565,9 @@ function report(): void {
     /* out/ missing means the build did not run; the exit code still reports */
   }
 
-  hide()
+  // Not awaited: `app.exit` is next and the window is going away either way.
+  // Under SMOKE the animation is off, so there is nothing to cut short.
+  void hide()
   app.exit(failed === 0 ? 0 : 1)
 }
 

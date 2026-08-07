@@ -19,10 +19,12 @@ export const DEFAULTS: Settings = {
   // to say so. Nothing else on this machine should claim this one.
   hotkey: 'Control+Shift+Space',
   searchKey: 'Ctrl+F',
+  geKey: 'Ctrl+G',
   alwaysOnTop: true,
   hideOnBlur: false,
   contactEmail: '',
   acrylic: true,
+  reduceMotion: false,
   bounds: null,
 }
 
@@ -69,16 +71,26 @@ function sanitize(s: Settings): Settings {
   return {
     theme: s.theme === 'light' || s.theme === 'parchment' ? s.theme : 'dark',
     hotkey: typeof s.hotkey === 'string' && s.hotkey.trim() ? s.hotkey.trim() : DEFAULTS.hotkey,
-    searchKey:
-      typeof s.searchKey === 'string' && s.searchKey.trim()
-        ? s.searchKey.trim().slice(0, 40)
-        : DEFAULTS.searchKey,
+    searchKey: bind(s.searchKey, DEFAULTS.searchKey),
+    geKey: bind(s.geKey, DEFAULTS.geKey),
     alwaysOnTop: s.alwaysOnTop !== false,
     hideOnBlur: Boolean(s.hideOnBlur),
     contactEmail: typeof s.contactEmail === 'string' ? s.contactEmail.trim().slice(0, 200) : '',
     acrylic: Boolean(s.acrylic),
+    reduceMotion: Boolean(s.reduceMotion),
     bounds: sanitizeBounds(s.bounds),
   }
+}
+
+/**
+ * An in-app keybind string.
+ *
+ * Length-capped rather than parsed: the renderer is the only thing that reads
+ * these and it already treats anything it cannot understand as "no shortcut".
+ * Validating the syntax in two places invites the two from disagreeing.
+ */
+function bind(value: string, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, 40) : fallback
 }
 
 function sanitizeBounds(b: WindowBounds | null): WindowBounds | null {

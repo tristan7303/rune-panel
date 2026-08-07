@@ -22,7 +22,12 @@ const FIRST_CHECK_DELAY_MS = 20_000
 /** And once a day after that, for a session left running. */
 const RECHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
 
-let status: UpdateStatus = { state: 'idle', version: null, progress: 0 }
+let status: UpdateStatus = {
+  state: 'idle',
+  version: null,
+  currentVersion: app.getVersion(),
+  progress: 0,
+}
 type Listener = (status: UpdateStatus) => void
 const listeners = new Set<Listener>()
 
