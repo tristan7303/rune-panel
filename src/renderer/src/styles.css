@@ -626,15 +626,38 @@ kbd {
    RuneProfile, whose pane is meaningless without a username, GE Tracker's front
    page is worth landing on, so the pane loads immediately and the box is a way
    to jump rather than a gate. */
-.ge-tracker-form {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.ge-tracker-search {
+  position: relative;
   flex: 1;
   min-width: 0;
   /* Capped so the box does not stretch across a 1400px window and leave the
      item name it found stranded at the far right. */
-  max-width: 460px;
+  max-width: 420px;
+}
+
+/**
+ * The suggestions, floating over the pane's rectangle.
+ *
+ * Absolute rather than in flow: in flow it would push the pane down on every
+ * keystroke, and the pane is a `WebContentsView` whose whole page relayouts
+ * when its bounds change. It is drawn *beside* the pane instead — the component
+ * registers this list as an overlay so the pane shrinks clear of it, which is
+ * what makes it visible at all, since a WebContentsView composites above the
+ * DOM and nothing can be layered on top of it.
+ */
+.ge-tracker-results {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 320px;
+  margin: 0;
+  padding: 4px;
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 34%);
 }
 
 /* Deliberately empty. The WebContentsView composites above the DOM and covers
