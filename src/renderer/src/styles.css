@@ -1335,11 +1335,17 @@ kbd {
   box-shadow: 0 0 0 1px var(--accent-a);
 }
 
-/* The interface scale: two nudge buttons flanking a number you can type.
+/* The interface scale: two nudge buttons with the current percent between
+ * them.
  *
  * Sized to the same 220px the text fields use, so the settings column stays a
- * single edge rather than three. The number takes the slack between the two
- * buttons, which keeps the row stable whether it reads 50 or 200.
+ * single edge rather than three.
+ *
+ * The box has to out-specify `.settings input[type='text']` above, which is
+ * where the first version of this came apart — that rule sets a 220px width, a
+ * border, a background and a focus glow, all of which it won on specificity, so
+ * a whole text field was rendering inside the stepper's own frame. The frame
+ * belongs to the group here; the input inside it is only the text.
  */
 .settings-stepper {
   display: flex;
@@ -1350,12 +1356,18 @@ kbd {
   background: var(--surface-sunken);
   border: 1px solid var(--rim);
   border-radius: 7px;
+  transition: border-color var(--duration) ease, box-shadow var(--duration) ease;
+}
+
+.settings-stepper:focus-within {
+  border-color: transparent;
+  box-shadow: 0 0 0 1px var(--accent-a), 0 0 14px rgba(140, 110, 255, 0.22);
 }
 
 .settings-nudge {
-  flex: 0 0 38px;
+  flex: 0 0 40px;
   font: inherit;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1;
   color: var(--text-dim);
   background: none;
@@ -1374,35 +1386,21 @@ kbd {
   cursor: default;
 }
 
-/* The box and its unit read as one field, so the caret sits where the number
-   ends rather than at the far right of an input the % is floating over. */
-.settings-amount {
-  display: flex;
+.settings .settings-stepper input[type='text'] {
   flex: 1;
-  gap: 1px;
-  align-items: center;
-  justify-content: center;
-  border-right: 1px solid var(--rim);
-  border-left: 1px solid var(--rim);
-}
-
-.settings-amount input {
-  width: 3.5ch;
+  width: auto;
   padding: 0;
-  font: inherit;
-  font-size: 12.5px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
-  color: var(--text);
-  text-align: right;
+  text-align: center;
   background: none;
   border: 0;
-  outline: none;
+  border-right: 1px solid var(--rim);
+  border-left: 1px solid var(--rim);
+  border-radius: 0;
+  box-shadow: none;
 }
 
-.settings-unit {
-  font-size: 12.5px;
-  color: var(--text-dim);
-}
 
 
 /* A field whose control is an input and a button rather than one of either.

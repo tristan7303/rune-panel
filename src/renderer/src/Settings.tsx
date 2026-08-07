@@ -6,7 +6,13 @@
  */
 
 import { useEffect, useState, type JSX } from 'react'
-import type { AccountMode, CrawlState, TitleIndexState, UpdateStatus } from '@shared/ipc'
+import type {
+  AccountMode,
+  CrawlState,
+  ScaleDirection,
+  TitleIndexState,
+  UpdateStatus,
+} from '@shared/ipc'
 import { useStore } from './store'
 import { usePlayer } from './player'
 
@@ -229,7 +235,6 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 }
 
 /** Offered interface scales. Clamped to the same range in main's `sanitize`. */
-const SCALE_STEP = 0.05
 const SCALE_MIN = 0.5
 const SCALE_MAX = 2
 
@@ -258,16 +263,26 @@ function ScaleStepper({
   const percent = Math.round(value * 100)
 
   const commit = (): void => {
-    const typed = Number.parseInt(draft ?? '', 10)
+    // Digits only: the box shows its own unit, so what comes back is usually
+    // "125%" — and there is no reading of a stray character that beats
+    // ignoring it.
+    const typed = Number.parseInt((draft ?? '').replace(/[^0-9]/g, ''), 10)
     // Clamping is main's job, on the way in. Anything unreadable simply
     // reverts, which is what dropping the draft does.
     if (Number.isFinite(typed)) onChange(typed / 100)
     setDraft(null)
   }
 
-  const nudge = (direction: 1 | -1): void => {
+  /**
+   * The buttons ask main to step, rather than sending a value they worked out
+   * themselves. `value` is a mirror of main's setting and only updates when the
+   * broadcast comes back, so two quick presses both computed from the same
+   * number and the second one undid the first — one press lost out of every
+   * pair. Main holds the scale and adds to it, so every press counts.
+   */
+  const nudge = (direction: ScaleDirection): void => {
     setDraft(null)
-    onChange(value + direction * SCALE_STEP)
+    window.rp.bumpScale(direction)
   }
 
   return (
@@ -277,37 +292,38 @@ function ScaleStepper({
         className="settings-nudge"
         aria-label="Smaller"
         disabled={value <= SCALE_MIN}
-        onClick={() => nudge(-1)}
+        onClick={() => nudge('out')}
       >
         −
       </button>
-      <span className="settings-amount">
-        <input
-          type="text"
-          inputMode="numeric"
-          aria-label="Interface size, percent"
-          value={draft ?? String(percent)}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commit()
-            if (e.key === 'Escape') setDraft(null)
-          }}
-        />
-        <span className="settings-unit">%</span>
-      </span>
+      <input
+        type="text"
+        inputMode="numeric"
+        aria-label="Interface size"
+        value={draft ?? `${percent}%`}
+        onChange={(e) => setDraft(e.target.value)}
+        // Selected on focus because the box is showing "100%", not "100" —
+        // without this you would be typing into the middle of a unit.
+        onFocus={(e) => e.target.select()}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+          if (e.key === 'Escape') setDraft(null)
+        }}
+      />
       <button
         type="button"
         className="settings-nudge"
         aria-label="Larger"
         disabled={value >= SCALE_MAX}
-        onClick={() => nudge(1)}
+        onClick={() => nudge('in')}
       >
         +
       </button>
     </div>
   )
 }
+
 
 const MODE_LABEL: Record<AccountMode, string> = {
   main: 'main',
