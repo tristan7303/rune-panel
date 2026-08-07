@@ -753,18 +753,26 @@ async function checkToolPane(win: Electron.BrowserWindow): Promise<void> {
   ;(shell as { openExternal: typeof shell.openExternal }).openExternal = realOpen
   check('tools: off-site navigation is blocked, not opened', opened.length === 0, opened.join(', '))
 
+  // Shown for a tool route, and stood down while an overlay is over it — a
+  // `WebContentsView` composites above the DOM, so a dropdown is invisible
+  // unless the pane gets out of the way, and hiding is the way that does not
+  // relayout the page inside it.
   check(
-    'tools: pane stays visible under an overlay',
-    visibleWithTool && stillVisible,
-    `shown=${visibleWithTool} stillVisible=${stillVisible}`
+    'tools: pane stands down under an overlay',
+    visibleWithTool && !stillVisible,
+    `shown=${visibleWithTool} visibleUnderOverlay=${stillVisible}`
   )
-  // Which edge gives way depends on where the overlay is, so the assertion is
-  // about area rather than a particular dimension — and about the origin
-  // staying put, since a shifted pane slides the whole page sideways.
+  /**
+   * The pane keeps its rectangle through an overlay; it is hidden, not resized.
+   *
+   * Resizing relayouts the website inside it, which on a page of tables is a
+   * visible jolt on every keystroke — so an overlay stands the pane down and
+   * puts it back untouched. The bounds never change, which is what this checks.
+   */
   const area = (r: { width: number; height: number }): number => r.width * r.height
   check(
-    'tools: pane shrinks clear of the overlay, then restores',
-    area(shrunk) < area(fullBounds) &&
+    'tools: pane keeps its rectangle through an overlay',
+    area(shrunk) === area(fullBounds) &&
       shrunk.x === fullBounds.x &&
       shrunk.y === fullBounds.y &&
       area(restored) === area(fullBounds),
