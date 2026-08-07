@@ -6,6 +6,7 @@ import { app, BrowserWindow, globalShortcut, ipcMain } from 'electron'
 import {
   createWindow,
   getContents,
+  setInterfaceOnTop,
   show,
   hide,
   toggle,
@@ -99,6 +100,7 @@ function registerIpc(): void {
     })
   })
   ipcMain.on(Send.HideTool, () => pane.hide())
+  ipcMain.on(Send.SetOverlayOpen, (_e, open: boolean) => setInterfaceOnTop(Boolean(open)))
   ipcMain.on(Send.SetPaneBounds, (_e, bounds: PaneBounds) => pane.setBounds(bounds))
   ipcMain.handle(Invoke.LookupProfile, (_e, username: string) => profile.lookup(username))
 

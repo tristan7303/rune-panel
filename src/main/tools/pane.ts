@@ -64,11 +64,10 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
         // No preload: these are third-party pages and get no bridge to us.
       },
     })
-    // Index 0: beneath the interface view, which was added first and must stay
-    // on top. That ordering is the whole point — it lets a dropdown in the DOM
-    // draw over the website instead of the website covering it, so nothing has
-    // to be moved out of the way when one opens.
-    host.contentView.addChildView(view, 0)
+    // Appended, so the pane sits above the interface and takes the clicks it
+    // is meant to. The interface is raised over it only while an overlay is
+    // open — see `setInterfaceOnTop` in window.ts.
+    host.contentView.addChildView(view)
     wire(view)
   }
 

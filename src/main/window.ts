@@ -179,6 +179,25 @@ function fitUi(): void {
   ui.setBounds({ x: 0, y: 0, width, height })
 }
 
+/**
+ * Raise the interface above the tool pane, or drop it back below.
+ *
+ * Stacking is not free: a view on top takes the mouse across its whole
+ * rectangle, transparent or not — there is no click-through. Left permanently
+ * on top the interface swallowed every click meant for the website underneath.
+ *
+ * So the pane is on top by default, where it is the thing you are using, and
+ * the interface is raised only while something has to draw over it. That window
+ * is exactly when the pane is not being clicked anyway, because a dropdown is
+ * open in front of it.
+ */
+export function setInterfaceOnTop(onTop: boolean): void {
+  if (!win || win.isDestroyed() || !ui) return
+  // Re-adding an existing child moves it; index 0 is the bottom of the stack.
+  if (onTop) win.contentView.addChildView(ui)
+  else win.contentView.addChildView(ui, 0)
+}
+
 export function getWindow(): BaseWindow | null {
   return win && !win.isDestroyed() ? win : null
 }
