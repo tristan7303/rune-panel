@@ -314,7 +314,7 @@ export interface Section {
 
 // ── Embedded tools ──────────────────────────────────────────────────────────
 
-export type ToolId = 'dps' | 'calculators' | 'profile'
+export type ToolId = 'dps' | 'calculators' | 'profile' | 'getracker'
 
 /** Content-area rectangle, in DIP relative to the window. */
 export interface PaneBounds {

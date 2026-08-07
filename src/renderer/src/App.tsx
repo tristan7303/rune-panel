@@ -17,6 +17,7 @@ import { HeaderSearch } from './HeaderSearch'
 import { Article } from './Article'
 import { ToolPane } from './ToolPane'
 import { Profile } from './Profile'
+import { GeTracker } from './GeTracker'
 import { Calculators } from './Calculators'
 import { Grand } from './Grand'
 import { Hiscores } from './Hiscores'
@@ -31,6 +32,7 @@ import {
   DpsIcon,
   CoinsIcon,
   TrophyIcon,
+  TrendIcon,
   CalculatorIcon,
   GearIcon,
   SunIcon,
@@ -46,6 +48,9 @@ import {
 const NAV: Array<{ route: Route; label: string; icon: () => JSX.Element }> = [
   { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: DpsIcon },
   { route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon },
+  // Beside the Grand Exchange rather than beside the other embedded tools: what
+  // groups these two is the question you are asking, not how they are built.
+  { route: { kind: 'tool', id: 'getracker' }, label: 'GE Tracker', icon: TrendIcon },
   { route: { kind: 'hiscores' }, label: 'Hiscores', icon: TrophyIcon },
   { route: { kind: 'tool', id: 'calculators' }, label: 'Calculators', icon: CalculatorIcon },
   {
@@ -397,7 +402,7 @@ function ThemeToggle(): JSX.Element {
   )
 }
 
-function Tool({ id }: { id: 'dps' | 'calculators' | 'profile' }): JSX.Element {
+function Tool({ id }: { id: 'dps' | 'calculators' | 'profile' | 'getracker' }): JSX.Element {
   switch (id) {
     case 'dps':
       // No picker: the DPS calculator is one page, so go straight into it.
@@ -406,6 +411,8 @@ function Tool({ id }: { id: 'dps' | 'calculators' | 'profile' }): JSX.Element {
       return <Profile />
     case 'calculators':
       return <Calculators />
+    case 'getracker':
+      return <GeTracker />
   }
 }
 
@@ -440,7 +447,10 @@ function focusOnEnter(route: Route): string | null {
     case 'ge':
       return route.kind
     case 'tool':
-      return route.id === 'profile' ? 'page-input' : null
+      // Both of these front a pane with a box of our own. The DPS calculator
+      // and the wiki calculators have no such box, and stealing focus from a
+      // pane that owns its own inputs is worse than not focusing anything.
+      return route.id === 'profile' || route.id === 'getracker' ? 'page-input' : null
     default:
       return null
   }

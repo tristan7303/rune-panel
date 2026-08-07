@@ -16,7 +16,7 @@
  * degrades to the plain site rather than a blank pane.
  */
 
-import type { Theme } from '../../shared/ipc'
+import type { Theme, ToolId } from '../../shared/ipc'
 
 export interface ToolCookie {
   url: string
@@ -110,7 +110,14 @@ export interface ToolDef {
   allowNavigation: RegExp
 }
 
-export type ToolId = 'dps' | 'calculators' | 'profile'
+/**
+ * Re-exported rather than declared again.
+ *
+ * This file used to keep its own copy of the union, which meant adding a tool
+ * required remembering to widen it in two places — and the two disagreeing
+ * would have compiled fine on one side of the bridge and failed on the other.
+ */
+export type { ToolId }
 
 /**
  * The wiki's DPS calculator.
@@ -240,8 +247,136 @@ const PROFILE: ToolDef = {
   allowNavigation: /^https:\/\/(www\.)?runeprofile\.com\//,
 }
 
+/**
+ * GE Tracker.
+ *
+ * Live margins and price history for every item. There is an API, but it is a
+ * paid one, so this embeds the site rather than reimplementing it — the same
+ * bargain as the DPS calculator and RuneProfile above.
+ *
+ * Unlike those two it has no dark mode of its own to switch into, so the palette
+ * has to be applied by hand. The injection is deliberately shallow: broad
+ * surface and text rules keyed off structural selectors, not a reconstruction of
+ * their stylesheet. A site this size will be restyled without warning and a
+ * hundred brittle rules would fail one at a time and invisibly; these fail
+ * together and obviously, and the whole injection is switchable off in settings.
+ *
+ * Ads and the sticky sidebar go. They are not chrome we are entitled to remove
+ * on principle — they are how the site is funded — but this is a private,
+ * personal client with no browser around it, and a 300px ad rail inside a 1180px
+ * panel leaves no room for the table you came for.
+ */
+const GETRACKER: ToolDef = {
+  id: 'getracker',
+  label: 'GE Tracker',
+  // No arg is the front page — top flips and the item search. An arg is the
+  // slug their item URLs use: lowercase, non-alphanumerics to hyphens.
+  url: (slug) => `https://www.ge-tracker.com/${slug ? `item/${slug}` : ''}`,
+  css: (p) => `
+    /**
+     * Surfaces.
+     *
+     * The app pages are built on Gentelella, a Bootstrap admin template, so the
+     * containers have its names rather than generic ones — \`right_col\` is the
+     * content area, \`x_panel\` a card, \`x_title\` its heading. Naming them is
+     * what makes this a theme rather than a wash: an earlier version set a light
+     * text colour on \`body\` and matched no containers, so every card kept its
+     * white background and the text on it became invisible.
+     */
+    html, body, .right_col, .container.body, .main_container, .main-content {
+      background: ${p.surface} !important;
+      color: ${p.text} !important;
+    }
+
+    .x_panel, .graph-info-panel, .card, .panel, .well, .modal-content,
+    .dropdown-menu, .list-group-item, .tile_count, .dashboard_graph {
+      background-color: ${p.raised} !important;
+      color: ${p.text} !important;
+      border-color: ${p.rim} !important;
+    }
+
+    .x_title { border-bottom-color: ${p.rim} !important; }
+
+    /* Their own two bars: the strip across the top of the content, and the
+       sidebar. The sidebar ships dark navy, which clashes with every theme
+       here rather than matching any of them. */
+    .nav_menu, .top_nav { background: ${p.raised} !important; }
+    .left_col, .nav_title, .nav.side-menu > li.active, .menu_section h3 {
+      background: ${p.sunken} !important;
+    }
+
+    table, .table { color: ${p.text} !important; }
+
+    .table > tbody > tr > td, .table > thead > tr > th, table td, table th {
+      border-color: ${p.rim} !important;
+    }
+
+    thead, .table > thead > tr > th, .panel-heading, .card-header {
+      background-color: ${p.sunken} !important;
+      color: ${p.textDim} !important;
+    }
+
+    /**
+     * The price chart is Plotly, which draws to SVG and paints its own white
+     * plate underneath — so the surrounding card going dark leaves a white
+     * rectangle in the middle of it. The plate is a \`rect\` rather than a CSS
+     * background, hence \`fill\` rather than \`background\`.
+     */
+    svg.main-svg { background: transparent !important; }
+    .main-svg .bg { fill: ${p.raised} !important; }
+    .main-svg .gridlayer path { stroke: ${p.rim} !important; }
+    .main-svg text { fill: ${p.textDim} !important; }
+
+    /* Their link green is fixed, and reads as either invisible or neon
+       depending on which of our four themes is behind it. */
+    a, a:hover, a:focus, .green-links a { color: ${p.accent} !important; }
+
+    .text-muted, small, .help-block { color: ${p.textDim} !important; }
+
+    input, select, textarea, .form-control, .bootstrap-tagsinput {
+      background-color: ${p.sunken} !important;
+      color: ${p.text} !important;
+      border-color: ${p.rim} !important;
+    }
+
+    /**
+     * Their top bar stays.
+     *
+     * The other panes hide site chrome because it is branding we already draw.
+     * This one is different: that bar is where you sign in, and the useful half
+     * of GE Tracker is behind an account. Hiding it would leave no way to reach
+     * one, in a window with no address bar to work around it.
+     */
+
+    /* The footer is safe to drop — links and copyright, nothing actionable. */
+    footer, .site-footer, .footer-links, .copyright-info { display: none !important; }
+
+    /**
+     * Advertising.
+     *
+     * Not removed on principle — it is how the site is funded — but this is a
+     * personal client with no browser around it, and the units are sized for a
+     * full page: a 728x90 bottom rail and a 400x225 corner video, inside a panel
+     * that is 1180px wide by default. "gtad_" is GE Tracker's own prefix and
+     * "pw-" is Playwire's, their ad provider.
+     */
+    [class*="gtad_"], .sticky-sidebar,
+    .adBanner, .adLeaderboard, [class*="leaderboard_ad"],
+    [class*="pw-tag"], [class*="pw-corner-ad"], [class*="pw-custom-ima"], [id^="pw-"],
+    [id^="google_ads_iframe"], iframe[id^="goog_"], ins.adsbygoogle,
+    /* Injected at runtime with a timestamped id, so it can only be matched by
+       its prefix — a full-width banner above the price chart. */
+    [id^="ad_is_"],
+    iframe[src*="doubleclick"], iframe[src*="googlesyndication"] {
+      display: none !important;
+    }
+  `,
+  allowNavigation: /^https:\/\/(www\.)?ge-tracker\.com\//,
+}
+
 export const TOOLS: Record<ToolId, ToolDef> = {
   dps: DPS,
   calculators: CALCULATORS,
   profile: PROFILE,
+  getracker: GETRACKER,
 }

@@ -610,6 +610,33 @@ kbd {
   color: var(--text-dim);
 }
 
+.tool-bar-error {
+  font-size: 12.5px;
+  color: #e08a8a;
+}
+
+:root[data-theme='light'] .tool-bar-error,
+:root[data-theme='parchment'] .tool-bar-error {
+  color: #a33b3b;
+}
+
+/* ── GE Tracker entry ───────────────────────────────────────────────── */
+
+/* The search sits in the tool bar rather than on a page of its own: unlike
+   RuneProfile, whose pane is meaningless without a username, GE Tracker's front
+   page is worth landing on, so the pane loads immediately and the box is a way
+   to jump rather than a gate. */
+.ge-tracker-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  /* Capped so the box does not stretch across a 1400px window and leave the
+     item name it found stranded at the far right. */
+  max-width: 460px;
+}
+
 /* Deliberately empty. The WebContentsView composites above the DOM and covers
    this rectangle exactly; anything drawn here would be invisible. It exists
    only to be measured — which is why it must still have a size.
@@ -1367,6 +1394,10 @@ kbd {
 
 .theme-swatch[data-theme-swatch='dark'] {
   background: linear-gradient(135deg, #1b1826, #2a2640);
+}
+
+.theme-swatch[data-theme-swatch='mocha'] {
+  background: linear-gradient(135deg, #3b2e24, #2b211a);
 }
 
 .theme-swatch[data-theme-swatch='parchment'] {

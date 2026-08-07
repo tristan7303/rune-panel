@@ -105,11 +105,20 @@ export async function download(): Promise<void> {
 /**
  * Restart into the new version.
  *
- * `isSilent: false` shows the installer, and `isForceRunAfter: true` brings the
- * app back up afterwards — quitting to a desktop with nothing running is a
- * confusing way to end an update.
+ * `isSilent: true` runs the NSIS installer without drawing anything: the window
+ * closes, the files are replaced, and the app comes back. Updating a panel you
+ * summon with a hotkey should not put a setup wizard on screen and make you
+ * click Finish.
+ *
+ * Silent is only safe because the installer is per-user. `perMachine: false` in
+ * electron-builder.yml puts the app under the user's own AppData, so nothing
+ * here needs elevation — a silent install that trips UAC would prompt from a
+ * process with no visible window, which is worse than showing the wizard.
+ *
+ * `isForceRunAfter: true` brings the app back up afterwards; quitting to a
+ * desktop with nothing running is a confusing way to end an update.
  */
 export function install(): void {
   if (!app.isPackaged || status.state !== 'ready') return
-  autoUpdater.quitAndInstall(false, true)
+  autoUpdater.quitAndInstall(true, true)
 }

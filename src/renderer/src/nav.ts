@@ -21,7 +21,7 @@ export type Route =
    * carrying a `#fragment` has always meant but nothing here could act on.
    */
   | { kind: 'page'; title: string; hash?: string }
-  | { kind: 'tool'; id: 'dps' | 'calculators' | 'profile' }
+  | { kind: 'tool'; id: 'dps' | 'calculators' | 'profile' | 'getracker' }
   | { kind: 'ge'; itemId?: number }
   | { kind: 'hiscores' }
   | { kind: 'settings' }
@@ -103,6 +103,14 @@ function sameRoute(a: Route | undefined, b: Route): boolean {
   return true
 }
 
+/** A map rather than a nested ternary — the chain got a fourth arm. */
+const TOOL_TITLES: Record<'dps' | 'calculators' | 'profile' | 'getracker', string> = {
+  dps: 'DPS calculator',
+  calculators: 'Calculators',
+  profile: 'RuneProfile',
+  getracker: 'GE Tracker',
+}
+
 /** Human-readable label for the top bar. */
 export function routeTitle(route: Route): string {
   switch (route.kind) {
@@ -111,11 +119,7 @@ export function routeTitle(route: Route): string {
     case 'page':
       return route.title
     case 'tool':
-      return route.id === 'dps'
-        ? 'DPS calculator'
-        : route.id === 'calculators'
-          ? 'Calculators'
-          : 'RuneProfile'
+      return TOOL_TITLES[route.id]
     case 'ge':
       return 'Grand Exchange'
     case 'hiscores':

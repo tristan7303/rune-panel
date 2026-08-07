@@ -606,10 +606,12 @@ async function checkCrawl(wc: Electron.WebContents): Promise<void> {
 
 /** The tool definitions are internally consistent. Offline. */
 function checkToolRegistry(): void {
-  const ids: ToolId[] = ['dps', 'calculators', 'profile']
+  // Derived from the registry rather than listed here, so adding a tool cannot
+  // quietly leave itself untested — the previous hard-coded trio would have.
+  const ids = Object.keys(TOOLS) as ToolId[]
   check(
-    'tools: all three defined',
-    ids.every((id) => TOOLS[id]?.url !== undefined),
+    'tools: every tool is defined',
+    ids.length > 0 && ids.every((id) => TOOLS[id]?.url !== undefined),
     ids.join(', ')
   )
 

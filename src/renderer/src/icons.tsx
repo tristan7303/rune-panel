@@ -91,6 +91,23 @@ export const TrophyIcon = (): JSX.Element => (
   </Svg>
 )
 
+/**
+ * A rising line over an axis, for GE Tracker.
+ *
+ * A chart rather than more coins: the Grand Exchange entry above it already
+ * owns that symbol, and these two sit four apart in the same rail. What
+ * separates them is that one is a price and the other is a price *over time*,
+ * so the icon says trend.
+ */
+export const TrendIcon = (): JSX.Element => (
+  <Svg>
+    <path d="M4 19V5" />
+    <path d="M4 19h16" />
+    <path d="M7.5 15.5l3.5-4 3 2.5 4.5-6" />
+    <path d="M15 8h3.5v3.5" />
+  </Svg>
+)
+
 export const UserIcon = (): JSX.Element => (
   <Svg>
     <circle cx="12" cy="8" r="4" />
