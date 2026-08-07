@@ -67,6 +67,17 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
     wire(view)
   }
 
+  /**
+   * Paint the view our surface colour before anything loads.
+   *
+   * A `WebContentsView` defaults to white, so every navigation used to flash a
+   * white rectangle the size of the pane before the site's own background
+   * arrived — worst on a dark theme, where it is the brightest thing on screen.
+   * This costs nothing and there is no document involved, so it applies
+   * immediately rather than waiting on a load.
+   */
+  view.setBackgroundColor(PALETTES[settings.get().theme]?.surface ?? PALETTES.dark.surface)
+
   view.setVisible(true)
   applyBounds()
 
@@ -252,8 +263,21 @@ function wire(v: WebContentsView): void {
     window.webContents.send(On.PaneShortcut, which)
   })
 
-  // Re-injected on every navigation, not just the first: these are real sites
-  // and clicking within one loads a fresh document.
+  /**
+   * Theme as early as there is a document to theme.
+   *
+   * `dom-ready` fires once the markup is parsed; `did-finish-load` waits for
+   * every subresource, which on GE Tracker means dozens of advertising frames
+   * and several seconds of the site in its own colours before ours arrive.
+   *
+   * Both are kept. The first is what you see, the second is a backstop for
+   * anything the page renders late — and re-injecting is cheap, because
+   * `applyTheme` replaces its stylesheet rather than stacking another one.
+   *
+   * Re-run on every navigation, not just the first: these are real sites and
+   * clicking within one loads a fresh document.
+   */
+  wc.on('dom-ready', () => void applyTheme())
   wc.on('did-finish-load', () => void applyTheme())
 
   wc.on('did-fail-load', (_e, code, description, url) => {
