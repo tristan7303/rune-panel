@@ -313,116 +313,127 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
     })
   }
 
+  /**
+   * The search box, wherever it is needed.
+   *
+   * One definition, two homes: centred on the landing page where it is the
+   * only thing to do, and in the tool bar once a page is open, where it shares
+   * the row with the item's name. Rendering it in both at once would register
+   * two primary inputs and the focus helper would take whichever mounted last.
+   */
+  const search = (
+    <div className="ge-tracker-search">
+      <div className="search-field">
+        <SearchIcon />
+        <input
+          ref={inputRef}
+          type="text"
+          className="search-input"
+          placeholder="Find an item…"
+          spellCheck={false}
+          autoComplete="off"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          // The same keyboard contract as the wiki search and the Grand
+          // Exchange page: arrows move the highlight, Enter takes it.
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              setSelected((i) => Math.min(i + 1, results.length - 1))
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              setSelected((i) => Math.max(i - 1, 0))
+            } else if (e.key === 'Enter' && results[selected]) {
+              e.preventDefault()
+              void open(results[selected].title)
+            } else if (e.key === 'Escape' && query) {
+              // Clear the query before the window-level handler closes the app.
+              e.stopPropagation()
+              setQuery('')
+            }
+          }}
+        />
+      </div>
+      {results.length > 0 && (
+        <ul className="results ge-tracker-results" role="listbox" ref={resultsRef}>
+          {results.map((r, i) => (
+            <li
+              key={r.title}
+              role="option"
+              aria-selected={i === selected}
+              className={`result ${i === selected ? 'is-selected' : ''}`}
+              onMouseEnter={() => setSelected(i)}
+              onClick={() => void open(r.title)}
+            >
+              <span className="result-title">{r.title}</span>
+              {r.matchedVia && <span className="result-alias">matched “{r.matchedVia}”</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+
   return (
     <div className="tool-host">
-      <div className="tool-bar">
-        {/* Back to the watchlist without needing the app's own history — from
-            an item page the thing you usually want is the list you came from,
-            not the page before it. */}
-        <button
-          className="icon-btn"
-          title="GE Tracker home"
-          aria-label="GE Tracker home"
-          disabled={!slug}
-          onClick={() => {
-            setSlug(undefined)
-            setShowing(null)
-            setError(null)
-          }}
-        >
-          <HomeIcon />
-        </button>
+      {/* The bar belongs to the embedded page, not to us. On the landing page
+          there is no page open, nothing to name, nowhere to go home to and no
+          reason to sign in yet — so it is simply absent rather than a row of
+          disabled controls. */}
+      {slug && (
+        <div className="tool-bar">
+          <button
+            className="icon-btn"
+            title="GE Tracker home"
+            aria-label="GE Tracker home"
+            onClick={() => {
+              setSlug(undefined)
+              setShowing(null)
+              setError(null)
+            }}
+          >
+            <HomeIcon />
+          </button>
 
-        <div className="ge-tracker-search">
-          <div className="search-field">
-            <SearchIcon />
-            <input
-              ref={inputRef}
-              type="text"
-              className="search-input"
-              placeholder="Find an item…"
-              spellCheck={false}
-              autoComplete="off"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              // The same keyboard contract as the wiki search and the Grand
-              // Exchange page: arrows move the highlight, Enter takes it.
-              onKeyDown={(e) => {
-                if (e.key === 'ArrowDown') {
-                  e.preventDefault()
-                  setSelected((i) => Math.min(i + 1, results.length - 1))
-                } else if (e.key === 'ArrowUp') {
-                  e.preventDefault()
-                  setSelected((i) => Math.max(i - 1, 0))
-                } else if (e.key === 'Enter' && results[selected]) {
-                  e.preventDefault()
-                  void open(results[selected].title)
-                } else if (e.key === 'Escape' && query) {
-                  // Clear the query before the window-level handler closes the app.
-                  e.stopPropagation()
-                  setQuery('')
-                }
-              }}
-            />
-          </div>
-          {results.length > 0 && (
-            <ul className="results ge-tracker-results" role="listbox" ref={resultsRef}>
-              {results.map((r, i) => (
-                <li
-                  key={r.title}
-                  role="option"
-                  aria-selected={i === selected}
-                  className={`result ${i === selected ? 'is-selected' : ''}`}
-                  onMouseEnter={() => setSelected(i)}
-                  onClick={() => void open(r.title)}
-                >
-                  <span className="result-title">{r.title}</span>
-                  {r.matchedVia && <span className="result-alias">matched “{r.matchedVia}”</span>}
-                </li>
-              ))}
-            </ul>
+          {search}
+
+          {showing && (
+            <>
+              {/* The star sits with the item's name rather than in the page,
+                  because the page is theirs and this is ours. */}
+              <button
+                className={`ge-star ${isFavourite ? 'is-on' : ''}`}
+                title={isFavourite ? `Unstar ${showing.name}` : `Star ${showing.name}`}
+                aria-pressed={isFavourite}
+                onClick={toggleFavourite}
+              >
+                {isFavourite ? '★' : '☆'}
+              </button>
+              <span className="tool-bar-title">{showing.name}</span>
+            </>
           )}
+          {error && <span className="tool-bar-error">{error}</span>}
+
+          {/* Their own sign-in lives in the top bar the injection hides, so it
+              gets a place here instead — pushed to the far right, where a
+              once-per-install action belongs rather than beside the search you
+              use constantly. */}
+          <button
+            className="link-btn ge-signin"
+            title="Sign in to GE Tracker — premium features need an account"
+            onClick={() => {
+              setShowing(null)
+              setSlug(LOGIN_PATH)
+            }}
+          >
+            sign in
+          </button>
         </div>
-
-        {showing && (
-          <>
-            {/* The star sits with the item's name rather than in the page,
-                because the page is theirs and this is ours. */}
-            <button
-              className={`ge-star ${isFavourite ? 'is-on' : ''}`}
-              title={isFavourite ? `Unstar ${showing.name}` : `Star ${showing.name}`}
-              aria-pressed={isFavourite}
-              onClick={toggleFavourite}
-            >
-              {isFavourite ? '★' : '☆'}
-            </button>
-            <span className="tool-bar-title">{showing.name}</span>
-          </>
-        )}
-        {error && <span className="tool-bar-error">{error}</span>}
-
-        {/* Their own sign-in lives in the top bar the injection hides, so it
-            gets a place here instead — pushed to the far right, where a
-            once-per-install action belongs rather than beside the search you
-            use constantly. */}
-        <button
-          className="link-btn ge-signin"
-          title="Sign in to GE Tracker — premium features need an account"
-          onClick={() => {
-            setShowing(null)
-            setSlug(LOGIN_PATH)
-          }}
-        >
-          sign in
-        </button>
-      </div>
+      )}
 
       {slug ? (
         <ToolPane id="getracker" arg={slug} />
       ) : (
-        // No pane until there is something to show in it. Mounting one for the
-        // front page would load their signed-out splash, and an empty prompt
-        // says more than a page asking you to register.
         <div className="ge-tracker-home">
           <header className="ge-tracker-hero">
             <img src={geTrackerLogo} alt="GE Tracker" draggable={false} />
@@ -430,6 +441,8 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
               Live margins, volume and price history from ge&#8209;tracker.com. Search an item to
               open it, and star the ones you watch to keep them here.
             </p>
+            {search}
+            {error && <p className="ge-tracker-error">{error}</p>}
           </header>
 
           {favourites.length === 0 && unstarredRecent.length === 0 ? (

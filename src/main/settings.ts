@@ -32,6 +32,7 @@ export const DEFAULTS: Settings = {
   normaliseDropRates: false,
   geTrackerReplacesGe: true,
   startOnLogin: true,
+  uiScale: 1,
   acrylic: true,
   reduceMotion: false,
   bounds: null,
@@ -95,10 +96,19 @@ function sanitize(s: Settings): Settings {
     geTrackerReplacesGe: s.geTrackerReplacesGe !== false,
     // Defaults on, so an absent key means true rather than false.
     startOnLogin: s.startOnLogin !== false,
+    // Clamped rather than trusted: a hand-edited 0.1 would render the window
+    // unusable and leave no control big enough to fix it with.
+    uiScale: clampScale(s.uiScale),
     acrylic: Boolean(s.acrylic),
     reduceMotion: Boolean(s.reduceMotion),
     bounds: sanitizeBounds(s.bounds),
   }
+}
+
+/** Keeps the interface between legible and usable at the minimum window size. */
+function clampScale(value: unknown): number {
+  const scale = typeof value === 'number' && Number.isFinite(value) ? value : 1
+  return Math.min(1.5, Math.max(0.8, Math.round(scale * 100) / 100))
 }
 
 /**

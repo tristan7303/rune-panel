@@ -117,6 +117,31 @@ export function SettingsView(): JSX.Element {
         </Field>
 
         <Field
+          label="Interface size"
+          hint={`Scales the whole interface — text, icons and spacing together — not just the type. Currently ${Math.round(settings.uiScale * 100)}%.`}
+        >
+          <div className="field-row">
+            <input
+              type="range"
+              className="settings-range"
+              min={0.8}
+              max={1.5}
+              step={0.05}
+              value={settings.uiScale}
+              onChange={(e) => patch({ uiScale: Number(e.target.value) })}
+            />
+            <button
+              type="button"
+              className="link-btn"
+              disabled={settings.uiScale === 1}
+              onClick={() => patch({ uiScale: 1 })}
+            >
+              reset
+            </button>
+          </div>
+        </Field>
+
+        <Field
           label="Reduce motion"
           hint="Replaces the open and close animation with a quick fade. Forced on anyway if Windows is set to minimise animations."
         >

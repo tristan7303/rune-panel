@@ -95,6 +95,19 @@ export interface Settings {
    */
   startOnLogin: boolean
   /**
+   * How large the interface is drawn, as a multiplier.
+   *
+   * The whole renderer, not a font size — this app measures in pixels
+   * throughout, so scaling type alone would leave every icon, rail and rule
+   * where it was. Applied as the renderer's zoom factor, which scales layout
+   * and text together and costs nothing to change.
+   *
+   * Clamped to a range that keeps the window usable at its minimum size: much
+   * below 0.8 the rail icons stop being hittable, much above 1.5 the topbar
+   * controls start colliding at 900px wide.
+   */
+  uiScale: number
+  /**
    * Draw the Windows 11 DWM acrylic backdrop behind the window. Turn off if the
    * blur costs frames or the compositor refuses it. The UI is designed to look
    * correct either way — acrylic is an accent, never load-bearing.

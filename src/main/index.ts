@@ -223,6 +223,7 @@ function main(): void {
       anim.setUserReducedMotion(next.reduceMotion)
       client.configure({ contact: next.contactEmail })
       applyLoginItem(next.startOnLogin)
+      getWindow()?.webContents.setZoomFactor(next.uiScale)
       // An open tool pane repaints in place rather than waiting for the next
       // navigation to pick the new theme up.
       void pane.applyTheme()
@@ -245,6 +246,8 @@ function main(): void {
       // records an absolute path, so an update that installs elsewhere would
       // otherwise leave Windows starting a version that is no longer there.
       applyLoginItem(initial.startOnLogin)
+      // The renderer is loading as this runs; zoom set now survives the load.
+      getWindow()?.webContents.setZoomFactor(initial.uiScale)
 
       // A first run is handed to the setup wizard rather than started silently:
       // the index takes four minutes and search finds nothing until it lands,

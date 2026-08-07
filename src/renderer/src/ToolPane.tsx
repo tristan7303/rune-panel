@@ -17,6 +17,15 @@ import { useStore } from './store'
 export function ToolPane({ id, arg }: { id: ToolId; arg?: string }): JSX.Element {
   const slotRef = useRef<HTMLDivElement>(null)
   const overlaysOpen = useStore((s) => s.overlays) > 0
+  /**
+   * The interface can be zoomed, and the pane cannot ride along.
+   *
+   * `getBoundingClientRect` answers in CSS pixels, which zoom shrinks; the pane
+   * is positioned in device-independent pixels, which it does not. Without this
+   * multiplier a scaled-up interface leaves the pane sitting in a rectangle the
+   * size the slot used to be, wrong by exactly the scale factor.
+   */
+  const uiScale = useStore((s) => s.settings?.uiScale ?? 1)
   /** A still of the pane, standing in for it while an overlay is open. */
   const [freeze, setFreeze] = useState<string | null>(null)
   /**
@@ -37,7 +46,12 @@ export function ToolPane({ id, arg }: { id: ToolId; arg?: string }): JSX.Element
 
     const publish = (): void => {
       const r = slot.getBoundingClientRect()
-      window.rp.setPaneBounds({ x: r.x, y: r.y, width: r.width, height: r.height })
+      window.rp.setPaneBounds({
+        x: r.x * uiScale,
+        y: r.y * uiScale,
+        width: r.width * uiScale,
+        height: r.height * uiScale,
+      })
     }
 
     publish()
@@ -48,7 +62,7 @@ export function ToolPane({ id, arg }: { id: ToolId; arg?: string }): JSX.Element
       observer.disconnect()
       window.removeEventListener('resize', publish)
     }
-  }, [])
+  }, [uiScale])
 
   /**
    * Overlays get a photograph, not a hole.
