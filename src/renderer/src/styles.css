@@ -322,9 +322,17 @@ body,
   height: 22px;
   border-radius: 5px;
   object-fit: cover;
-  /* Low-poly OSRS art: crisp downscaling keeps the edges readable where
-     smoothing would turn the crown to mush. */
-  image-rendering: crisp-edges;
+  /**
+   * Smoothed, deliberately.
+   *
+   * This carried `image-rendering: crisp-edges` from when the only art here
+   * was a low-poly OSRS crown, where nearest-neighbour kept the edges legible.
+   * Both marks are now proper logos at 250px being drawn at 22 — an eleven-fold
+   * reduction, where crisp-edges throws away ten of every eleven pixels and
+   * renders exactly the jagged result it was added to prevent. The browser's
+   * own filtering is what a downscale that large needs.
+   */
+  image-rendering: auto;
   opacity: 0.78;
   transition: opacity var(--duration) ease;
 }
@@ -1969,6 +1977,12 @@ kbd {
   border-radius: 6px;
   /* Item sprites are pixel art; smoothing them at this size turns them to mush. */
   image-rendering: pixelated;
+}
+
+/* A bundled logo rather than a wiki sprite: high resolution, and downscaling it
+   with nearest-neighbour is what makes a clean mark look ragged. */
+.home-card-art img.is-logo {
+  image-rendering: auto;
 }
 
 .home-card-text {

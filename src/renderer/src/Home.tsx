@@ -110,6 +110,9 @@ export function Home(): JSX.Element {
                   and serves it from disk after. A miss simply renders nothing,
                   which is why the tile has its own background. */}
               <img
+                // A bundled asset is a logo and wants smooth downscaling; a
+                // wiki filename is pixel art and wants none.
+                className={card.asset ? 'is-logo' : undefined}
                 src={card.asset ?? `rpimg://img/${card.image ?? ''}`}
                 alt=""
                 loading="lazy"
