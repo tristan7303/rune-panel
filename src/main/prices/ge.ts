@@ -353,6 +353,22 @@ export async function detail(
   }
 }
 
+/**
+ * Current prices for a handful of items, in one call.
+ *
+ * `detail` is the wrong shape for a watchlist: it fetches a chart series per
+ * item, which is a network round trip each for data a list of tiles never
+ * shows. This reads the local price table after one refresh, so a dozen items
+ * cost what one does.
+ */
+export async function pricesFor(ids: number[]): Promise<Array<{ id: number; price: Price | null }>> {
+  if (ids.length === 0) return []
+  await syncLatest().catch(() => {
+    // Stale prices beat none; the tiles are a glance, not a trade.
+  })
+  return ids.map((id) => ({ id, price: readPrice(id) }))
+}
+
 export function readPrice(itemId: number): Price | null {
   const row = db.get().prepare('SELECT * FROM prices WHERE item_id = ?').get(itemId) as
     | { item_id: number; high: number | null; high_time: number | null; low: number | null; low_time: number | null; updated_at: number }

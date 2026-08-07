@@ -61,6 +61,27 @@ export interface RememberedItem {
   name: string
   /** Wiki image filename from the item list, e.g. "Twisted bow.png". */
   icon: string | null
+  /**
+   * Grand Exchange item id, for looking the price up without resolving the name
+   * again. Optional because entries stored before prices were shown do not have
+   * one; they are backfilled on first load rather than discarded.
+   */
+  id?: number
+}
+
+/**
+ * Coins, the way the game writes them.
+ *
+ * Two decimals past a million because that is where the difference starts to
+ * matter — 1.45M and 1.4M are eight hundred thousand apart — and whole
+ * thousands below it, where it does not.
+ */
+export function formatGp(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return '—'
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`
+  return String(n)
 }
 
 function load(key: string): RememberedItem[] {
@@ -116,6 +137,8 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
   const [recent, setRecent] = useState<RememberedItem[]>(() => load(RECENT_KEY))
   const [favourites, setFavourites] = useState<RememberedItem[]>(() => load(FAVOURITE_KEY))
   const [error, setError] = useState<string | null>(null)
+  /** Buy price per item id, for the tiles. Empty until the first lookup lands. */
+  const [prices, setPrices] = useState<Record<number, number | null>>({})
   const inputRef = usePrimaryInput()
   const live = useRef(true)
 
@@ -158,6 +181,56 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
     }
   }, [results.length, pushOverlay, popOverlay, setOverlayRect])
 
+  /**
+   * Prices for everything on the home page, in one call.
+   *
+   * Entries saved before this existed have no item id, so they are resolved
+   * once and written back — after that the list is self-sufficient and a page
+   * of tiles costs a single round trip rather than one per item.
+   */
+  useEffect(() => {
+    let running = true
+    const remembered = [...favourites, ...recent]
+    if (remembered.length === 0) return
+
+    void (async () => {
+      const missing = remembered.filter((r) => r.id === undefined)
+      if (missing.length > 0) {
+        const found = await Promise.all(
+          missing.map((r) => window.rp.geFindByName(r.name).catch(() => null))
+        )
+        if (!running) return
+        const ids = new Map(
+          found.filter((f): f is NonNullable<typeof f> => !!f).map((f) => [f.name, f.id])
+        )
+        const fill = (list: RememberedItem[]): RememberedItem[] =>
+          list.map((r) => (r.id === undefined && ids.has(r.name) ? { ...r, id: ids.get(r.name) } : r))
+        setFavourites((prev) => {
+          const next = fill(prev)
+          save(FAVOURITE_KEY, next)
+          return next
+        })
+        setRecent((prev) => {
+          const next = fill(prev)
+          save(RECENT_KEY, next)
+          return next
+        })
+        return
+      }
+
+      const ids = remembered.map((r) => r.id).filter((id): id is number => id !== undefined)
+      const got = await window.rp.gePrices(ids).catch(() => [])
+      if (!running) return
+      const map: Record<number, number | null> = {}
+      for (const row of got) map[row.id] = row.price?.high ?? row.price?.low ?? null
+      setPrices(map)
+    })()
+
+    return () => {
+      running = false
+    }
+  }, [favourites, recent])
+
   // Suggestions on every keystroke. The index is in memory in main and uFuzzy
   // ranks it in under a millisecond, so there is nothing here worth debouncing.
   // Two characters is the floor because one matches most of the wiki.
@@ -194,7 +267,7 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
       }
       // The item list's spelling, not the typed one — it is what the slug has
       // to be built from.
-      const remembered: RememberedItem = { name: item.name, icon: item.icon }
+      const remembered: RememberedItem = { name: item.name, icon: item.icon, id: item.id }
       setSlug(itemSlug(item.name))
       setShowing(remembered)
       setQuery('')
@@ -209,6 +282,10 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
       if (live.current) setError(err instanceof Error ? err.message : String(err))
     }
   }
+
+  // Starred items are already given their own section; leaving them in recent
+  // shows the same tile twice on one screen.
+  const unstarredRecent = recent.filter((r) => !favourites.some((f) => f.name === r.name))
 
   const isFavourite = !!showing && favourites.some((f) => f.name === showing.name)
 
@@ -328,7 +405,7 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
         // front page would load their signed-out splash, and an empty prompt
         // says more than a page asking you to register.
         <div className="ge-tracker-home">
-          {favourites.length === 0 && recent.length === 0 ? (
+          {favourites.length === 0 && unstarredRecent.length === 0 ? (
             <div className="ge-tracker-empty">
               <TrendIcon />
               <h1>GE Tracker</h1>
@@ -340,14 +417,36 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
             </div>
           ) : (
             <>
+              {favourites.length > 0 && <Watchlist items={favourites} prices={prices} />}
               {favourites.length > 0 && (
-                <ItemGrid title="Starred" items={favourites} onOpen={openRemembered} />
+                <ItemGrid
+                  title="Starred"
+                  items={favourites}
+                  prices={prices}
+                  onOpen={openRemembered}
+                  starred
+                  onStar={(entry) =>
+                    setFavourites((prev) => {
+                      const next = prev.filter((f) => f.name !== entry.name)
+                      save(FAVOURITE_KEY, next)
+                      return next
+                    })
+                  }
+                />
               )}
-              {recent.length > 0 && (
+              {unstarredRecent.length > 0 && (
                 <ItemGrid
                   title="Recent"
-                  items={recent}
+                  items={unstarredRecent}
+                  prices={prices}
                   onOpen={openRemembered}
+                  onStar={(entry) =>
+                    setFavourites((prev) => {
+                      const next = [...prev, entry].sort((a, b) => a.name.localeCompare(b.name))
+                      save(FAVOURITE_KEY, next)
+                      return next
+                    })
+                  }
                   onForget={(name) =>
                     setRecent((prev) => {
                       const next = prev.filter((r) => r.name !== name)
@@ -366,22 +465,74 @@ export function GeTracker({ item }: { item?: string }): JSX.Element {
 }
 
 /**
- * A run of remembered items, drawn with their own sprites.
+ * What the watchlist is worth, at a glance.
+ *
+ * The page is a launcher and a launcher for three items is mostly empty space.
+ * This is the one summary the underlying data actually supports: prices come
+ * from the local table the Grand Exchange page already keeps, so it costs
+ * nothing and cannot be wrong in a way the tiles are not. Anything more
+ * ambitious — biggest movers, most traded — would need history and volume this
+ * app does not hold for every item, and a guessed answer on a prices page is
+ * worse than no answer.
+ */
+function Watchlist({
+  items,
+  prices,
+}: {
+  items: RememberedItem[]
+  prices: Record<number, number | null>
+}): JSX.Element | null {
+  const priced = items
+    .map((entry) => (entry.id === undefined ? null : prices[entry.id]))
+    .filter((value): value is number => typeof value === 'number')
+
+  if (priced.length === 0) return null
+  const total = priced.reduce((sum, value) => sum + value, 0)
+  const dearest = Math.max(...priced)
+
+  return (
+    <section className="ge-watchlist">
+      <div>
+        <strong>{items.length}</strong>
+        <em>starred</em>
+      </div>
+      <div>
+        <strong>{formatGp(total)}</strong>
+        <em>combined buy price</em>
+      </div>
+      <div>
+        <strong>{formatGp(dearest)}</strong>
+        <em>dearest</em>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * A run of remembered items, drawn with their own sprites and current price.
  *
  * The icon is the point: a grid of names is a list, and a grid of item sprites
  * is recognisable at a glance, which is what makes this worth landing on. An
- * item whose icon never cached falls back to its initial rather than a gap.
+ * item whose icon never cached falls back to its initial rather than a gap, and
+ * a price that has not arrived yet shows nothing rather than a zero.
  */
 function ItemGrid({
   title,
   items,
+  prices,
   onOpen,
+  onStar,
   onForget,
+  starred,
 }: {
   title: string
   items: RememberedItem[]
+  prices: Record<number, number | null>
   onOpen: (item: RememberedItem) => void
+  onStar?: (item: RememberedItem) => void
   onForget?: (name: string) => void
+  /** True for the starred section, where the star is filled and unstars. */
+  starred?: boolean
 }): JSX.Element {
   return (
     <section className="ge-grid">
@@ -389,6 +540,7 @@ function ItemGrid({
       <ul>
         {items.map((entry) => {
           const src = itemIcon(entry.icon)
+          const price = entry.id === undefined ? null : prices[entry.id]
           return (
             <li key={entry.name}>
               <button className="ge-grid-item" onClick={() => onOpen(entry)}>
@@ -399,8 +551,23 @@ function ItemGrid({
                     <span className="ge-grid-letter">{entry.name.slice(0, 1)}</span>
                   )}
                 </span>
-                <span className="ge-grid-name">{entry.name}</span>
+                <span className="ge-grid-text">
+                  <span className="ge-grid-name">{entry.name}</span>
+                  {typeof price === 'number' && (
+                    <span className="ge-grid-price">GE: {formatGp(price)}</span>
+                  )}
+                </span>
               </button>
+              {onStar && (
+                <button
+                  className={`ge-grid-star ${starred ? 'is-on' : ''}`}
+                  title={starred ? `Unstar ${entry.name}` : `Star ${entry.name}`}
+                  aria-pressed={starred}
+                  onClick={() => onStar(entry)}
+                >
+                  {starred ? '★' : '☆'}
+                </button>
+              )}
               {onForget && (
                 <button
                   className="profile-forget"

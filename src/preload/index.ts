@@ -14,6 +14,7 @@ import {
   On,
   type Article,
   type CrawlState,
+  type GePrice,
   type PaneShortcut,
   type AccountMode,
   type GeItem,
@@ -93,6 +94,8 @@ const api: RunePanelApi = {
 
   geDetail: (itemId: number, timestep?: GeTimestep): Promise<GeItemDetail | null> =>
     ipcRenderer.invoke(Invoke.GeDetail, itemId, timestep),
+  gePrices: (ids: number[]): Promise<Array<{ id: number; price: GePrice | null }>> =>
+    ipcRenderer.invoke(Invoke.GePrices, ids),
   geFindByName: (name: string): Promise<GeItem | null> =>
     ipcRenderer.invoke(Invoke.GeFindByName, name),
 
