@@ -6,15 +6,20 @@
  * rather than string literals for the same reason.
  */
 
+import type { ScaleDirection } from './scale'
+
+export type { ScaleDirection }
+
 /**
- * Three reading surfaces. Parchment is the default: a warm tan that suits a
- * fantasy wiki and is easier on the eyes than plain white for long articles.
+ * Four reading surfaces, two dark and two warm. Every one of them is fully
+ * defined in the stylesheet — none is a tweak of another — because the app sits
+ * over a game client whose own brightness the user has already chosen.
  */
 export type Theme = 'dark' | 'mocha' | 'light' | 'parchment'
 
 /** Persisted user settings. */
 export interface Settings {
-  /** Reading surface. Dark by default — it sits over a dark game client. */
+  /** Reading surface. */
   theme: Theme
   /** Global accelerator that opens and closes the window. */
   hotkey: string
@@ -272,6 +277,13 @@ export const Send = {
    * query, and it owns half the open/close animation, so it has to be told.
    */
   ReduceMotion: 'window:reduce-motion',
+  /**
+   * One notch of Ctrl+scroll. Sent by the renderer and by every embedded page's
+   * preload alike — main holds the authoritative scale, so neither sender has
+   * to know what it currently is, which is also what stops a fast scroll from
+   * racing itself against a stale copy.
+   */
+  BumpScale: 'window:bump-scale',
   Log: 'app:log',
   Quit: 'app:quit',
   /** Persist a settings change. */
@@ -615,6 +627,7 @@ export interface RunePanelApi {
   motionMode: MotionMode
   /** Tell main whether the OS has asked for reduced motion. */
   reportReduceMotion(reduce: boolean): void
+  bumpScale(direction: ScaleDirection): void
 
   getSettings(): Promise<Settings>
   setSettings(patch: Partial<Settings>): void

@@ -26,9 +26,26 @@
 /// <reference lib="dom" />
 
 import { ipcRenderer } from 'electron'
+import { scaleOnWheel } from '../shared/scale'
 
 /** Must match `Send.PaneThemeCss` in shared/ipc.ts — imported by neither side. */
 const CHANNEL = 'tools:theme-css'
+
+/** Must match `Send.BumpScale`. */
+const SCALE_CHANNEL = 'window:bump-scale'
+
+/**
+ * Ctrl+scroll over an embedded page resizes the app, as it does everywhere else.
+ *
+ * The pane composites above the DOM and owns its own input, so the app's own
+ * listener never sees this wheel — the gesture has to be caught in here or it
+ * does nothing over half the app. Capture phase, and not passive: the handler
+ * has to be able to claim the event before the page under it zooms itself.
+ */
+window.addEventListener('wheel', scaleOnWheel((direction) => ipcRenderer.send(SCALE_CHANNEL, direction)), {
+  capture: true,
+  passive: false,
+})
 
 try {
   const css: unknown = ipcRenderer.sendSync(CHANNEL)

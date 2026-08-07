@@ -29,7 +29,7 @@ import * as hiscores from './hiscores'
 import * as setup from './setup'
 import * as updater from './updater'
 import * as anim from './anim'
-import type { PaneBounds, ToolId } from '../shared/ipc'
+import type { PaneBounds, ScaleDirection, ToolId } from '../shared/ipc'
 
 /**
  * Claim our identity before anything reads it.
@@ -68,6 +68,14 @@ function registerIpc(): void {
   // Main owns half the open/close animation and cannot read a media query, so
   // the renderer reports the preference and main turns its half off to match.
   ipcMain.on(Send.ReduceMotion, (_e, reduce: boolean) => anim.setReducedMotion(reduce))
+
+  /**
+   * One handler for both senders: the app's renderer and every embedded page's
+   * preload send the same notch on the same channel. Main owns the current
+   * scale, so a fast scroll cannot race itself against a copy that has gone
+   * stale between events.
+   */
+  ipcMain.on(Send.BumpScale, (_e, direction: ScaleDirection) => settings.bumpScale(direction))
 
   ipcMain.handle(Invoke.GetSettings, () => settings.get())
   ipcMain.on(Send.SetSettings, (_e, patch) => settings.update(patch))
@@ -225,9 +233,10 @@ function main(): void {
       client.configure({ contact: next.contactEmail })
       applyLoginItem(next.startOnLogin)
       getWindow()?.webContents.setZoomFactor(next.uiScale)
-      // An open tool pane repaints in place rather than waiting for the next
-      // navigation to pick the new theme up.
+      // An open tool pane repaints and rescales in place rather than waiting
+      // for the next navigation to pick the change up.
       void pane.applyTheme()
+      pane.applyScale()
       getWindow()?.webContents.send(On.Settings, next)
     })
 
@@ -249,6 +258,7 @@ function main(): void {
       applyLoginItem(initial.startOnLogin)
       // The renderer is loading as this runs; zoom set now survives the load.
       getWindow()?.webContents.setZoomFactor(initial.uiScale)
+
 
       // A first run is handed to the setup wizard rather than started silently:
       // the index takes four minutes and search finds nothing until it lands,

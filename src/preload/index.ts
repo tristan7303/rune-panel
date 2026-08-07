@@ -26,6 +26,7 @@ import {
   type PaneBounds,
   type ProfileSummary,
   type RunePanelApi,
+  type ScaleDirection,
   type SearchResult,
   type Settings,
   type SetupProgress,
@@ -70,6 +71,7 @@ const api: RunePanelApi = {
   quit: () => ipcRenderer.send(Send.Quit),
   motionMode,
   reportReduceMotion: (reduce: boolean) => ipcRenderer.send(Send.ReduceMotion, reduce),
+  bumpScale: (direction: ScaleDirection) => ipcRenderer.send(Send.BumpScale, direction),
 
   getSettings: (): Promise<Settings> => ipcRenderer.invoke(Invoke.GetSettings),
   setSettings: (patch: Partial<Settings>) => ipcRenderer.send(Send.SetSettings, patch),

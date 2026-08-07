@@ -105,6 +105,7 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
   view.setBackgroundColor(PALETTES[settings.get().theme]?.surface ?? PALETTES.dark.surface)
 
   applyBounds()
+  applyScale()
 
   const url = tool.url(arg)
   if (same && view.webContents.getURL()) {
@@ -320,6 +321,19 @@ function applyBounds(): void {
   view?.setBounds(bounds)
 }
 
+/**
+ * The embedded page scales with the rest of the interface.
+ *
+ * The renderer multiplies the slot's rectangle by the same factor before
+ * sending it, so the pane keeps the same share of the window whatever the scale
+ * is. Without this the rectangle grew and the site inside it did not, which read
+ * as everything in the app getting larger except the one page you were looking
+ * at.
+ */
+export function applyScale(): void {
+  view?.webContents.setZoomFactor(settings.get().uiScale)
+}
+
 function wire(v: WebContentsView): void {
   const wc = v.webContents
 
@@ -397,7 +411,11 @@ function wire(v: WebContentsView): void {
    * Re-run on every navigation, not just the first: these are real sites and
    * clicking within one loads a fresh document.
    */
-  wc.on('dom-ready', () => void applyTheme())
+  wc.on('dom-ready', () => {
+    void applyTheme()
+    // Zoom is per-document, so a fresh navigation starts back at 1.
+    applyScale()
+  })
   wc.on('did-finish-load', () => void applyTheme())
 
   wc.on('did-fail-load', (_e, code, description, url) => {

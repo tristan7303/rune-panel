@@ -118,26 +118,9 @@ export function SettingsView(): JSX.Element {
 
         <Field
           label="Interface size"
-          hint={`Scales the whole interface — text, icons and spacing together — not just the type. Currently ${Math.round(settings.uiScale * 100)}%.`}
+          hint="Scales the whole interface — text, icons and spacing together — not just the type. Ctrl+scroll anywhere in the app does the same thing."
         >
-          {/* Steps rather than a slider, and not for taste. Changing this
-              rescales the settings page it lives on, so a slider's own handle
-              moved out from under the cursor mid-drag — the control fought
-              every attempt to use it. A button is pressed once and the
-              relocation happens after, which is merely a redraw. */}
-          <div className="settings-steps" role="group" aria-label="Interface size">
-            {UI_SCALES.map((scale) => (
-              <button
-                key={scale}
-                type="button"
-                className={`settings-step ${settings.uiScale === scale ? 'is-active' : ''}`}
-                aria-pressed={settings.uiScale === scale}
-                onClick={() => patch({ uiScale: scale })}
-              >
-                {scale}×
-              </button>
-            ))}
-          </div>
+          <ScaleStepper value={settings.uiScale} onChange={(uiScale) => patch({ uiScale })} />
         </Field>
 
         <Field
@@ -246,7 +229,85 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 }
 
 /** Offered interface scales. Clamped to the same range in main's `sanitize`. */
-const UI_SCALES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const
+const SCALE_STEP = 0.05
+const SCALE_MIN = 0.5
+const SCALE_MAX = 2
+
+/**
+ * The interface scale, as a number you can type between two nudge buttons.
+ *
+ * A slider was the first instinct and the wrong one: changing this rescales the
+ * settings page the control sits on, so the handle moved out from under the
+ * cursor mid-drag and the thing fought every attempt to use it. Buttons and a
+ * box are both committed in one action — whatever relocation follows is a
+ * redraw you are no longer holding onto.
+ *
+ * Typing is kept in a draft string rather than written straight through. The
+ * committed value is a multiplier and the field shows a percentage, so writing
+ * on every keystroke would reformat the text under the caret — and an
+ * in-between state like an empty box has no valid multiplier to be.
+ */
+function ScaleStepper({
+  value,
+  onChange,
+}: {
+  value: number
+  onChange: (scale: number) => void
+}): JSX.Element {
+  const [draft, setDraft] = useState<string | null>(null)
+  const percent = Math.round(value * 100)
+
+  const commit = (): void => {
+    const typed = Number.parseInt(draft ?? '', 10)
+    // Clamping is main's job, on the way in. Anything unreadable simply
+    // reverts, which is what dropping the draft does.
+    if (Number.isFinite(typed)) onChange(typed / 100)
+    setDraft(null)
+  }
+
+  const nudge = (direction: 1 | -1): void => {
+    setDraft(null)
+    onChange(value + direction * SCALE_STEP)
+  }
+
+  return (
+    <div className="settings-stepper">
+      <button
+        type="button"
+        className="settings-nudge"
+        aria-label="Smaller"
+        disabled={value <= SCALE_MIN}
+        onClick={() => nudge(-1)}
+      >
+        −
+      </button>
+      <span className="settings-amount">
+        <input
+          type="text"
+          inputMode="numeric"
+          aria-label="Interface size, percent"
+          value={draft ?? String(percent)}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit()
+            if (e.key === 'Escape') setDraft(null)
+          }}
+        />
+        <span className="settings-unit">%</span>
+      </span>
+      <button
+        type="button"
+        className="settings-nudge"
+        aria-label="Larger"
+        disabled={value >= SCALE_MAX}
+        onClick={() => nudge(1)}
+      >
+        +
+      </button>
+    </div>
+  )
+}
 
 const MODE_LABEL: Record<AccountMode, string> = {
   main: 'main',

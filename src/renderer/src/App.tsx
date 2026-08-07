@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef, useState, type JSX } from 'react'
+import { scaleOnWheel } from '@shared/scale'
 import { useStore } from './store'
 import type { Theme } from '@shared/ipc'
 import { useNav, useRoute, useCanGoBack, useCanGoForward, routeTitle, type Route } from './nav'
@@ -97,6 +98,21 @@ export function App(): JSX.Element {
     void window.rp.getSetup().then((p) => setNeedsSetup(!p.done))
   }, [])
 
+  /**
+   * Ctrl+scroll resizes the interface, anywhere in the app.
+   *
+   * On `window` in the capture phase and explicitly not passive, so it is
+   * claimed before any scroller below reacts and before the browser applies a
+   * zoom of its own on top of ours. The embedded panes cannot be covered from
+   * here — they own their own input — so the same listener is installed by
+   * their preload, sending to the same channel.
+   */
+  useEffect(() => {
+    const onWheel = scaleOnWheel(window.rp.bumpScale)
+    window.addEventListener('wheel', onWheel, { capture: true, passive: false })
+    return () => window.removeEventListener('wheel', onWheel, { capture: true })
+  }, [])
+
   // Pull settings once, then track main's broadcasts. Main owns the sanitized
   // truth; the renderer only ever mirrors it.
   useEffect(() => {
@@ -124,7 +140,7 @@ export function App(): JSX.Element {
   // stylesheet — including the article CSS, which styles markup React never
   // touches — can respond to one attribute.
   const geTracker = useStore((s) => s.settings?.geTrackerReplacesGe ?? true)
-  const theme = useStore((s) => s.settings?.theme ?? 'dark')
+  const theme = useStore((s) => s.settings?.theme ?? 'mocha')
   useEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])
@@ -369,7 +385,7 @@ const THEMES: Array<{ id: Theme; label: string; hint: string; icon: () => JSX.El
  * shows every theme at once with the current one marked.
  */
 function ThemeToggle(): JSX.Element {
-  const theme = useStore((s) => s.settings?.theme ?? 'dark')
+  const theme = useStore((s) => s.settings?.theme ?? 'mocha')
   const patch = useStore((s) => s.patchSettings)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)

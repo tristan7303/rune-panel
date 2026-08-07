@@ -1335,46 +1335,75 @@ kbd {
   box-shadow: 0 0 0 1px var(--accent-a);
 }
 
-/**
- * The interface-size steps, as one segmented control.
+/* The interface scale: two nudge buttons flanking a number you can type.
  *
  * Sized to the same 220px the text fields use, so the settings column stays a
- * single edge rather than three. The steps share it rather than each claiming a
- * width, which keeps the row stable as the labels change length.
+ * single edge rather than three. The number takes the slack between the two
+ * buttons, which keeps the row stable whether it reads 50 or 200.
  */
-.settings-steps {
+.settings-stepper {
   display: flex;
+  align-items: stretch;
   width: 220px;
-  padding: 3px;
+  height: 32px;
+  overflow: hidden;
   background: var(--surface-sunken);
   border: 1px solid var(--rim);
   border-radius: 7px;
 }
 
-.settings-step {
-  flex: 1;
-  padding: 5px 0;
+.settings-nudge {
+  flex: 0 0 38px;
   font: inherit;
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  line-height: 1;
   color: var(--text-dim);
   background: none;
   border: 0;
-  border-radius: 5px;
   cursor: pointer;
   transition: background var(--duration) ease, color var(--duration) ease;
 }
 
-.settings-step:hover {
+.settings-nudge:hover:not(:disabled) {
   color: var(--text);
   background: var(--surface-hover);
 }
 
-.settings-step.is-active {
-  color: var(--text);
-  background: var(--surface-raised);
-  box-shadow: inset 0 0 0 1px var(--rim);
+.settings-nudge:disabled {
+  color: var(--text-faint);
+  cursor: default;
 }
+
+/* The box and its unit read as one field, so the caret sits where the number
+   ends rather than at the far right of an input the % is floating over. */
+.settings-amount {
+  display: flex;
+  flex: 1;
+  gap: 1px;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--rim);
+  border-left: 1px solid var(--rim);
+}
+
+.settings-amount input {
+  width: 3.5ch;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-align: right;
+  background: none;
+  border: 0;
+  outline: none;
+}
+
+.settings-unit {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
 
 /* A field whose control is an input and a button rather than one of either.
    The input gives up its fixed width so the pair together match the column the

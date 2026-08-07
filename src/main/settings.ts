@@ -12,11 +12,11 @@ import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { Settings, Theme, WindowBounds } from '../shared/ipc'
 
-/** Every theme the stylesheet defines. Anything else falls back to dark. */
+/** Every theme the stylesheet defines. Anything else falls back to DEFAULTS. */
 const THEMES: Theme[] = ['dark', 'mocha', 'light', 'parchment']
 
 export const DEFAULTS: Settings = {
-  theme: 'dark',
+  theme: 'mocha',
   // Global accelerators are first-come-first-served: whichever app registers
   // first wins, and the loser gets no hotkey at all with only a console warning
   // to say so. Nothing else on this machine should claim this one.
@@ -72,6 +72,23 @@ export function update(patch: Partial<Settings>): Settings {
   return get()
 }
 
+/** One notch of the interface scale, as the stepper and Ctrl+scroll both use. */
+export const SCALE_STEP = 0.05
+
+/**
+ * Nudge the interface scale, from wherever the request came.
+ *
+ * Lives here rather than in either caller because both need it and neither owns
+ * it: the settings stepper is in the renderer, and Ctrl+scroll is caught in main
+ * on two different web contents. Clamping is `sanitize`'s job, so this can add
+ * blindly and let the write decide what is legal — which is also what keeps the
+ * floating-point drift of repeated 0.05s from accumulating.
+ */
+export function bumpScale(direction: 'in' | 'out'): Settings {
+  const step = direction === 'in' ? SCALE_STEP : -SCALE_STEP
+  return update({ uiScale: current.uiScale + step })
+}
+
 export function onChange(listener: (next: Settings) => void): void {
   listeners.add(listener)
 }
@@ -79,7 +96,7 @@ export function onChange(listener: (next: Settings) => void): void {
 /** Clamp anything that could wedge the UI if a hand-edited file is wrong. */
 function sanitize(s: Settings): Settings {
   return {
-    theme: THEMES.includes(s.theme) ? s.theme : 'dark',
+    theme: THEMES.includes(s.theme) ? s.theme : DEFAULTS.theme,
     hotkey: typeof s.hotkey === 'string' && s.hotkey.trim() ? s.hotkey.trim() : DEFAULTS.hotkey,
     searchKey: bind(s.searchKey, DEFAULTS.searchKey),
     geKey: bind(s.geKey, DEFAULTS.geKey),

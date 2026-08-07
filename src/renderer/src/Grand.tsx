@@ -23,7 +23,7 @@ export function Grand({ itemId }: { itemId?: number }): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [timestep, setTimestep] = useState<GeTimestep>('6h')
-  const theme = useStore((s) => s.settings?.theme ?? 'dark')
+  const theme = useStore((s) => s.settings?.theme ?? 'mocha')
   const replace = useNav((s) => s.replace)
   const inputRef = usePrimaryInput()
 
