@@ -293,7 +293,7 @@ function Body({ route }: { route: Route }): JSX.Element {
     case 'hiscores':
       return <Hiscores />
     case 'tool':
-      return <Tool id={route.id} />
+      return <Tool id={route.id} arg={route.arg} />
     default:
       return <Placeholder title={routeTitle(route)} note="Not built yet." />
   }
@@ -402,7 +402,13 @@ function ThemeToggle(): JSX.Element {
   )
 }
 
-function Tool({ id }: { id: 'dps' | 'calculators' | 'profile' | 'getracker' }): JSX.Element {
+function Tool({
+  id,
+  arg,
+}: {
+  id: 'dps' | 'calculators' | 'profile' | 'getracker'
+  arg?: string
+}): JSX.Element {
   switch (id) {
     case 'dps':
       // No picker: the DPS calculator is one page, so go straight into it.
@@ -412,7 +418,9 @@ function Tool({ id }: { id: 'dps' | 'calculators' | 'profile' | 'getracker' }): 
     case 'calculators':
       return <Calculators />
     case 'getracker':
-      return <GeTracker />
+      // Keyed on the argument so arriving from a different item remounts and
+      // opens on it, rather than keeping whatever the view was last showing.
+      return <GeTracker item={arg} key={arg ?? ''} />
   }
 }
 

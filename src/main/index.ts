@@ -112,7 +112,7 @@ function registerIpc(): void {
   )
 
   ipcMain.handle(Invoke.GetSetup, () => setup.getProgress())
-  ipcMain.on(Send.RunSetup, (_e, options: { prices: boolean; crawl: boolean }) => {
+  ipcMain.on(Send.RunSetup, (_e, options: { prices: boolean }) => {
     void setup.run(options)
   })
   setup.onProgress((p) => getWindow()?.webContents.send(On.SetupProgress, p))

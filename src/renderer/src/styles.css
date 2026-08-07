@@ -635,6 +635,40 @@ kbd {
   max-width: 420px;
 }
 
+/* What stands in for the pane before a search. Centred in the slot the pane
+   would occupy, so choosing an item swaps one for the other in place. */
+.ge-tracker-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 32px 60px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.ge-tracker-empty svg {
+  width: 30px;
+  height: 30px;
+  color: var(--accent-b);
+}
+
+.ge-tracker-empty h1 {
+  margin: 6px 0 0;
+  font-size: 20px;
+  font-weight: 620;
+  color: var(--text);
+}
+
+.ge-tracker-empty p {
+  max-width: 42ch;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 /**
  * The suggestions, floating over the pane's rectangle.
  *

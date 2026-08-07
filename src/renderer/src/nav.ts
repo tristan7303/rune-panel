@@ -21,7 +21,13 @@ export type Route =
    * carrying a `#fragment` has always meant but nothing here could act on.
    */
   | { kind: 'page'; title: string; hash?: string }
-  | { kind: 'tool'; id: 'dps' | 'calculators' | 'profile' | 'getracker' }
+  /**
+   * `arg` is whatever the tool needs to open on something specific — for GE
+   * Tracker, the item name to look up. Routing it rather than holding it in the
+   * view means "Price history" on an article can land on the item directly, and
+   * that going back returns to whatever was showing before.
+   */
+  | { kind: 'tool'; id: 'dps' | 'calculators' | 'profile' | 'getracker'; arg?: string }
   | { kind: 'ge'; itemId?: number }
   | { kind: 'hiscores' }
   | { kind: 'settings' }
@@ -98,7 +104,7 @@ function sameRoute(a: Route | undefined, b: Route): boolean {
   // real navigation, and treating it as a no-op would make a badge on the
   // source's own page do nothing.
   if (a.kind === 'page' && b.kind === 'page') return a.title === b.title && a.hash === b.hash
-  if (a.kind === 'tool' && b.kind === 'tool') return a.id === b.id
+  if (a.kind === 'tool' && b.kind === 'tool') return a.id === b.id && a.arg === b.arg
   if (a.kind === 'ge' && b.kind === 'ge') return a.itemId === b.itemId
   return true
 }

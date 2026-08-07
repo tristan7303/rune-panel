@@ -7,14 +7,22 @@
  * instead of starting silently in the background and hoping you do not try to
  * search in the next four minutes.
  *
- * Three steps, in increasing optionality:
+ * Two steps:
  *
  *  1. The title index. Required — nothing works without it.
  *  2. Item prices. Two requests; makes item pages show a price immediately.
- *  3. A seed crawl of the core pages. Slowest, and purely a head start.
+ *
+ * There used to be a third, a seed crawl of the core pages, and it is gone from
+ * here on purpose. It was never required — every page it fetched would have been
+ * fetched on demand anyway — and it was forty-odd requests standing between an
+ * installer and a usable app. On a slow or flaky connection that is where a
+ * first run appears to hang, having already downloaded everything that mattered.
+ *
+ * The crawl still happens; it just happens afterwards, in the background, where
+ * it already parks itself whenever the window is open. Nobody waits for it.
  *
  * Each step reports into one progress figure, weighted by how long it actually
- * takes rather than by step count — a bar that sits at 33% for four minutes and
+ * takes rather than by step count — a bar that sits at 50% for four minutes and
  * then races to 100% is worse than no bar.
  */
 
@@ -25,14 +33,12 @@ import * as sync from './wiki/sync'
 import type { SetupProgress, SetupStep } from '../shared/ipc'
 
 /**
- * Share of the bar each step owns, from measured durations: the index is ~240s,
- * prices ~3s, the crawl ~40s.
+ * Share of the bar each step owns, from measured durations: the index is ~240s
+ * and prices ~3s, so the index is very nearly the whole of it.
  */
-const WEIGHTS: Record<SetupStep, number> = { titles: 0.82, prices: 0.02, crawl: 0.16, done: 0 }
+const WEIGHTS: Record<SetupStep, number> = { titles: 0.98, prices: 0.02, done: 0 }
 /** Requests the title index takes, for turning its count into a fraction. */
 const TITLE_REQUESTS = 900
-/** Pages the seed crawl fetches. */
-const CRAWL_PAGES = 46
 
 let running = false
 let progress: SetupProgress = { step: 'titles', percent: 0, detail: '', running: false, done: false }
@@ -56,7 +62,7 @@ export function getProgress(): SetupProgress {
 
 function emit(step: SetupStep, within: number, detail: string): void {
   // Everything before this step, plus this step's share of its own progress.
-  const order: SetupStep[] = ['titles', 'prices', 'crawl']
+  const order: SetupStep[] = ['titles', 'prices']
   const before = order.slice(0, order.indexOf(step)).reduce((sum, s) => sum + WEIGHTS[s], 0)
   const percent = Math.min(100, Math.round((before + WEIGHTS[step] * Math.min(within, 1)) * 100))
 
@@ -64,7 +70,7 @@ function emit(step: SetupStep, within: number, detail: string): void {
   for (const listener of listeners) listener(getProgress())
 }
 
-export async function run(options: { prices: boolean; crawl: boolean }): Promise<void> {
+export async function run(options: { prices: boolean }): Promise<void> {
   if (running) return
   running = true
 
@@ -84,20 +90,15 @@ export async function run(options: { prices: boolean; crawl: boolean }): Promise
       emit('prices', 1, 'Prices ready')
     }
 
-    if (options.crawl) {
-      const offCrawl = sync.onProgress((s) => {
-        emit('crawl', s.done / CRAWL_PAGES, `${s.done} of about ${CRAWL_PAGES} pages`)
-      })
-      try {
-        emit('crawl', 0, 'Caching core pages')
-        await sync.run()
-      } finally {
-        offCrawl()
-      }
-    }
-
     db.kvSet('setup.completed_at', Date.now())
     progress = { step: 'done', percent: 100, detail: 'Ready', running: false, done: true }
+
+    // The crawl the wizard used to run, started rather than awaited. It parks
+    // itself while the window is open, so in practice it begins the first time
+    // the panel is closed — which is exactly when nobody is waiting on it.
+    void sync.run().catch((err: unknown) => {
+      console.warn('[setup] seed crawl failed:', err instanceof Error ? err.message : err)
+    })
   } catch (err) {
     // A partial index is still useful, so this reports rather than unwinds.
     progress = {

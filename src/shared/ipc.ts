@@ -72,6 +72,14 @@ export interface Settings {
    */
   normaliseDropRates: boolean
   /**
+   * Send "Price history" to GE Tracker instead of the built-in chart.
+   *
+   * Off by default — the built-in chart is offline, instant, and drawn in the
+   * app's own theme. GE Tracker earns the switch when you want margins, volume
+   * and the longer history it keeps, and would rather not go via two clicks.
+   */
+  priceHistoryInGeTracker: boolean
+  /**
    * Draw the Windows 11 DWM acrylic backdrop behind the window. Turn off if the
    * blur costs frames or the compositor refuses it. The UI is designed to look
    * correct either way — acrylic is an accent, never load-bearing.
@@ -422,11 +430,19 @@ export interface Hiscores {
   totalXp: number
   overallRank: number
   fetchedAt: number
+  /**
+   * Other boards this name is listed on, most restrictive first.
+   *
+   * Non-empty means the account has changed type: a dead hardcore ironman is
+   * still on the hardcore board, frozen, and a de-ironed account is still on the
+   * ironman one. `mode` above is whichever board is still being written to.
+   */
+  alsoOn: AccountMode[]
 }
 
 // ── First run and updates ───────────────────────────────────────────────────
 
-export type SetupStep = 'titles' | 'prices' | 'crawl' | 'done'
+export type SetupStep = 'titles' | 'prices' | 'done'
 
 export interface SetupProgress {
   step: SetupStep
@@ -564,7 +580,7 @@ export interface RunePanelApi {
   hiscores(name: string, mode?: AccountMode): Promise<Hiscores>
 
   getSetup(): Promise<SetupProgress>
-  runSetup(options: { prices: boolean; crawl: boolean }): void
+  runSetup(options: { prices: boolean }): void
   onSetupProgress(cb: (progress: SetupProgress) => void): () => void
 
   getUpdate(): Promise<UpdateStatus>

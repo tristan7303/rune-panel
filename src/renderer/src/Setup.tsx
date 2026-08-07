@@ -18,13 +18,11 @@ import mark from './assets/mark.png'
 const STEP_LABEL: Record<string, string> = {
   titles: 'Downloading page names',
   prices: 'Fetching item prices',
-  crawl: 'Caching core pages',
   done: 'Ready',
 }
 
 export function Setup({ onDone }: { onDone: () => void }): JSX.Element {
   const [prices, setPrices] = useState(true)
-  const [crawl, setCrawl] = useState(true)
   const [progress, setProgress] = useState<SetupProgress | null>(null)
 
   useEffect(() => {
@@ -67,18 +65,9 @@ export function Setup({ onDone }: { onDone: () => void }): JSX.Element {
                 </span>
               </label>
             </li>
-            <li>
-              <label>
-                <input type="checkbox" checked={crawl} onChange={(e) => setCrawl(e.target.checked)} />
-                <span>
-                  <strong>Core pages</strong>
-                  <em>Pre-caches skills, raids and common bosses so they open instantly. ~40 seconds.</em>
-                </span>
-              </label>
-            </li>
           </ul>
 
-          <button className="btn setup-go" onClick={() => window.rp.runSetup({ prices, crawl })}>
+          <button className="btn setup-go" onClick={() => window.rp.runSetup({ prices })}>
             Start download
           </button>
 
@@ -119,7 +108,7 @@ export function Setup({ onDone }: { onDone: () => void }): JSX.Element {
           <p className="setup-note">
             Whatever arrived was kept, so trying again resumes rather than starting over.
           </p>
-          <button className="btn setup-go" onClick={() => window.rp.runSetup({ prices, crawl })}>
+          <button className="btn setup-go" onClick={() => window.rp.runSetup({ prices })}>
             Try again
           </button>
         </>

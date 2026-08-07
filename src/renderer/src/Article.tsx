@@ -383,6 +383,7 @@ function PriceHeader({ title }: { title: string }): JSX.Element | null {
   const [item, setItem] = useState<{ id: number; name: string } | null>(null)
   const [price, setPrice] = useState<{ high: number | null; low: number | null } | null>(null)
   const push = useNav((s) => s.push)
+  const geTrackerPrices = useStore((s) => s.settings?.priceHistoryInGeTracker ?? false)
 
   useEffect(() => {
     let live = true
@@ -418,7 +419,19 @@ function PriceHeader({ title }: { title: string }): JSX.Element | null {
       </span>
       {/* Named for the item it resolves to, since a charged weapon's price is
           really its uncharged form's. */}
-      <button className="btn price-header-btn" onClick={() => push({ kind: 'ge', itemId: item.id })}>
+      <button
+        className="btn price-header-btn"
+        // Where this goes is a setting: the built-in chart is offline and drawn
+        // in the app's theme, GE Tracker has margins and a longer history. The
+        // item name rather than the id, because their URLs are keyed by name.
+        onClick={() =>
+          push(
+            geTrackerPrices
+              ? { kind: 'tool', id: 'getracker', arg: item.name }
+              : { kind: 'ge', itemId: item.id }
+          )
+        }
+      >
         Price history
       </button>
       {item.name !== title && <span className="price-header-note">as {item.name}</span>}

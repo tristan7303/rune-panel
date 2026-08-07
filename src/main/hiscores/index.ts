@@ -4,12 +4,16 @@
  * Jagex publishes one endpoint per account type, and an account appears on
  * every board it qualifies for — an ultimate ironman is on the ultimate,
  * ironman and main boards at once. There is no "what type is this account"
- * call, so the type is inferred by probing from most specific to least and
- * taking the first hit.
+ * call, so the type has to be inferred from which boards answer.
  *
- * That costs up to four requests for an ironman and one for everyone else,
- * which is why the answer is cached: looking the same person up twice in a
- * session should not re-probe.
+ * Not by taking the most specific one, which is the obvious reading and is
+ * wrong: a board an account no longer qualifies for freezes rather than drops
+ * it, so a dead hardcore ironman still sits on the hardcore board at the stats
+ * they died with. Every board is asked and the one with the most experience
+ * wins, because boards only ever stop being written to — see `lookup`.
+ *
+ * That is four requests a lookup, which is why the answer is cached: looking
+ * the same person up twice in a session should not re-probe.
  */
 
 import * as client from '../wiki/client'
@@ -19,7 +23,7 @@ const BASE = 'https://secure.runescape.com'
 
 export type AccountMode = 'main' | 'ironman' | 'hardcore' | 'ultimate'
 
-/** Most specific first: the first board an account appears on names its type. */
+/** Most specific first — the tie-break when several boards are equally current. */
 const PROBE_ORDER: AccountMode[] = ['ultimate', 'hardcore', 'ironman', 'main']
 
 const ENDPOINT: Record<AccountMode, string> = {
@@ -64,6 +68,14 @@ export interface Hiscores {
   totalXp: number
   overallRank: number
   fetchedAt: number
+  /**
+   * Other boards this name is listed on, most restrictive first.
+   *
+   * Non-empty means the account has changed type: a dead hardcore ironman is
+   * still on the hardcore board, frozen, and a de-ironed account is still on the
+   * ironman one. `mode` above is whichever board is still being written to.
+   */
+  alsoOn: AccountMode[]
 }
 
 interface LiteResponse {
@@ -92,31 +104,68 @@ export async function lookup(name: string, mode?: AccountMode): Promise<Hiscores
     if (hit) return hit
   }
 
-  // An explicit mode is taken at face value; otherwise probe.
-  const order = mode ? [mode] : PROBE_ORDER
-  let lastError: unknown
-
-  for (const candidate of order) {
+  // An explicit mode is taken at face value.
+  if (mode) {
     try {
-      const result = await fetchMode(trimmed, candidate)
-      cache.set(trimmed.toLowerCase(), result)
+      const result = await fetchMode(trimmed, mode)
+      // Carry the other boards over from the probe that must have happened to
+      // offer this one, minus the board now being shown. Without this, asking
+      // for a specific board returns an entry that knows about no others, and
+      // the view has no way back to the live one.
+      const probed = cache.get(trimmed.toLowerCase())
+      if (probed) {
+        result.alsoOn = [probed.mode, ...probed.alsoOn].filter((m) => m !== mode)
+      }
       return result
     } catch (err) {
-      lastError = err
-      // A 404 means "not on this board", which for a probe is information
-      // rather than failure — keep going. Anything else is a real problem.
       if (!isNotFound(err)) throw err
+      throw new Error(`“${trimmed}” is not on the ${MODE_LABEL[mode].toLowerCase()} hiscores.`)
     }
   }
 
-  throw new Error(
-    mode
-      ? `“${trimmed}” is not on the ${MODE_LABEL[mode].toLowerCase()} hiscores.`
-      : `No hiscores entry for “${trimmed}”. Check the spelling — names are exact.`
+  /**
+   * Every board at once, then pick the live one.
+   *
+   * An account is listed on every board it has ever qualified for, and the
+   * stricter ones stop updating rather than disappearing. A hardcore ironman who
+   * dies stays on the hardcore board frozen at the moment of death, while their
+   * account carries on as a normal ironman — so taking the first board that
+   * answers, which is what this used to do, showed a set of stats that could be
+   * years out of date and no hint that it was.
+   *
+   * Total experience is what separates them: boards only ever freeze, never
+   * rewind, so the highest total is by definition the one still being written
+   * to. On a tie every board is current and the most restrictive is the truest
+   * description of the account, which is what `PROBE_ORDER` is ordered by.
+   */
+  const found = (
+    await Promise.all(
+      PROBE_ORDER.map(async (candidate) => {
+        try {
+          return await fetchMode(trimmed, candidate)
+        } catch (err) {
+          // A 404 means "not on this board", which for a probe is information
+          // rather than failure. Anything else is a real problem.
+          if (isNotFound(err)) return null
+          throw err
+        }
+      })
+    )
+  ).filter((r): r is Hiscores => r !== null)
+
+  if (found.length === 0) {
+    throw new Error(`No hiscores entry for “${trimmed}”. Check the spelling — names are exact.`)
+  }
+
+  const live = found.reduce((best, current) =>
+    current.totalXp > best.totalXp ? current : best
   )
-  // `lastError` is deliberately unused past this point; the message above is
-  // more useful than "HTTP 404".
-  void lastError
+  // The boards it is also listed on, so the view can offer them. Ordered as
+  // PROBE_ORDER is, most restrictive first.
+  live.alsoOn = found.filter((r) => r.mode !== live.mode).map((r) => r.mode)
+
+  cache.set(trimmed.toLowerCase(), live)
+  return live
 }
 
 async function fetchMode(name: string, mode: AccountMode): Promise<Hiscores> {
@@ -148,6 +197,8 @@ async function fetchMode(name: string, mode: AccountMode): Promise<Hiscores> {
     totalXp: overall?.xp ?? 0,
     overallRank: overall?.rank ?? -1,
     fetchedAt: Date.now(),
+    // Filled in by `lookup` once it knows which other boards answered.
+    alsoOn: [],
   }
 }
 

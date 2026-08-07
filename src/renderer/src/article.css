@@ -861,6 +861,21 @@
   border-radius: 20px;
 }
 
+/* A chip you can press: the other hiscores boards an account is listed on.
+   Dashed, because what it leads to is a frozen record rather than another live
+   view of the same thing. */
+.chip.is-alt {
+  font: inherit;
+  font-size: 11px;
+  border-style: dashed;
+  cursor: pointer;
+}
+
+.chip.is-alt:hover {
+  color: var(--text);
+  border-color: var(--accent-a);
+}
+
 .link-btn {
   padding: 0;
   border: 0;

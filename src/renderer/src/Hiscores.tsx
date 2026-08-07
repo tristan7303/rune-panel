@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useRef, useState, type JSX } from 'react'
-import type { Hiscores as Data, HiscoreActivity, HiscoreSkill } from '@shared/ipc'
+import type { AccountMode, Hiscores as Data, HiscoreActivity, HiscoreSkill } from '@shared/ipc'
 import { shortNumber } from '@shared/xp'
 import { TrophyIcon, SearchIcon } from './icons'
 import { usePrimaryInput } from './focus'
@@ -37,13 +37,13 @@ export function Hiscores(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const inputRef = usePrimaryInput()
 
-  const look = async (name: string, as: 'primary' | 'compare'): Promise<void> => {
+  const look = async (name: string, as: 'primary' | 'compare', mode?: AccountMode): Promise<void> => {
     const trimmed = name.trim()
     if (!trimmed) return
     setBusy(true)
     setError(null)
     try {
-      const data = await window.rp.hiscores(trimmed)
+      const data = await window.rp.hiscores(trimmed, mode)
       if (as === 'primary') setPrimary(data)
       else setCompare(data)
       setQuery('')
@@ -157,7 +157,11 @@ export function Hiscores(): JSX.Element {
       {primary && (
         <>
           <div className="hs-heads">
-            <AccountHead data={primary} onClear={() => setPrimary(null)} />
+            <AccountHead
+              data={primary}
+              onClear={() => setPrimary(null)}
+              onMode={(mode) => void look(primary.name, 'primary', mode)}
+            />
             {compare && <AccountHead data={compare} onClear={() => setCompare(null)} compare />}
           </div>
           <div className="hs-body">
@@ -173,10 +177,12 @@ export function Hiscores(): JSX.Element {
 function AccountHead({
   data,
   onClear,
+  onMode,
   compare,
 }: {
   data: Data
   onClear: () => void
+  onMode?: (mode: AccountMode) => void
   compare?: boolean
 }): JSX.Element {
   return (
@@ -184,6 +190,22 @@ function AccountHead({
       <div className="hs-head-name">
         <strong>{data.name}</strong>
         <span className="chip">{MODE_LABEL[data.mode] ?? data.mode}</span>
+        {/* Other boards this name is on. Only ever shown for an account that
+            has changed type — a dead hardcore ironman, a de-ironed main — where
+            the board above is the live one and these are the frozen history.
+            Offered rather than hidden, because the old stats are the reason
+            some people look themselves up at all. */}
+        {onMode &&
+          data.alsoOn?.map((mode) => (
+            <button
+              key={mode}
+              className="chip is-alt"
+              title={`Show the ${MODE_LABEL[mode].toLowerCase()} board — no longer updating`}
+              onClick={() => onMode(mode)}
+            >
+              {MODE_LABEL[mode]}
+            </button>
+          ))}
       </div>
       <div className="hs-head-stats">
         <span>

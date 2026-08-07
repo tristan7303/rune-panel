@@ -297,13 +297,23 @@ const GETRACKER: ToolDef = {
 
     .x_title { border-bottom-color: ${p.rim} !important; }
 
-    /* Their own two bars: the strip across the top of the content, and the
-       sidebar. The sidebar ships dark navy, which clashes with every theme
-       here rather than matching any of them. */
+    /* The strip across the top of the content. */
     .nav_menu, .top_nav { background: ${p.raised} !important; }
-    .left_col, .nav_title, .nav.side-menu > li.active, .menu_section h3 {
-      background: ${p.sunken} !important;
-    }
+
+    /**
+     * The sidebar goes, and the content takes the width back.
+     *
+     * It is 230px of their own navigation — Flip Finder, Money Making,
+     * Leaderboard — which are whole sections of a site this window is not
+     * pretending to be. What this page is for is one item at a time, reached by
+     * the search above it, and in an 1180px panel that column is a fifth of the
+     * width spent on links out of the thing you came to read.
+     *
+     * "right_col" is positioned with a hard left margin to clear it, so hiding
+     * one without the other leaves the gap behind.
+     */
+    .left_col, .nav_title { display: none !important; }
+    .right_col, .top_nav { margin-left: 0 !important; }
 
     table, .table { color: ${p.text} !important; }
 

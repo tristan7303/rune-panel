@@ -145,6 +145,17 @@ export function SettingsView(): JSX.Element {
         )}
 
         <Field
+          label="Use GE Tracker for price history"
+          hint="Sends the Price history button on an item page to GE Tracker instead of the built-in chart. Theirs has margins, volume and a longer history; the built-in one is offline, instant and drawn in your theme."
+        >
+          <Switch
+            checked={settings.priceHistoryInGeTracker}
+            onChange={(priceHistoryInGeTracker) => patch({ priceHistoryInGeTracker })}
+            label="Use GE Tracker for price history"
+          />
+        </Field>
+
+        <Field
           label="Always show rates as 1 in N"
           hint="Rewrites drop tables too, so 2/69 reads 1/34.5 and 5/150 reads 1/30. Off by default — the wiki's own wording says how the drop is implemented, and hovering a cell always shows it."
         >

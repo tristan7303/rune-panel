@@ -98,7 +98,7 @@ const api: RunePanelApi = {
     ipcRenderer.invoke(Invoke.Hiscores, name, mode),
 
   getSetup: (): Promise<SetupProgress> => ipcRenderer.invoke(Invoke.GetSetup),
-  runSetup: (options: { prices: boolean; crawl: boolean }) =>
+  runSetup: (options: { prices: boolean }) =>
     ipcRenderer.send(Send.RunSetup, options),
   onSetupProgress: (cb) => subscribeWith<SetupProgress>(On.SetupProgress, cb),
 

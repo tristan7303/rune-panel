@@ -17,15 +17,17 @@
  * says whether that article is a tradeable thing with a price. Searching the
  * item names alone would match neither nickname.
  *
- * The pane loads immediately rather than waiting for a search. Unlike
- * RuneProfile, whose page is meaningless without a username, GE Tracker's front
- * page is a useful thing to land on.
+ * The pane waits for a search rather than loading immediately. Their front page
+ * is a signed-out marketing splash — a full-screen hero, a carousel and a call
+ * to register — which is a poor thing to land on every time and worse than the
+ * empty box that replaces it. An item page is what this is for, so the way in
+ * is the way in.
  */
 
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { SearchResult } from '@shared/ipc'
 import { ToolPane } from './ToolPane'
-import { SearchIcon } from './icons'
+import { SearchIcon, TrendIcon } from './icons'
 import { usePrimaryInput } from './focus'
 import { useStore } from './store'
 
@@ -44,12 +46,14 @@ export function itemSlug(name: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
-export function GeTracker(): JSX.Element {
+export function GeTracker({ item }: { item?: string }): JSX.Element {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [selected, setSelected] = useState(0)
-  const [slug, setSlug] = useState<string | undefined>(undefined)
-  const [showing, setShowing] = useState<string | null>(null)
+  // Seeded from the route, so "Price history" on an article can arrive here
+  // already on the item rather than at an empty search box.
+  const [slug, setSlug] = useState<string | undefined>(item ? itemSlug(item) : undefined)
+  const [showing, setShowing] = useState<string | null>(item ?? null)
   const [error, setError] = useState<string | null>(null)
   const inputRef = usePrimaryInput()
   const live = useRef(true)
@@ -192,24 +196,25 @@ export function GeTracker(): JSX.Element {
           )}
         </div>
 
-        {showing && (
-          <>
-            <span className="tool-bar-title">{showing}</span>
-            <button
-              className="link-btn"
-              onClick={() => {
-                setSlug(undefined)
-                setShowing(null)
-              }}
-            >
-              front page
-            </button>
-          </>
-        )}
+        {showing && <span className="tool-bar-title">{showing}</span>}
         {error && <span className="tool-bar-error">{error}</span>}
       </div>
 
-      <ToolPane id="getracker" arg={slug} />
+      {slug ? (
+        <ToolPane id="getracker" arg={slug} />
+      ) : (
+        // No pane until there is something to show in it. Mounting one for the
+        // front page would load their signed-out splash, and an empty prompt
+        // says more than a page asking you to register.
+        <div className="ge-tracker-empty">
+          <TrendIcon />
+          <h1>GE Tracker</h1>
+          <p>
+            Live margins, volume and price history from{' '}
+            <strong>ge&#8209;tracker.com</strong>. Search an item above to open it.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
