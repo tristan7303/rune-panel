@@ -1335,12 +1335,45 @@ kbd {
   box-shadow: 0 0 0 1px var(--accent-a);
 }
 
-/* The interface-size slider. Sized like the text fields so the settings column
-   stays a single edge rather than three. */
-.settings-range {
-  width: 160px;
-  accent-color: var(--accent-a);
+/**
+ * The interface-size steps, as one segmented control.
+ *
+ * Sized to the same 220px the text fields use, so the settings column stays a
+ * single edge rather than three. The steps share it rather than each claiming a
+ * width, which keeps the row stable as the labels change length.
+ */
+.settings-steps {
+  display: flex;
+  width: 220px;
+  padding: 3px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--rim);
+  border-radius: 7px;
+}
+
+.settings-step {
+  flex: 1;
+  padding: 5px 0;
+  font: inherit;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  background: none;
+  border: 0;
+  border-radius: 5px;
   cursor: pointer;
+  transition: background var(--duration) ease, color var(--duration) ease;
+}
+
+.settings-step:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.settings-step.is-active {
+  color: var(--text);
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--rim);
 }
 
 /* A field whose control is an input and a button rather than one of either.

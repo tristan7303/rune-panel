@@ -102,9 +102,9 @@ export interface Settings {
    * where it was. Applied as the renderer's zoom factor, which scales layout
    * and text together and costs nothing to change.
    *
-   * Clamped to a range that keeps the window usable at its minimum size: much
-   * below 0.8 the rail icons stop being hittable, much above 1.5 the topbar
-   * controls start colliding at 900px wide.
+   * Clamped to 0.5x-2x — the range in which the settings page itself stays
+   * usable, which is what matters: whatever it is set to, the control that
+   * changes it has to remain reachable.
    */
   uiScale: number
   /**

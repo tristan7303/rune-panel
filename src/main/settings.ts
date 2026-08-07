@@ -105,10 +105,13 @@ function sanitize(s: Settings): Settings {
   }
 }
 
-/** Keeps the interface between legible and usable at the minimum window size. */
+/**
+ * Keeps the interface within the range the settings page itself stays usable
+ * in, so a bad value can always be undone from inside the app.
+ */
 function clampScale(value: unknown): number {
   const scale = typeof value === 'number' && Number.isFinite(value) ? value : 1
-  return Math.min(1.5, Math.max(0.8, Math.round(scale * 100) / 100))
+  return Math.min(2, Math.max(0.5, Math.round(scale * 100) / 100))
 }
 
 /**

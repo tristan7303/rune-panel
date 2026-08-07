@@ -120,24 +120,23 @@ export function SettingsView(): JSX.Element {
           label="Interface size"
           hint={`Scales the whole interface — text, icons and spacing together — not just the type. Currently ${Math.round(settings.uiScale * 100)}%.`}
         >
-          <div className="field-row">
-            <input
-              type="range"
-              className="settings-range"
-              min={0.8}
-              max={1.5}
-              step={0.05}
-              value={settings.uiScale}
-              onChange={(e) => patch({ uiScale: Number(e.target.value) })}
-            />
-            <button
-              type="button"
-              className="link-btn"
-              disabled={settings.uiScale === 1}
-              onClick={() => patch({ uiScale: 1 })}
-            >
-              reset
-            </button>
+          {/* Steps rather than a slider, and not for taste. Changing this
+              rescales the settings page it lives on, so a slider's own handle
+              moved out from under the cursor mid-drag — the control fought
+              every attempt to use it. A button is pressed once and the
+              relocation happens after, which is merely a redraw. */}
+          <div className="settings-steps" role="group" aria-label="Interface size">
+            {UI_SCALES.map((scale) => (
+              <button
+                key={scale}
+                type="button"
+                className={`settings-step ${settings.uiScale === scale ? 'is-active' : ''}`}
+                aria-pressed={settings.uiScale === scale}
+                onClick={() => patch({ uiScale: scale })}
+              >
+                {scale}×
+              </button>
+            ))}
           </div>
         </Field>
 
@@ -245,6 +244,9 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
     </section>
   )
 }
+
+/** Offered interface scales. Clamped to the same range in main's `sanitize`. */
+const UI_SCALES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const
 
 const MODE_LABEL: Record<AccountMode, string> = {
   main: 'main',
