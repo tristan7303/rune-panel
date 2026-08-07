@@ -15,24 +15,8 @@ import type { ToolId } from '@shared/ipc'
 import { useStore } from './store'
 
 export function ToolPane({ id, arg }: { id: ToolId; arg?: string }): JSX.Element {
-  /**
-   * Hand the top of the stack to the interface while an overlay is open.
-   *
-   * The pane sits above the interface so that clicks reach the website. That
-   * also means a dropdown drawn in the DOM would be behind it — so for as long
-   * as one is up, the order is swapped. The pane keeps its rectangle either
-   * way; nothing moves, which is the point.
-   */
   const slotRef = useRef<HTMLDivElement>(null)
   const overlays = useStore((s) => s.overlays)
-
-  const overlaysOpen = useStore((s) => s.overlays) > 0
-  useEffect(() => {
-    window.rp.setOverlayOpen(overlaysOpen)
-    // Dropped back on unmount too: leaving the interface raised would make the
-    // next pane unclickable.
-    return () => window.rp.setOverlayOpen(false)
-  }, [overlaysOpen])
 
   useEffect(() => {
     const slot = slotRef.current

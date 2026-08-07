@@ -284,14 +284,6 @@ export const Send = {
   /** Hide the embedded pane. It composites above the DOM, so this is required. */
   HideTool: 'tools:hide',
   /** Tell main where the content area is, in DIP. */
-  /**
-   * An overlay opened or closed in the renderer.
-   *
-   * Raises the interface above the tool pane for as long as one is up, so a
-   * dropdown draws over the website — and drops it back afterwards, because a
-   * view on top takes the mouse whether or not it is transparent.
-   */
-  SetOverlayOpen: 'window:overlay-open',
   SetPaneBounds: 'tools:bounds',
 } as const
 
@@ -606,7 +598,6 @@ export interface RunePanelApi {
 
   showTool(id: ToolId, arg?: string): void
   hideTool(): void
-  setOverlayOpen(open: boolean): void
   setPaneBounds(bounds: PaneBounds): void
   lookupProfile(username: string): Promise<ProfileSummary>
 

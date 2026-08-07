@@ -278,21 +278,16 @@ body,
   overflow: hidden;
 }
 
-/* The rail and the top bar paint; the column between them does not. `.main`
-   used to, and that is a background *behind* the content area — so the hole
-   below was a hole in nothing and the pane showed through our surface as a
-   tint rather than showing through cleanly. */
 .rail,
-.topbar {
+.main {
   background: var(--surface);
 }
 
-/* Every route except a tool one still wants the surface under its content. */
-.content[data-pane='false'] {
-  background: var(--surface);
+/* The hole. Everything above and beside it still paints, so the app keeps its
+   edges; only the rectangle the pane occupies is left clear. */
+.content[data-pane='true'] {
+  background: none;
 }
-
-
 
 /* ── Rail ───────────────────────────────────────────────────────────── */
 
