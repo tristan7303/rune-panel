@@ -119,6 +119,19 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
    * first.
    */
   await view.webContents.loadURL(url)
+
+  /**
+   * Loaded is not the same as styled, and it is styled that matters.
+   *
+   * `applyTheme` is fired from `dom-ready` and `did-finish-load`, but nothing
+   * waited for it — `insertCSS` is async, so `loadURL` could resolve and the
+   * view be shown with the injection still in flight. What you saw in that gap
+   * was the site in its own colours: not a white frame, the whole unstyled
+   * page.
+   *
+   * Awaited here, so the first frame that reaches the screen is already ours.
+   */
+  await applyTheme()
   view.setVisible(true)
 }
 
