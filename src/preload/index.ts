@@ -96,6 +96,8 @@ const api: RunePanelApi = {
     ipcRenderer.invoke(Invoke.GeDetail, itemId, timestep),
   gePrices: (ids: number[]): Promise<Array<{ id: number; price: GePrice | null }>> =>
     ipcRenderer.invoke(Invoke.GePrices, ids),
+  geSearch: (query: string): Promise<SearchResult[]> =>
+    ipcRenderer.invoke(Invoke.GeSearch, query),
   geFindByName: (name: string): Promise<GeItem | null> =>
     ipcRenderer.invoke(Invoke.GeFindByName, name),
 

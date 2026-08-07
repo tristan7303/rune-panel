@@ -45,7 +45,7 @@ export function Grand({ itemId }: { itemId?: number }): JSX.Element {
     setSelected(0)
     if (query.trim().length < 2) return setResults([])
     let live = true
-    void window.rp.search(query).then((hits) => {
+    void window.rp.geSearch(query).then((hits) => {
       if (!live) return
       setResults(hits.slice(0, 12))
       setSelected(0)

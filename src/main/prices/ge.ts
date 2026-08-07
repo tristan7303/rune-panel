@@ -20,6 +20,7 @@
 
 import * as db from '../db'
 import * as client from '../wiki/client'
+import { search, type SearchResult } from '../wiki/search'
 
 const API = 'https://prices.runescape.wiki/api/v1/osrs'
 
@@ -292,6 +293,32 @@ const TRADEABLE_FORMS = ['uncharged', 'inactive', 'empty']
  * a last resort — which catches things like "Ring of suffering (i)" where the
  * tradeable row carries a suffix nothing else predicts.
  */
+/**
+ * The wiki search, kept to things that actually have a price.
+ *
+ * The suggestion list comes from the wiki title index rather than the item
+ * table, and deliberately so: that index carries every alias people type, which
+ * is how "tbow" and "bowfa" reach the right article at all. The item names
+ * alone would match neither.
+ *
+ * What it also carries is the rest of the wiki — quests, locations, mechanics —
+ * none of which has a Grand Exchange price. Offering those in a prices box is
+ * offering a dead end, so each hit is resolved against the item table and the
+ * ones that resolve to nothing are dropped.
+ *
+ * Over-fetched before filtering, because most of what a broad query matches is
+ * about to be discarded and a list of two is worse than a slower list of ten.
+ */
+export function searchTradeable(query: string, limit = 12): SearchResult[] {
+  const hits = search(query, limit * 8)
+  const out: SearchResult[] = []
+  for (const hit of hits) {
+    if (findItemByName(hit.title)) out.push(hit)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
 export function findItemByName(name: string): Item | null {
   const d = db.get()
   const exact = d.prepare('SELECT * FROM items WHERE name = ? COLLATE NOCASE')

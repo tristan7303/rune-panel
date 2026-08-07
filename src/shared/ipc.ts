@@ -551,6 +551,8 @@ export const Invoke = {
   LookupProfile: 'profile:lookup',
   GeDetail: 'ge:detail',
   GeFindByName: 'ge:find',
+  /** Fuzzy search restricted to items that actually have a price. */
+  GeSearch: 'ge:search',
   /** Current prices for several items at once, for the GE Tracker watchlist. */
   GePrices: 'ge:prices',
   Hiscores: 'hiscores:lookup',
@@ -635,6 +637,7 @@ export interface RunePanelApi {
 
   geDetail(itemId: number, timestep?: GeTimestep): Promise<GeItemDetail | null>
   geFindByName(name: string): Promise<GeItem | null>
+  geSearch(query: string): Promise<SearchResult[]>
   gePrices(ids: number[]): Promise<Array<{ id: number; price: GePrice | null }>>
 
   hiscores(name: string, mode?: AccountMode): Promise<Hiscores>

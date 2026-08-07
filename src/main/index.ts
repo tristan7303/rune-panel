@@ -113,6 +113,7 @@ function registerIpc(): void {
     ge.detail(itemId, timestep)
   )
   ipcMain.handle(Invoke.GePrices, (_e, ids: number[]) => ge.pricesFor(ids))
+  ipcMain.handle(Invoke.GeSearch, (_e, query: string) => ge.searchTradeable(query))
   ipcMain.handle(Invoke.GeFindByName, (_e, name: string) => ge.findItemByName(name))
 
   ipcMain.handle(Invoke.Hiscores, (_e, name: string, mode?: hiscores.AccountMode) =>
