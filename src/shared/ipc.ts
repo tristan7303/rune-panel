@@ -126,6 +126,24 @@ export interface Settings {
    * to appear rather than arrive.
    */
   reduceMotion: boolean
+  /**
+   * Glide to a section rather than arriving at it.
+   *
+   * Clicking an entry in a page's Contents box, or any other link into the page
+   * you are already on. On by default: an article is thousands of pixels tall
+   * and a jump that teleports you loses the one thing that says which way you
+   * travelled and how far. Off is genuinely faster.
+   *
+   * Deliberately independent of `reduceMotion`, which is about the window's
+   * open and close. Folding the two together looks tidy and is wrong in the one
+   * case that matters: somebody who turned the window animation off to stop the
+   * panel bouncing at them still wants to see which way the page moved, and a
+   * switch that is on while doing nothing is worse than no switch at all.
+   *
+   * Where it lands is not affected either way — see `scrollToAnchor` in the
+   * article view, which holds the anchor until the page stops reflowing.
+   */
+  smoothSectionJumps: boolean
   /** Last window bounds, restored on next launch. Null until first move/resize. */
   bounds: WindowBounds | null
 }

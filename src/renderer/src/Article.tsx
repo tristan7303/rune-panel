@@ -58,6 +58,8 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
   const showDropRates = useStore((s) => s.settings?.dropRateInTitle ?? false)
   const dropOrder = useStore((s) => s.settings?.dropRateOrder ?? 'common')
   const normalise = useStore((s) => s.settings?.normaliseDropRates ?? false)
+  /** Whether a jump within this page travels or arrives. */
+  const glide = useStore((s) => s.settings?.smoothSectionJumps ?? true)
 
   useEffect(() => {
     let live = true
@@ -117,14 +119,16 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
   useEffect(() => {
     const scroller = scrollRef.current
     if (!scroller) return
-    if (hash && article && bodyRef.current) {
-      const target = findAnchor(bodyRef.current, hash)
-      if (target) {
-        target.scrollIntoView({ block: 'start' })
-        return
-      }
+    const target = hash && article && bodyRef.current ? findAnchor(bodyRef.current, hash) : null
+    if (target) {
+      scrollToAnchor(scroller, target)
+    } else {
+      cancelSettle?.()
+      scroller.scrollTo(0, 0)
     }
-    scroller.scrollTo(0, 0)
+    // Leaving the page abandons any jump still correcting itself, so a late
+    // image on the article you have left cannot yank the one you are on.
+    return () => cancelSettle?.()
   }, [title, hash, article])
 
   /**
@@ -215,7 +219,10 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
       if (href.startsWith('#')) {
         e.preventDefault()
         const id = decodeFragment(href.slice(1))
-        root.querySelector(`[id="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth' })
+        const section = root.querySelector(`[id="${CSS.escape(id)}"]`)
+        if (section && scrollRef.current) {
+          scrollToAnchor(scrollRef.current, section, { smooth: glide })
+        }
       }
     }
 
@@ -277,18 +284,19 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
       root.removeEventListener('mouseover', onOver)
       root.removeEventListener('mouseout', onOut)
     }
-  }, [push, article])
+  }, [push, article, glide])
 
   /** Jump to the sources table on this page — where the badges were read from. */
   const scrollToSources = (): void => {
     const root = bodyRef.current
-    if (!root) return
+    const scroller = scrollRef.current
+    if (!root || !scroller) return
     for (const table of root.querySelectorAll('table')) {
       const headers = [...table.querySelectorAll('th')].map((th) =>
         (th.textContent ?? '').trim().toLowerCase()
       )
       if (headers.includes('source') && headers.includes('rarity')) {
-        table.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        scrollToAnchor(scroller, table, { smooth: glide, center: true })
         return
       }
     }
@@ -465,6 +473,191 @@ function findAnchor(root: HTMLElement, hash: string): Element | null {
     if (heading.id && LOOT_HEADING.test(heading.id)) return heading
   }
   return null
+}
+
+/* ── Anchored jumps ──────────────────────────────────────────────────────── */
+
+/**
+ * How long the article must hold its height before a jump lets go.
+ *
+ * The page's own shape is the signal, rather than a timer or a count of images
+ * still in flight. `HTMLImageElement.complete` cannot answer that question: it
+ * reads `true` for a lazily-loaded image that has not begun to fetch, so on God
+ * Wars Dungeon all 244 pictures above the target claim to be finished at the
+ * moment the jump starts. A height that has not moved for this long has not
+ * moved because nothing is left to arrive.
+ */
+const QUIET_MS = 800
+
+/**
+ * The longest a jump will hold on regardless.
+ *
+ * A wiki image the app has not seen before is fetched from the wiki rather than
+ * read from disk, and on a page this size there are a couple of hundred of them
+ * behind an eight-at-a-time queue; measured with the cache deliberately
+ * emptied, the last of them lands a little past three seconds. This is only the
+ * backstop for a page that never stops moving at all.
+ */
+const MAX_SETTLE_MS = 8000
+
+/** Under a pixel is rounding, not a misplaced anchor. */
+const SETTLE_SLOP = 1
+
+/**
+ * Fraction of the remaining distance covered per frame while gliding.
+ *
+ * An exponential approach rather than a timed curve, because the destination
+ * moves: a tween has to commit to where the target was when it started, which
+ * is the very assumption that put the old jump 1,950px above Saradomin's
+ * general. This re-aims every frame instead, so a section that shifts mid-glide
+ * is simply flown to. 0.18 a frame clears 97% of the gap in about 300ms and the
+ * rest shortly after, and a shift that lands once you are already there is
+ * taken up over a handful of frames rather than snapping.
+ */
+const GLIDE = 0.18
+
+/** The frame the glide rate is quoted against; real frames are scaled to it. */
+const FRAME_MS = 1000 / 60
+
+/** A frame this late means the tab stalled, not that time really passed. */
+const MAX_FRAME_MS = 50
+
+/**
+ * The smallest move worth writing, in device pixels.
+ *
+ * A scroll offset snaps to the device pixel grid — at a 1.3125 ratio that is
+ * one CSS pixel in every 0.76 — so a step smaller than the grid
+ * is not a small movement, it is no movement. An exponential approach produces
+ * ever smaller steps by definition, which is how the glide came to stop dead
+ * eleven pixels above its heading and stay there. Below this the remaining
+ * distance is crossed at a flat rate instead, which closes it in a few frames
+ * and cannot stall.
+ */
+const MIN_STEP_DP = 2
+
+/** Anything here means the reader has taken the scroll back. */
+const TAKEOVER = ['wheel', 'touchstart', 'pointerdown'] as const
+
+/**
+ * The jump still correcting itself, if any. Module-scoped because only one
+ * article is on screen at a time, and a second jump must supersede the first
+ * rather than argue with it.
+ */
+let cancelSettle: (() => void) | null = null
+
+interface AnchorOptions {
+  smooth?: boolean
+  /** Put the target mid-screen rather than at the top — for a whole table. */
+  center?: boolean
+}
+
+/**
+ * Jump to an element, and hold it there until the page stops moving.
+ *
+ * A wiki article is not yet the height it will be. Images arrive over the
+ * `rpimg://` cache — from disk when it is warm, from the wiki when it is not —
+ * and until the bytes land an image occupies *nothing*, because the stylesheet
+ * overrides the width and height MediaWiki writes on every tag (see the image
+ * caps in article.css, which need `width: auto` to clamp proportionally). Every
+ * picture that resolves above the target therefore adds its height after the
+ * jump has already been made, and the section slides down out from under you.
+ * Smooth scrolling compounds it: travelling the page is itself what wakes the
+ * lazy images along the route, so they land mid-animation. On God Wars Dungeon
+ * that is the difference between arriving at Saradomin's general and stopping a
+ * couple of screens above him.
+ *
+ * So rather than guess the final layout, the jump is held: every frame the
+ * target is measured again and the scroller moved by what is left, until it
+ * stops drifting or the deadline passes. Real scroll input cancels the whole
+ * thing — a correction that fights the reader is worse than one that never
+ * happened.
+ *
+ * The glide is ours rather than `behavior: 'smooth'` for the same reason. A
+ * native smooth scroll animates toward a fixed offset chosen when it starts, so
+ * every image that lands on the way leaves it short — and there is no way to
+ * correct it mid-flight, because writing `scrollTop` cancels it outright. Which
+ * is exactly what an earlier version of this did: the correction fired two
+ * frames in, before the animation had even begun to move, and the glide was
+ * lost.
+ */
+function scrollToAnchor(
+  scroller: HTMLElement,
+  target: Element,
+  { smooth = false, center = false }: AnchorOptions = {}
+): void {
+  cancelSettle?.()
+
+  // The images between the top of the article and the target are the ones whose
+  // late arrival pushes it down, so ask for them now rather than whenever the
+  // scroll happens to pass them. They would have been fetched on the way
+  // regardless; this only brings the cost inside the window where it can still
+  // be corrected for.
+  for (const img of scroller.querySelectorAll<HTMLImageElement>('img[loading="lazy"]')) {
+    if (target.compareDocumentPosition(img) & Node.DOCUMENT_POSITION_PRECEDING) {
+      img.loading = 'eager'
+    }
+  }
+
+  /** How far the target is from where it belongs, in pixels. */
+  const drift = (): number => {
+    const rect = target.getBoundingClientRect()
+    const box = scroller.getBoundingClientRect()
+    // A target taller than the viewport cannot be centred; start it instead.
+    const wanted = center ? Math.max(0, (scroller.clientHeight - rect.height) / 2) : 0
+    return rect.top - box.top - wanted
+  }
+
+  // Placed before the first frame when there is no glide to play, so arriving
+  // on a new page at a fragment never shows a frame of its top first.
+  if (!smooth) scroller.scrollTop += drift()
+
+  let frame = 0
+  let last = performance.now()
+  const backstop = last + MAX_SETTLE_MS
+  /** The floor on a step, in CSS pixels, on whatever display this is. */
+  const minStep = MIN_STEP_DP / (window.devicePixelRatio || 1)
+  let height = scroller.scrollHeight
+  let steady = last
+
+  const stop = (): void => {
+    cancelAnimationFrame(frame)
+    for (const event of TAKEOVER) scroller.removeEventListener(event, stop)
+    window.removeEventListener('keydown', stop)
+    cancelSettle = null
+  }
+
+  const tick = (now: number): void => {
+    const elapsed = Math.min(now - last, MAX_FRAME_MS)
+    last = now
+
+    // Growing means pictures are still landing and the target is still moving.
+    const grown = scroller.scrollHeight
+    if (grown !== height) {
+      height = grown
+      steady = now
+    }
+
+    const off = drift()
+    if (Math.abs(off) > SETTLE_SLOP) {
+      // Frame-rate corrected, so the glide takes the same time at 60Hz as at
+      // the 144 this is quite likely to be running at.
+      const eased = off * (1 - Math.pow(1 - GLIDE, elapsed / FRAME_MS))
+      const crawl = Math.sign(off) * Math.min(minStep, Math.abs(off))
+      if (!smooth) scroller.scrollTop += off
+      else scroller.scrollTop += Math.abs(eased) < minStep ? crawl : eased
+      steady = now
+    }
+
+    if (now > backstop || now - steady > QUIET_MS) return stop()
+    frame = requestAnimationFrame(tick)
+  }
+
+  frame = requestAnimationFrame(tick)
+  // The click that started this has already been and gone, so its own
+  // pointerdown cannot cancel the jump it asked for.
+  for (const event of TAKEOVER) scroller.addEventListener(event, stop, { passive: true })
+  window.addEventListener('keydown', stop)
+  cancelSettle = stop
 }
 
 /* ── Drop rates beside the title ─────────────────────────────────────────── */

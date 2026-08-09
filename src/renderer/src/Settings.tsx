@@ -139,6 +139,17 @@ export function SettingsView(): JSX.Element {
             label="Reduce motion"
           />
         </Field>
+
+        <Field
+          label="Smooth section jumps"
+          hint="Clicking an entry in a page's Contents box travels down to that section instead of arriving there, so you can see which way the page moved and how far. It lands on the heading either way. Separate from Reduce motion, which only governs the window itself."
+        >
+          <Switch
+            checked={settings.smoothSectionJumps}
+            onChange={(smoothSectionJumps) => patch({ smoothSectionJumps })}
+            label="Smooth section jumps"
+          />
+        </Field>
       </Group>
 
       <Group title="Account">

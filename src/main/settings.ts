@@ -35,6 +35,7 @@ export const DEFAULTS: Settings = {
   uiScale: 1,
   acrylic: true,
   reduceMotion: false,
+  smoothSectionJumps: true,
   bounds: null,
 }
 
@@ -118,6 +119,8 @@ function sanitize(s: Settings): Settings {
     uiScale: clampScale(s.uiScale),
     acrylic: Boolean(s.acrylic),
     reduceMotion: Boolean(s.reduceMotion),
+    // Defaults on, so an absent key means true rather than false.
+    smoothSectionJumps: s.smoothSectionJumps !== false,
     bounds: sanitizeBounds(s.bounds),
   }
 }
