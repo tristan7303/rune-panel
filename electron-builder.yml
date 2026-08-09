@@ -50,7 +50,10 @@ win:
 nsis:
   oneClick: false
   perMachine: false
-  allowToChangeInstallationDirectory: true
+  # No directory page: Rune Panel installs under the user's own AppData, needs no
+  # elevation, and the one custom page states where it is going. A wizard step
+  # whose answer is almost always "yes, the default" is a step for its own sake.
+  allowToChangeInstallationDirectory: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Rune Panel

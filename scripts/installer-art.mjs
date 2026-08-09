@@ -177,6 +177,21 @@ function build() {
   rect(side, 162, 0, 2, 314, GOLD)
   writeFileSync(join(root, 'build/installerSidebar.bmp'), encodeBmp(side))
 
+  /* ── The mark on the intro page, 300x110 ──────────────────────────────
+     Drawn onto the page's own background rather than a panel of its own, so
+     the label under it reads as the same surface. Stretched to the control at
+     runtime, which is why it is generous: shrinking pixel art is survivable
+     and enlarging it is not. */
+  const mark = canvas(300, 110, SURFACE)
+  const markLogo = fit(logo, 240, 100)
+  drawImage(
+    mark,
+    markLogo,
+    Math.round((300 - markLogo.getSize().width) / 2),
+    Math.round((110 - markLogo.getSize().height) / 2)
+  )
+  writeFileSync(join(root, 'build/installerMark.bmp'), encodeBmp(mark))
+
   /* ── The header badge, 150x57 ─────────────────────────────────────────
      Sits in the corner of every interior page. Small, so the banner in the
      logo is unreadable at this size and the mark alone is the point. */
@@ -191,7 +206,10 @@ function build() {
   )
   writeFileSync(join(root, 'build/installerHeader.bmp'), encodeBmp(head))
 
-  console.log('wrote build/installerSidebar.bmp (164x314) and build/installerHeader.bmp (150x57)')
+  console.log(
+    'wrote build/installerSidebar.bmp (164x314), build/installerHeader.bmp (150x57)' +
+      ' and build/installerMark.bmp (300x110)'
+  )
 }
 
 app.whenReady().then(() => {
