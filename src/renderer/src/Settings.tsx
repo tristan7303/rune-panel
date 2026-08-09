@@ -9,16 +9,32 @@ import { useEffect, useState, type JSX } from 'react'
 import type {
   AccountMode,
   CrawlState,
+  KeywordAlias,
   ScaleDirection,
   TitleIndexState,
   UpdateStatus,
 } from '@shared/ipc'
 import { useStore } from './store'
 import { usePlayer } from './player'
+import { capture, specParts, type BindScope } from './keycapture'
+
+/**
+ * The tabs, in the order they are offered.
+ *
+ * Grouped by what you came here to change rather than by which part of the code
+ * owns the setting. "Reading" is everything that alters an article on the page
+ * — drop rates, columns, which price service a button opens — because that is
+ * one decision from the reader's side even though it crosses three modules.
+ * About is last because it is the only one you visit deliberately rather than
+ * on the way to something.
+ */
+const TABS = ['General', 'Appearance', 'Reading', 'Search', 'About'] as const
+type Tab = (typeof TABS)[number]
 
 export function SettingsView(): JSX.Element {
   const settings = useStore((s) => s.settings)
   const patch = useStore((s) => s.patchSettings)
+  const [tab, setTab] = useState<Tab>('General')
 
   if (!settings) return <div className="placeholder">Loading…</div>
 
@@ -26,6 +42,22 @@ export function SettingsView(): JSX.Element {
     <div className="settings">
       <h1>Settings</h1>
 
+      <nav className="settings-tabs" role="tablist" aria-label="Settings sections">
+        {TABS.map((name) => (
+          <button
+            key={name}
+            role="tab"
+            aria-selected={name === tab}
+            className={`settings-tab ${name === tab ? 'is-active' : ''}`}
+            onClick={() => setTab(name)}
+          >
+            {name}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'General' && (
+        <>
       {/* Keybinds first, and together. The global one is genuinely different
           from the other two — it is registered with Windows and can be lost to
           another program — so it says so rather than sitting unmarked beside
@@ -33,13 +65,12 @@ export function SettingsView(): JSX.Element {
       <Group title="Keyboard">
         <Field
           label="Open and close"
-          hint="Works anywhere in Windows, including over a game. Electron accelerator syntax, e.g. Control+Shift+Space. Registered with the OS, so another program holding the same combination wins it."
+          hint="Works anywhere in Windows, including over a game. Registered with the OS, so another program holding the same combination wins it — if the shortcut stops working, something else has claimed it."
         >
-          <input
-            type="text"
+          <KeyBind
             value={settings.hotkey}
-            spellCheck={false}
-            onChange={(e) => patch({ hotkey: e.target.value })}
+            scope="global"
+            onChange={(hotkey) => patch({ hotkey })}
           />
         </Field>
 
@@ -47,12 +78,10 @@ export function SettingsView(): JSX.Element {
           label="Search the wiki"
           hint="Focuses the search box in the title bar. Ctrl+K always works too."
         >
-          <input
-            type="text"
+          <KeyBind
             value={settings.searchKey}
-            spellCheck={false}
-            placeholder="Ctrl+F"
-            onChange={(e) => patch({ searchKey: e.target.value })}
+            scope="app"
+            onChange={(searchKey) => patch({ searchKey })}
           />
         </Field>
 
@@ -64,13 +93,7 @@ export function SettingsView(): JSX.Element {
               : 'Opens the Grand Exchange with the item box focused, or just focuses it if you are already there.'
           }
         >
-          <input
-            type="text"
-            value={settings.geKey}
-            spellCheck={false}
-            placeholder="Ctrl+G"
-            onChange={(e) => patch({ geKey: e.target.value })}
-          />
+          <KeyBind value={settings.geKey} scope="app" onChange={(geKey) => patch({ geKey })} />
         </Field>
       </Group>
 
@@ -110,6 +133,14 @@ export function SettingsView(): JSX.Element {
         </Field>
       </Group>
 
+      <Group title="Account">
+        <RsnField />
+      </Group>
+        </>
+      )}
+
+      {tab === 'Appearance' && (
+        <>
       <Group title="Appearance">
         <Field
           label="Acrylic backdrop"
@@ -151,11 +182,11 @@ export function SettingsView(): JSX.Element {
           />
         </Field>
       </Group>
+        </>
+      )}
 
-      <Group title="Account">
-        <RsnField />
-      </Group>
-
+      {tab === 'Reading' && (
+        <>
       <Group title="Prices">
         <Field
           label="Replace Wiki prices with GE Tracker"
@@ -207,6 +238,29 @@ export function SettingsView(): JSX.Element {
             label="Always show rates as 1 in N"
           />
         </Field>
+
+        <Field
+          label="Show the High Alch column"
+          hint="The wiki's drop tables carry both a Grand Exchange price and a high alchemy value. Off by default: the panel is a fraction of an article page's width, and of the two the price is what a drop is usually being weighed against."
+          below={<DropExample showAlch={settings.showHighAlchInDrops} />}
+        >
+          <Switch
+            checked={settings.showHighAlchInDrops}
+            onChange={(showHighAlchInDrops) => patch({ showHighAlchInDrops })}
+            label="Show the High Alch column"
+          />
+        </Field>
+      </Group>
+        </>
+      )}
+
+      {tab === 'Search' && (
+        <>
+      <Group title="Keyword matching">
+        <AliasField
+          aliases={settings.keywordAliases}
+          onChange={(keywordAliases) => patch({ keywordAliases })}
+        />
       </Group>
 
       <Group title="Wiki data">
@@ -226,11 +280,243 @@ export function SettingsView(): JSX.Element {
         <TitleIndexField />
         <PageCacheField />
       </Group>
+        </>
+      )}
 
-      <Group title="About">
-        <UpdateField />
-      </Group>
+      {tab === 'About' && (
+        <Group title="About">
+          <UpdateField />
+        </Group>
+      )}
     </div>
+  )
+}
+
+/**
+ * A keybind, set by pressing it.
+ *
+ * The box used to be a text field, which meant knowing that the thing you press
+ * is spelled `Control+Shift+Space` — and typing it wrong gave you a shortcut
+ * that silently did not work, with nothing to say so. Pressing the keys removes
+ * the spelling from the problem entirely.
+ *
+ * Capture is explicit at both ends: a button to start, and a save to commit.
+ * A field that listened while merely focused would eat the keyboard of anyone
+ * tabbing through the page, and one that committed the first chord it saw would
+ * be unable to record a combination you passed through on the way — Ctrl+Shift+F
+ * begins as Ctrl+F.
+ */
+function KeyBind({
+  value,
+  scope,
+  onChange,
+}: {
+  value: string
+  scope: BindScope
+  onChange: (spec: string) => void
+}): JSX.Element {
+  const [draft, setDraft] = useState<string | null>(null)
+  const [held, setHeld] = useState<string[]>([])
+  const [problem, setProblem] = useState<string | null>(null)
+  const capturing = draft !== null
+
+  useEffect(() => {
+    if (!capturing) return
+
+    /**
+     * Capture phase, and nothing escapes.
+     *
+     * Every shortcut in this app listens on `window`, so a bubble-phase
+     * listener here would run after them: pressing Ctrl+F to bind it would
+     * first focus the search box, and Escape to cancel would navigate out of
+     * Settings. Taking the event first and stopping it dead is what makes the
+     * keyboard belong to this control while it is armed.
+     */
+    const onKey = (e: KeyboardEvent): void => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      if (e.key === 'Escape') {
+        setDraft(null)
+        setHeld([])
+        setProblem(null)
+        return
+      }
+
+      const parts: string[] = []
+      if (e.ctrlKey) parts.push('Ctrl')
+      if (e.altKey) parts.push('Alt')
+      if (e.shiftKey) parts.push('Shift')
+      if (e.metaKey) parts.push('Win')
+      setHeld(parts)
+
+      const got = capture(e, scope)
+      // Modifiers alone: show them building up, and wait for the real key.
+      if (!got) return
+      if (got.problem) {
+        setProblem(got.problem)
+        return
+      }
+      setProblem(null)
+      setDraft(got.spec)
+    }
+
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [capturing, scope])
+
+  const start = (): void => {
+    setDraft('')
+    setHeld([])
+    setProblem(null)
+  }
+  const cancel = (): void => {
+    setDraft(null)
+    setHeld([])
+    setProblem(null)
+  }
+  const save = (): void => {
+    if (draft) onChange(draft)
+    cancel()
+  }
+
+  // While armed: the chord so far, or the modifiers still being held.
+  const shown = capturing ? (draft ? specParts(draft) : held) : specParts(value)
+
+  return (
+    <div className="keybind">
+      <div className={`keybind-keys ${capturing ? 'is-listening' : ''}`}>
+        {shown.length > 0 ? (
+          shown.map((part, i) => (
+            <kbd key={`${part}-${i}`} className="keybind-key">
+              {part}
+            </kbd>
+          ))
+        ) : (
+          <span className="keybind-empty">{capturing ? 'Press keys…' : 'Not set'}</span>
+        )}
+      </div>
+
+      {capturing ? (
+        <>
+          <button type="button" className="btn" onClick={save} disabled={!draft}>
+            Save
+          </button>
+          <button type="button" className="btn" onClick={cancel}>
+            Cancel
+          </button>
+        </>
+      ) : (
+        <button type="button" className="btn" onClick={start}>
+          Change
+        </button>
+      )}
+
+      {problem && <p className="keybind-problem">{problem}</p>}
+    </div>
+  )
+}
+
+/**
+ * A drop row, as it would be drawn.
+ *
+ * The setting hides a column, and a column you cannot see is hard to have an
+ * opinion about — the name "High Alch" says what the number is but not what
+ * turning it off costs you. Showing the row itself answers that in the time it
+ * takes to glance at it, and it moves as the switch does, so the toggle
+ * demonstrates itself rather than being described.
+ */
+function DropExample({ showAlch }: { showAlch: boolean }): JSX.Element {
+  return (
+    <table className="settings-example" aria-hidden="true">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Quantity</th>
+          <th>Rarity</th>
+          <th>Price</th>
+          {showAlch && <th>High Alch</th>}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Rune scimitar</td>
+          <td>1</td>
+          <td className="settings-example-rarity">1/128</td>
+          <td>14,900</td>
+          {showAlch && <td>15,360</td>}
+        </tr>
+      </tbody>
+    </table>
+  )
+}
+
+/**
+ * Search synonyms, as an editable list.
+ *
+ * Written straight through to the setting on every keystroke rather than held
+ * in a draft. Main lowercases, trims and drops incomplete rows on the way in,
+ * so a half-typed rule is simply a rule that does not fire yet — there is no
+ * invalid state to protect the user from, and a Save button for a two-word rule
+ * would be more ceremony than the rule.
+ */
+function AliasField({
+  aliases,
+  onChange,
+}: {
+  aliases: KeywordAlias[]
+  onChange: (next: KeywordAlias[]) => void
+}): JSX.Element {
+  const edit = (index: number, part: Partial<KeywordAlias>): void =>
+    onChange(aliases.map((a, i) => (i === index ? { ...a, ...part } : a)))
+
+  return (
+    <Field
+      label="Match a word with another"
+      hint="Typing the word on the left also searches for the one on the right, so “scurrius bis” finds Scurrius/Strategies — the wiki names that page formally and nobody types it that way. Whole words only, so a rule for “bis” will not fire inside “Bisque”."
+    >
+      <div className="settings-aliases">
+        {aliases.map((alias, i) => (
+          <div className="settings-alias" key={i}>
+            <input
+              type="text"
+              value={alias.from}
+              spellCheck={false}
+              aria-label="Word you type"
+              placeholder="bis"
+              onChange={(e) => edit(i, { from: e.target.value })}
+            />
+            <span className="settings-alias-arrow" aria-hidden="true">
+              →
+            </span>
+            <input
+              type="text"
+              value={alias.to}
+              spellCheck={false}
+              aria-label="Word to search for"
+              placeholder="strategies"
+              onChange={(e) => edit(i, { to: e.target.value })}
+            />
+            <button
+              type="button"
+              className="settings-alias-remove"
+              aria-label={`Remove ${alias.from || 'this rule'}`}
+              onClick={() => onChange(aliases.filter((_, n) => n !== i))}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          className="btn settings-alias-add"
+          onClick={() => onChange([...aliases, { from: '', to: '' }])}
+        >
+          Add a word
+        </button>
+      </div>
+    </Field>
   )
 }
 
@@ -554,10 +840,21 @@ function PageCacheField(): JSX.Element {
 function Field({
   label,
   hint,
+  below,
   children,
 }: {
   label: string
   hint: string
+  /**
+   * Anything that belongs under the description rather than beside it.
+   *
+   * For a control that shows its own effect: an example that changes size as
+   * the switch moves shoves the switch around when it sits in the control
+   * column, and a control that walks away from the cursor as you use it is a
+   * control you have to chase. Under the text it can grow in the one direction
+   * nothing else depends on.
+   */
+  below?: React.ReactNode
   children: React.ReactNode
 }): JSX.Element {
   return (
@@ -565,6 +862,7 @@ function Field({
       <div className="field-label">
         <strong>{label}</strong>
         <span>{hint}</span>
+        {below}
       </div>
       <div className="field-control">{children}</div>
     </div>

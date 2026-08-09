@@ -502,6 +502,32 @@
   white-space: nowrap;
 }
 
+/**
+ * A rarity never wraps.
+ *
+ * The rarest drops carry the longest rates — Scurrius's curved bone is
+ * `1/5,012.5` — and they are the ones being looked up, so this is exactly the
+ * wrong column to let fold onto two lines and shove the rest of the row about.
+ * A drop table already scrolls sideways when it has to, which is the honest
+ * answer to a table wider than the panel.
+ */
+.article-body .rp-table td[class*='table-bg-'],
+.article-body table.wikitable td[class*='table-bg-'] {
+  white-space: nowrap;
+  text-align: center;
+}
+
+/**
+ * The High Alch column, when it is turned off.
+ *
+ * `alch-column` is on the header as well as every cell beneath it, so one rule
+ * removes the column outright and the rest of the table closes over it — no
+ * empty gutter, and nothing to undo when the setting comes back on.
+ */
+.article-body.rp-hide-alch .alch-column {
+  display: none;
+}
+
 /* Rarity cells opt out: the hover is more specific than the colour rules below
    and would otherwise wipe the one thing you are scanning the table for. */
 .article-body .rp-table tr:hover td:not([class*='table-bg-']) {

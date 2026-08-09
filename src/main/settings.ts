@@ -30,6 +30,12 @@ export const DEFAULTS: Settings = {
   dropRateInTitle: false,
   dropRateOrder: 'common',
   normaliseDropRates: false,
+  showHighAlchInDrops: false,
+  // One rule out of the box, because the feature is invisible until it has
+  // fired once: "bis" is what gets typed and `/Strategies` is where the answer
+  // lives, and no amount of fuzzy matching connects two words with no letters
+  // in common.
+  keywordAliases: [{ from: 'bis', to: 'strategies' }],
   geTrackerReplacesGe: true,
   startOnLogin: true,
   uiScale: 1,
@@ -110,6 +116,8 @@ function sanitize(s: Settings): Settings {
     dropRateInTitle: Boolean(s.dropRateInTitle),
     dropRateOrder: s.dropRateOrder === 'rare' ? 'rare' : 'common',
     normaliseDropRates: Boolean(s.normaliseDropRates),
+    showHighAlchInDrops: Boolean(s.showHighAlchInDrops),
+    keywordAliases: sanitizeAliases(s.keywordAliases),
     // Defaults on, so an absent key means true rather than false.
     geTrackerReplacesGe: s.geTrackerReplacesGe !== false,
     // Defaults on, so an absent key means true rather than false.
@@ -143,6 +151,50 @@ function clampScale(value: unknown): number {
  */
 function bind(value: string, fallback: string): string {
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, 40) : fallback
+}
+
+/** How many synonyms are worth honouring. Past this it is a dictionary. */
+const MAX_ALIASES = 40
+
+/**
+ * Search synonyms, from a settings file that may have been edited by hand.
+ *
+ * Deliberately keeps a half-written rule. The editor adds an empty row for you
+ * to type into, and every settings change is a round trip through here — so
+ * dropping incomplete rules meant the new row was deleted before the first
+ * keystroke landed and the Add button did nothing at all. An incomplete rule is
+ * not invalid, it is unfinished; the searcher ignores it until it is not.
+ *
+ * What is enforced is what cannot be typed back out of: both sides are trimmed,
+ * lowercased and length-capped, a `from` cannot be claimed twice, and the list
+ * has a ceiling.
+ */
+function sanitizeAliases(value: unknown): Array<{ from: string; to: string }> {
+  if (!Array.isArray(value)) return []
+  const claimed = new Set<string>()
+  const out: Array<{ from: string; to: string }> = []
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue
+    const from = String((entry as { from?: unknown }).from ?? '')
+      .trim()
+      .toLowerCase()
+      .slice(0, 40)
+    const to = String((entry as { to?: unknown }).to ?? '')
+      .trim()
+      .toLowerCase()
+      .slice(0, 60)
+
+    // A word already spoken for, or one that only maps to itself, is a rule
+    // that could never do anything — but only once it is complete enough to
+    // judge, so blanks fall through.
+    if (from && (claimed.has(from) || from === to)) continue
+    if (from) claimed.add(from)
+
+    out.push({ from, to })
+    if (out.length >= MAX_ALIASES) break
+  }
+  return out
 }
 
 function sanitizeBounds(b: WindowBounds | null): WindowBounds | null {

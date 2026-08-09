@@ -77,6 +77,24 @@ export interface Settings {
    */
   normaliseDropRates: boolean
   /**
+   * Keep the High Alch column in drop tables.
+   *
+   * Off by default. The wiki ships six columns and the panel is a third the
+   * width of an article page, so something has to give — and of the two money
+   * columns, the Grand Exchange price is the one a drop is usually being
+   * weighed against. Alching is a floor, and a floor you can turn back on.
+   */
+  showHighAlchInDrops: boolean
+  /**
+   * Words that stand in for other words when searching.
+   *
+   * The wiki names its pages formally and players do not: the page is
+   * `Scurrius/Strategies` and what gets typed is "scurrius bis". Fuzzy matching
+   * cannot bridge that, because the two words share no letters — it is a
+   * synonym, not a typo, and only a list of them can answer it.
+   */
+  keywordAliases: KeywordAlias[]
+  /**
    * Prefer GE Tracker over the built-in Grand Exchange, everywhere.
    *
    * One switch rather than several, because half-applying it is the confusing
@@ -146,6 +164,18 @@ export interface Settings {
   smoothSectionJumps: boolean
   /** Last window bounds, restored on next launch. Null until first move/resize. */
   bounds: WindowBounds | null
+}
+
+/**
+ * One search synonym: type `from`, also search for `to`.
+ *
+ * Whole words on both sides. A substring rule would fire inside "Bisque" the
+ * moment somebody added "bis", and a search box that quietly rewrites part of a
+ * word is worse than one that does nothing.
+ */
+export interface KeywordAlias {
+  from: string
+  to: string
 }
 
 export interface WindowBounds {

@@ -64,6 +64,7 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
   const showDropRates = useStore((s) => s.settings?.dropRateInTitle ?? false)
   const dropOrder = useStore((s) => s.settings?.dropRateOrder ?? 'common')
   const normalise = useStore((s) => s.settings?.normaliseDropRates ?? false)
+  const showAlch = useStore((s) => s.settings?.showHighAlchInDrops ?? false)
   /** Whether a jump within this page travels or arrives. */
   const glide = useStore((s) => s.settings?.smoothSectionJumps ?? true)
 
@@ -358,7 +359,12 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
         )}
 
         <div
-          className="article-body"
+          // The High Alch column is hidden with a class rather than by touching
+          // the cells, because the wiki puts `alch-column` on the header as well
+          // as every cell under it — so one rule takes the whole column out of
+          // the table, and toggling the setting is a class change rather than a
+          // pass over hundreds of rows.
+          className={`article-body ${showAlch ? '' : 'rp-hide-alch'}`}
           ref={bodyRef}
           // Body blocks tagged by the transform reveal only the selected
           // variant, so the detail image follows the tabs.

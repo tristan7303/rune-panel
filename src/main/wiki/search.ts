@@ -20,6 +20,8 @@
 
 import uFuzzy from '@leeoniya/ufuzzy'
 import * as db from '../db'
+import * as settings from '../settings'
+import type { KeywordAlias } from '../../shared/ipc'
 
 export interface SearchResult {
   /** The canonical article to navigate to. */
@@ -106,6 +108,33 @@ export function load(): void {
   loaded = true
 }
 
+/**
+ * Substitute any configured synonym, whole word.
+ *
+ * Returns null when nothing applies, which is the common case and worth not
+ * paying a second search for. Word-by-word rather than by substring, so a rule
+ * for "bis" cannot fire inside "Bisque"; case is folded because the rules are
+ * stored lowercased and nobody capitalises a search box.
+ */
+function expand(query: string, aliases: KeywordAlias[]): string | null {
+  // Both halves written, and a `from` of one word — the editor stores a rule
+  // from the moment you add the row, so half of one is the normal state while
+  // it is being typed rather than something to complain about. A `from` with a
+  // space in it could never match a single word and is skipped for the same
+  // reason: it is not yet a rule that means anything.
+  const usable = aliases.filter((a) => a.from && a.to && !/\s/.test(a.from))
+  if (usable.length === 0) return null
+
+  let changed = false
+  const out = query.split(/\s+/).map((word) => {
+    const rule = usable.find((a) => a.from === word.toLowerCase())
+    if (!rule) return word
+    changed = true
+    return rule.to
+  })
+  return changed ? out.join(' ') : null
+}
+
 export function search(query: string, limit = LIMIT): SearchResult[] {
   const q = query.trim()
   if (q.length < MIN_QUERY) return []
@@ -113,6 +142,34 @@ export function search(query: string, limit = LIMIT): SearchResult[] {
   load()
   if (haystack.length === 0) return []
 
+  /**
+   * A synonym is an instruction, so its results lead.
+   *
+   * "scurrius bis" matches no page at all as typed — the whole reason the rule
+   * exists — so ranking the literal query first would bury the page that was
+   * actually asked for under whatever the fuzzy matcher salvaged. The literal
+   * results still follow, deduped, because a rule firing on a word that also
+   * means something by itself should not hide the page named after it.
+   */
+  const expanded = expand(q, settings.get().keywordAliases)
+  if (expanded) {
+    const merged = rank(expanded, limit)
+    const seen = new Set(merged.map((r) => r.title))
+    for (const hit of rank(q, limit)) {
+      if (merged.length >= limit) break
+      if (!seen.has(hit.title)) {
+        seen.add(hit.title)
+        merged.push(hit)
+      }
+    }
+    return merged
+  }
+
+  return rank(q, limit)
+}
+
+/** One pass of match, collapse and promote for a single spelling of a query. */
+function rank(q: string, limit: number): SearchResult[] {
   const hits = fuzzy.filter(haystack, q)
   if (!hits || hits.length === 0) return []
 
