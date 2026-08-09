@@ -18,6 +18,18 @@
 /** A rate that always drops. Sorts ahead of every fraction. */
 const ALWAYS = /^\s*always\s*$/i
 
+/**
+ * The thousands separators the wiki writes into a denominator.
+ *
+ * Rare drops are where they appear, and rare drops are where being wrong is
+ * least forgivable: Scurrius drops a curved bone at `1/5,012.5`, and a pattern
+ * that stops at the comma reads that as **1 in 5** — then colours it green as a
+ * common drop, and hands the same figure to the badge beside the item's title.
+ * Only a comma standing between two digits is removed, so a cell that separates
+ * two rates with one keeps it.
+ */
+const GROUPING = /(?<=\d),(?=\d)/g
+
 export interface DropRate {
   /** Exactly as the wiki wrote it — "2 × 5/150", "Always". */
   raw: string
@@ -36,7 +48,11 @@ export function parseRate(raw: string): DropRate {
 
   // An optional "N ×" prefix, then a/b. The multiplication sign is the wiki's
   // own U+00D7, but an editor typing an ASCII x is common enough to accept.
-  const match = /^(?:(\d+)\s*[×x]\s*)?(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/.exec(text)
+  // Matched against the ungrouped form so a denominator in the thousands is
+  // read whole; `raw` keeps the wiki's own spelling for the tooltip.
+  const match = /^(?:(\d+)\s*[×x]\s*)?(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/.exec(
+    text.replace(GROUPING, '')
+  )
   if (!match) return { raw: text, oneIn: null, rolls: 1 }
 
   const rolls = match[1] ? Number(match[1]) : 1
@@ -47,10 +63,18 @@ export function parseRate(raw: string): DropRate {
   return { raw: text, oneIn: denominator / numerator, rolls }
 }
 
-/** Trim a trailing `.0` so a whole number does not read as a measurement. */
+/**
+ * A denominator, grouped, with a trailing `.0` trimmed so a whole number does
+ * not read as a measurement.
+ *
+ * Grouped because these run to five digits on the rarest drops and `1/5012.5`
+ * takes a second look to place, which is the one thing a rarity column is for.
+ * It also matches what the wiki wrote, so the rewritten cell and the tooltip
+ * quoting the original agree on everything but the fraction itself.
+ */
 function trim(value: number): string {
   const rounded = Math.round(value * 10) / 10
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+  return rounded.toLocaleString('en-US', { maximumFractionDigits: 1 })
 }
 
 /**
