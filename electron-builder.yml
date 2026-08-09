@@ -54,6 +54,20 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Rune Panel
+
+  # The wizard's own artwork. Both are generated from images/rune-panel-logo.png
+  # by scripts/installer-art.mjs and committed, because the build consumes them
+  # — regenerate with `npx electron scripts/installer-art.mjs` if the logo
+  # changes. NSIS fixes both sizes and the format: 164x314 for the panel beside
+  # the welcome and finish pages, 150x57 for the badge in the header of the
+  # pages between them, 24-bit BMP for each.
+  installerSidebar: build/installerSidebar.bmp
+  uninstallerSidebar: build/installerSidebar.bmp
+  installerHeader: build/installerHeader.bmp
+
+  # Colours and wording. See the file — the short version is that the welcome
+  # and finish pages are ours to paint and the ones in between are Windows'.
+  include: build/installer.nsh
   # Keep the user's cache and settings on uninstall — they live in
   # %APPDATA%/rune-panel and are expensive to rebuild (the title index alone is
   # a four-minute download).
