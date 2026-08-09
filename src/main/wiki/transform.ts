@@ -49,6 +49,8 @@ export interface InfoboxForm {
   /** Transformed HTML for the main image, if the box has one. */
   image?: string
   imageByVariant?: Array<string | null>
+  /** Where this is, on the world map. Location pages only. */
+  map?: InfoboxMap
   rows: InfoboxRow[]
   /**
    * Variant names, in order — "Uncharged", "Charged". Empty for the ordinary
@@ -57,6 +59,56 @@ export interface InfoboxForm {
   variants: string[]
   /** Which variant the wiki shows first. */
   defaultVariant: number
+}
+
+/**
+ * The world map excerpt a location's infobox carries, as tiles and offsets.
+ *
+ * The wiki's map is a Kartographer frame, which on the website is a Leaflet
+ * widget its JavaScript builds. What matters here is that MediaWiki also
+ * *server-renders* it, as a plain anchor whose `background-image` is the handful
+ * of 256px map tiles that cover the area, each placed by `background-position`.
+ * That static composition is the whole map — no script required to see it — so
+ * it is read apart into tiles the renderer can draw as ordinary images.
+ */
+export interface InfoboxMap {
+  /** The frame the wiki chose, in pixels. 300 wide, 280-400 tall in practice. */
+  width: number
+  height: number
+  /** Tiles, each 256px square, at their offset within the frame. */
+  tiles: Array<{ src: string; x: number; y: number }>
+  /**
+   * Everything before `/{mapId}/{zoom}/{plane}_{x}_{y}.png` in a tile's URL.
+   *
+   * Kept so the expanded map can ask for tiles the frame never mentioned — any
+   * square, at any of the five zooms the server carries. It is taken from the
+   * page's own tiles rather than written down here because the path names a
+   * dated snapshot of the map, `.../versions/2026-07-29_a/...`, and a version
+   * hardcoded in this file would be one the wiki had moved on from.
+   */
+  tileBase: string
+  /**
+   * Which map this place is drawn on, and not the same thing as its plane.
+   *
+   * Gielinor's surface is map 0, but anywhere the surface cannot hold gets its
+   * own: Dorgesh-Kaan is 5, Keldagrim 10, Neypotzli and the Moons of Peril 45.
+   * Each is a separate coordinate space — the Moons sit at lat 9632, which on
+   * map 0 is open nothing — so a request that keeps the coordinates and loses
+   * the map id answers 404 for every tile, and the reader gets a blank window
+   * where an underground city should be.
+   */
+  mapId: number
+  /**
+   * Game coordinates at the centre of the frame — `x` is the wiki's `lon` and
+   * `y` its `lat`, renamed to what RuneScape calls them. The frame is centred
+   * on this square by construction, which is worth knowing: it means the middle
+   * of the picture is the place the article is about.
+   */
+  x: number
+  y: number
+  plane: number
+  /** 1 or 2. Two game squares to the pixel at zoom 1, one at zoom 2. */
+  zoom: number
 }
 
 export interface Infobox {
@@ -455,6 +507,70 @@ function pictureCell(
   return cell
 }
 
+/**
+ * Read a Kartographer frame into tiles.
+ *
+ * Everything needed is on the element: the frame size and the centre square in
+ * `data-` attributes, and the tiles themselves in the inline style MediaWiki
+ * wrote, as parallel `background-image: url(a), url(b)` and
+ * `background-position: xa ya, xb yb` lists. Parallel is the load-bearing word
+ * — the nth URL belongs to the nth position — so a frame whose two lists
+ * disagree is rejected rather than drawn scrambled.
+ *
+ * Tile URLs are moved onto `rpimg://map/`, which caches them to disk exactly
+ * like every other wiki image; left as they were, the renderer's CSP would
+ * refuse them and the map would be an empty box.
+ */
+function readMapFrame($a: cheerio.Cheerio<Element>): InfoboxMap | null {
+  const num = (name: string): number => Number($a.attr(name))
+  const width = num('data-width')
+  const height = num('data-height')
+  const x = num('data-lon')
+  const y = num('data-lat')
+  if (![width, height, x, y].every((v) => Number.isFinite(v) && v > 0)) return null
+
+  const style = $a.attr('style') ?? ''
+  const urls = [...style.matchAll(/url\(\s*['"]?([^)'"]+?)['"]?\s*\)/g)].map((m) => m[1])
+  const positions = /background-position:\s*([^;]+)/.exec(style)?.[1] ?? ''
+  const offsets = positions
+    .split(',')
+    .map((pair) => pair.trim().split(/\s+/).map((v) => Number.parseFloat(v)))
+    .filter((pair) => pair.length === 2 && pair.every(Number.isFinite))
+
+  if (urls.length === 0 || urls.length !== offsets.length) return null
+
+  const tiles: InfoboxMap['tiles'] = []
+  for (const [i, url] of urls.entries()) {
+    const path = /^(?:https?:)?\/\/maps\.runescape\.wiki\/([^?#]+)/.exec(url)?.[1]
+    // An off-site tile is not something this can serve, and half a map is worse
+    // than none — it would read as a place with a hole in it.
+    if (!path) return null
+    tiles.push({ src: `rpimg://map/${path}`, x: offsets[i][0], y: offsets[i][1] })
+  }
+
+  // `.../tiles/rendered/45/2/0_22_151.png` -> `.../tiles/rendered`, dropping the
+  // map id, zoom and tile name the expanded view supplies for itself. Only that
+  // tail is fixed by the tile scheme; everything ahead of it is the server's to
+  // arrange, so it is taken whole rather than rebuilt.
+  const tileBase = /^(.*)\/-?\d+\/-?\d+\/[^/]+$/.exec(tiles[0].src)?.[1]
+  if (!tileBase) return null
+
+  const zoom = num('data-zoom')
+  const plane = num('data-plane')
+  const mapId = num('data-mapid')
+  return {
+    width,
+    height,
+    tiles,
+    tileBase,
+    mapId: Number.isFinite(mapId) ? mapId : 0,
+    x,
+    y,
+    plane: Number.isFinite(plane) ? plane : 0,
+    zoom: Number.isFinite(zoom) ? zoom : 1,
+  }
+}
+
 function extractForm(
   $: cheerio.CheerioAPI,
   switchData: SwitchData,
@@ -537,6 +653,17 @@ function extractForm(
       return
     }
 
+    // Before the picture check, and it has to be. The wiki puts its map in a
+    // cell marked `infobox-image`, so `pictureCell` claims that row — and by
+    // then the portrait has already been taken, so the row was skipped and then
+    // dropped with the rest of the table. That is why no map has ever appeared
+    // in this app, on any location page.
+    const frame = $tr.find('a.mw-kartographer-map[data-lat]').first()
+    if (frame.length) {
+      box.map ??= readMapFrame(frame) ?? undefined
+      return
+    }
+
     const image = pictureCell($, $tr)
     if (image.length) {
       if (box.image === undefined) {
@@ -562,8 +689,8 @@ function extractForm(
 
   table.remove()
 
-  // A box with no header, no image and no rows is not worth a panel.
-  return box.rows.length > 0 || box.image ? box : null
+  // A box with no header, no picture, no map and no rows is not worth a panel.
+  return box.rows.length > 0 || box.image || box.map ? box : null
 }
 
 /**

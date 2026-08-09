@@ -42,6 +42,10 @@ export const SCHEME = 'rpimg'
 const ORIGINS: Record<string, string> = {
   img: 'https://oldschool.runescape.wiki/images/',
   hs: 'https://www.runescape.com/img/rsp777/',
+  // World map tiles, for the map an infobox carries on a location page. A
+  // separate host from the wiki's own images and not reachable under `img`,
+  // since the path there is rooted at `/images/`.
+  map: 'https://maps.runescape.wiki/',
 }
 /** Roughly what a browser opens to one host. */
 const MAX_CONCURRENT = 8

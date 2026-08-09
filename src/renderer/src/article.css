@@ -812,10 +812,352 @@
   vertical-align: middle;
 }
 
+/**
+ * The world map excerpt, on a location's card.
+ *
+ * The wiki's frame is 300px wide and the card leaves 276, so the frame is
+ * cropped rather than scaled: see `MapFrame` in Article.tsx, which explains why
+ * — the map is pixel art and the labels are drawn at one size.
+ */
+.infobox-map {
+  margin: 12px 0 0;
+}
+
+.infobox-map-label {
+  margin-bottom: 6px;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.infobox-map-frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--rim);
+  border-radius: 8px;
+  /* The tiles do not reach the corners until they load, and a bare card
+     showing through reads as a broken image rather than a loading one. */
+  background: var(--surface-sunken);
+}
+
+.infobox-map-tiles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}
+
+.infobox-map-tiles img {
+  position: absolute;
+  /* One game pixel to one screen pixel, and kept that way if the interface
+     scale lands the frame on a fraction. */
+  image-rendering: pixelated;
+  max-width: none;
+  max-height: none;
+}
+
+/* Bottom right of the frame, where the wiki puts its own. Dim until the map is
+   hovered, so it is an affordance rather than a fixture. */
+.infobox-map-expand {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--rim);
+  border-radius: 6px;
+  /* Opaque rather than translucent: it sits on map art of any colour, and a
+     control you can see through is one you have to hunt for. */
+  background: var(--surface-raised);
+  color: var(--text);
+  opacity: 0.55;
+  cursor: pointer;
+  transition:
+    opacity var(--duration) ease,
+    background var(--duration) ease;
+}
+
+.infobox-map-frame:hover .infobox-map-expand,
+.infobox-map-expand:focus-visible {
+  opacity: 1;
+}
+
+.infobox-map-expand:hover {
+  background: var(--surface-hover);
+}
+
+/**
+ * "Location on World Map" — the compass of neighbouring places.
+ *
+ * The wiki's own block, and it sits directly under the infobox because the
+ * template floats it there. Left alone it arrives as a bare 200px table: every
+ * name of any length wraps to three lines, which pulls the arrows out of line
+ * with the row they belong to and leaves the place in the middle sitting
+ * nowhere near the middle. Given the card's own width and centred cells it
+ * becomes what it is on the website — a small compass rose, north at the top.
+ *
+ * The 200px is overridden rather than respected. It is a number chosen for the
+ * wiki's much wider article column, where it is a narrow aside; here it is the
+ * full width of the panel's right-hand rail.
+ */
+.article-body table.relative-location {
+  float: right;
+  clear: right;
+  width: 300px !important;
+  margin: 0 0 16px 22px;
+  padding: 10px 12px 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 var(--rim-bright);
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.article-body table.relative-location td {
+  padding: 2px 3px;
+  border: 0;
+  background: none;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.article-body .relative-location-header {
+  padding-bottom: 8px;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The arrow columns, which the template sizes and nothing else does. Dimming
+   them puts the names first; if the template ever stops asking for 7.5% the
+   arrows simply stay the text colour. */
+.article-body table.relative-location td[style*='7.5%'] {
+  width: 18px;
+  color: var(--text-dim);
+}
+
+/* ── The expanded world map ─────────────────────────────────────────── */
+
+/**
+ * Fixed to the window rather than placed in the article, because the article is
+ * a scrolling column inside a floated card inside a pane — an overlay parented
+ * anywhere in there would be clipped by one of them.
+ */
+.worldmap {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  /**
+   * Opaque, which every `--surface` in this app deliberately is not — they
+   * carry alpha so the acrylic backdrop can show through. That is right for a
+   * panel and wrong for this: the map has no tile off the edge of its world,
+   * and on a small map like the Moons of Peril that is most of the window, so
+   * a translucent backdrop showed the article bleeding through the void. The
+   * theme's own tint is kept by compositing it over an opaque base rather than
+   * replacing it with a colour of our own.
+   */
+  background-color: #07070c;
+  background-image: linear-gradient(var(--surface), var(--surface));
+}
+
+/**
+ * The overlay covers the window's own title bar, so this becomes the title bar
+ * while it is up — without that the window cannot be moved until the map is
+ * closed, which is the sort of thing a frameless window cannot afford.
+ */
+.worldmap-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rim);
+  background: var(--surface-raised);
+  -webkit-app-region: drag;
+}
+
+.worldmap-bar .btn {
+  -webkit-app-region: no-drag;
+}
+
+.worldmap-bar h2 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 15px;
+  font-weight: 620;
+}
+
+.worldmap-coords {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.worldmap-zoom {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.worldmap-close {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+}
+
+/**
+ * The map itself.
+ *
+ * `cursor: grab` and no text selection, because every pointer gesture in here
+ * is a drag of the map — a selection lasso appearing over the world instead is
+ * the classic tell of a map that was not finished.
+ */
+.worldmap-view {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  /* Shows through wherever the server has no tile, which off the coast is most
+     of the grid. */
+  background: var(--surface-sunken);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.worldmap-view:active {
+  cursor: grabbing;
+}
+
+/**
+ * The layer the tiles live on.
+ *
+ * Tiles sit at whole 256px offsets inside it and the layer carries the
+ * fractional part of the zoom as a transform. Scaling here rather than sizing
+ * each tile is what keeps half zooms seamless — a fractional width on 30
+ * separate images leaves a hairline wherever two of them meet.
+ */
+.worldmap-tiles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.worldmap-tiles img {
+  position: absolute;
+  max-width: none;
+  max-height: none;
+  pointer-events: none;
+}
+
+/* The subject's own square. Sized in fixed pixels rather than game squares so
+   it stays findable at every zoom — the element undoes the layer's scale. */
+.worldmap-pin {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--accent-b);
+  border-radius: 50%;
+  /* A dark rim outside the bright one. The map runs from desert sand to
+     Wilderness rock, and a single-colour ring disappears against one of them
+     whichever colour is chosen. */
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 55%),
+    inset 0 0 0 1px rgb(0 0 0 / 55%);
+  pointer-events: none;
+}
+
+.worldmap-pin-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-b);
+}
+
+.worldmap-hint {
+  margin: 0;
+  padding: 7px 14px;
+  border-top: 1px solid var(--rim);
+  background: var(--surface-raised);
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+
+/* ── Floors ─────────────────────────────────────────────────────────── */
+
+.worldmap-planes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.worldmap-planes-label {
+  margin-right: 2px;
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.worldmap-plane {
+  min-width: 26px;
+  padding: 3px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.worldmap-plane.is-active {
+  border-color: var(--accent-b);
+  color: var(--accent-b);
+}
+
+/**
+ * Said rather than shown blank.
+ *
+ * Whether a building has a third floor is a question only the tiles can answer,
+ * and asking costs a request per floor per place — so every floor is offered
+ * and the empty ones explain themselves. An unexplained black window reads as a
+ * broken map.
+ */
+.worldmap-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  padding: 12px 18px;
+  border: 1px solid var(--rim);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
 @media (max-width: 900px) {
   .infobox-card {
     float: none;
     width: auto;
+    margin: 0 0 20px;
+  }
+
+  /* Follows the card it belongs beside, rather than floating alone against a
+     column that no longer has anything to float against. */
+  .article-body table.relative-location {
+    float: none;
+    width: auto !important;
     margin: 0 0 20px;
   }
 }

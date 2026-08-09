@@ -172,3 +172,11 @@ export const CloseIcon = (): JSX.Element => (
     <path d="m7 7 10 10M17 7 7 17" />
   </Svg>
 )
+
+/** Two corners pushing apart — the wiki's own expand control says the same. */
+export const ExpandIcon = (): JSX.Element => (
+  <Svg>
+    <path d="M9 4H4v5M20 15v5h-5" />
+    <path d="M4 4l6 6M20 20l-6-6" />
+  </Svg>
+)

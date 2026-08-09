@@ -132,6 +132,18 @@ const MIGRATIONS: string[] = [
   `
   DELETE FROM pages;
   `,
+
+  // The infobox now carries the world map a location page has always shipped,
+  // along with the tile path the expanded view builds its own requests from. The
+  // map was being thrown away at fetch time — the wiki marks its cell
+  // `infobox-image`, so it was mistaken for a second portrait and skipped — and
+  // what a cached row holds is whatever the transform made of it that day.
+  //
+  // `images` stays: map tiles are a new origin under the same cache, so nothing
+  // already downloaded is stale.
+  `
+  DELETE FROM pages;
+  `,
 ]
 
 export function open(): DatabaseSync {

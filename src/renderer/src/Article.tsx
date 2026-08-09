@@ -7,9 +7,15 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
-import type { Article as ArticleData, Infobox as InfoboxData } from '@shared/ipc'
+import type {
+  Article as ArticleData,
+  Infobox as InfoboxData,
+  InfoboxMap as InfoboxMapData,
+} from '@shared/ipc'
 import { useNav } from './nav'
 import { useStore } from './store'
+import { WorldMap } from './WorldMap'
+import { ExpandIcon } from './icons'
 import { usePlayer, markRequirements } from './player'
 import {
   formatOneIn,
@@ -338,6 +344,7 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
         {article.infobox && (
           <Infobox
             box={article.infobox}
+            subject={article.title}
             form={form}
             // Each form has its own variants, so switching form has to reset to
             // that form's default rather than carry an index that may not exist.
@@ -826,12 +833,16 @@ function isSprite(html: string): boolean {
  */
 function Infobox({
   box,
+  subject,
   form,
   onForm,
   variant,
   onVariant,
 }: {
   box: InfoboxData
+  /** The article's own title, for anything that must be named even if the card
+   *  carries no header of its own. */
+  subject: string
   form: number
   onForm: (f: number) => void
   variant: number
@@ -913,7 +924,78 @@ function Infobox({
           )
         })}
       </dl>
+
+      {current.map && <MapFrame map={current.map} title={header || subject} />}
     </aside>
+  )
+}
+
+/** A map tile, as the wiki cuts them. */
+const TILE_PX = 256
+
+/**
+ * Tallest the map may be in the card.
+ *
+ * The wiki asks for anything from 280 to 400 depending on the shape of the
+ * place; 400 of a 300-wide panel is a lot of card to scroll past before the
+ * article resumes.
+ */
+const MAP_MAX_PX = 300
+
+/**
+ * Where this place is, drawn from the wiki's own world map tiles.
+ *
+ * Cropped to the card rather than scaled down to it. The map is pixel art — the
+ * town names and icons are drawn into the tiles at one size — so shrinking it
+ * would blur exactly the labels that make it worth showing. Cropping costs
+ * nothing instead, because the frame is centred on the subject's own square:
+ * what is trimmed is the outer edge, and what the article is about stays in the
+ * middle.
+ */
+function MapFrame({ map, title }: { map: InfoboxMapData; title: string }): JSX.Element {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <figure className="infobox-map">
+      <figcaption className="infobox-map-label">Map</figcaption>
+      <div className="infobox-map-frame" style={{ height: Math.min(map.height, MAP_MAX_PX) }}>
+        <div
+          className="infobox-map-tiles"
+          // Centred on the frame's midpoint by negative margins, which is what
+          // makes the crop symmetrical however much wider than the card the
+          // wiki's frame happens to be.
+          style={{
+            width: map.width,
+            height: map.height,
+            marginLeft: -map.width / 2,
+            marginTop: -map.height / 2,
+          }}
+        >
+          {map.tiles.map((tile) => (
+            <img
+              key={tile.src}
+              src={tile.src}
+              alt=""
+              width={TILE_PX}
+              height={TILE_PX}
+              style={{ left: tile.x, top: tile.y }}
+            />
+          ))}
+        </div>
+
+        {/* Bottom right, where the wiki puts its own. */}
+        <button
+          className="infobox-map-expand"
+          onClick={() => setExpanded(true)}
+          title="Expand the map"
+          aria-label="Expand the map"
+        >
+          <ExpandIcon />
+        </button>
+      </div>
+
+      {expanded && <WorldMap map={map} title={title} onClose={() => setExpanded(false)} />}
+    </figure>
   )
 }
 

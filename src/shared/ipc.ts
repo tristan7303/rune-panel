@@ -358,6 +358,37 @@ export interface InfoboxRow {
  * A form can itself have variants, so the card carries two levels of tabs —
  * Vorkath's awake statblock also has post-quest and Dragon Slayer II versions.
  */
+/**
+ * The world map excerpt a location's infobox carries.
+ *
+ * Tiles and their offsets rather than a picture, because that is how the wiki
+ * itself renders one without its map script: a frame whose background is the
+ * handful of 256px tiles covering the area. See `readMapFrame` in the transform.
+ */
+export interface InfoboxMap {
+  width: number
+  height: number
+  /** Each tile is 256px square, placed at this offset within the frame. */
+  tiles: Array<{ src: string; x: number; y: number }>
+  /**
+   * Everything before `/{mapId}/{zoom}/{plane}_{x}_{y}.png` in a tile's URL, so
+   * the expanded map can ask for squares and zooms the frame never mentioned.
+   */
+  tileBase: string
+  /**
+   * Which map this is drawn on — not its plane. The surface is 0; anywhere the
+   * surface cannot hold gets its own coordinate space (Dorgesh-Kaan 5,
+   * Keldagrim 10, Neypotzli 45).
+   */
+  mapId: number
+  /** Game coordinates at the centre of the frame — the place itself. */
+  x: number
+  y: number
+  plane: number
+  /** 1 or 2. Two game squares to the pixel at zoom 1, one at zoom 2. */
+  zoom: number
+}
+
 export interface InfoboxForm {
   /** Tab label — "Awakened", "Active", "Idle". */
   label: string
@@ -365,6 +396,8 @@ export interface InfoboxForm {
   headerByVariant?: Array<string | null>
   image?: string
   imageByVariant?: Array<string | null>
+  /** Where this is, on the world map. Location pages only. */
+  map?: InfoboxMap
   rows: InfoboxRow[]
   /** "Uncharged", "Charged" — empty for a form with nothing to switch. */
   variants: string[]
