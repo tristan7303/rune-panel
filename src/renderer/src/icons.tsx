@@ -173,6 +173,14 @@ export const CloseIcon = (): JSX.Element => (
   </Svg>
 )
 
+/** A page with writing on it, and a checked line — what these notes are for. */
+export const NotesIcon = (): JSX.Element => (
+  <Svg>
+    <path d="M5 4h14v16H5z" />
+    <path d="M8.5 9h7M8.5 13h7M8.5 17h4" />
+  </Svg>
+)
+
 /** Two corners pushing apart — the wiki's own expand control says the same. */
 export const ExpandIcon = (): JSX.Element => (
   <Svg>

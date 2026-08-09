@@ -7,8 +7,10 @@
  * where you are.
  */
 
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { scaleOnWheel } from '@shared/scale'
+import { RAIL_IDS, type RailId } from '@shared/ipc'
+import { useRailDrag } from './rail'
 import { useStore } from './store'
 import type { Theme } from '@shared/ipc'
 import { useNav, useRoute, useCanGoBack, useCanGoForward, routeTitle, type Route } from './nav'
@@ -22,6 +24,7 @@ import { GeTracker } from './GeTracker'
 import { Calculators } from './Calculators'
 import { Grand } from './Grand'
 import { Hiscores } from './Hiscores'
+import { Notes } from './Notes'
 import { Setup } from './Setup'
 import { UpdateBanner } from './UpdateBanner'
 import { focusPrimary } from './focus'
@@ -34,6 +37,7 @@ import {
   DpsIcon,
   CoinsIcon,
   TrophyIcon,
+  NotesIcon,
   CalculatorIcon,
   GearIcon,
   SunIcon,
@@ -44,7 +48,7 @@ import {
   CloseIcon,
 } from './icons'
 
-type NavEntry = { route: Route; label: string; icon: () => JSX.Element }
+type NavEntry = { id: RailId; route: Route; label: string; icon: () => JSX.Element }
 
 /**
  * The rail, minus whichever price view is turned off.
@@ -60,6 +64,7 @@ type NavEntry = { route: Route; label: string; icon: () => JSX.Element }
 function navEntries(geTracker: boolean): NavEntry[] {
   const prices: NavEntry = geTracker
     ? {
+        id: 'prices',
         route: { kind: 'tool', id: 'getracker' },
         label: 'GE Tracker',
         // Their own mark, for the same reason RuneProfile has one below: this
@@ -67,13 +72,20 @@ function navEntries(geTracker: boolean): NavEntry[] {
         // a generic trend line said nothing the coins above it did not.
         icon: () => <img className="rail-img" src={geTrackerLogo} alt="" draggable={false} />,
       }
-    : { route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon }
+    : { id: 'prices', route: { kind: 'ge' }, label: 'Grand Exchange', icon: CoinsIcon }
   return [
-    { route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: DpsIcon },
+    { id: 'dps', route: { kind: 'tool', id: 'dps' }, label: 'DPS calculator', icon: DpsIcon },
     prices,
-    { route: { kind: 'hiscores' }, label: 'Hiscores', icon: TrophyIcon },
-    { route: { kind: 'tool', id: 'calculators' }, label: 'Calculators', icon: CalculatorIcon },
+    { id: 'hiscores', route: { kind: 'hiscores' }, label: 'Hiscores', icon: TrophyIcon },
+    { id: 'notes', route: { kind: 'notes' }, label: 'Notes', icon: NotesIcon },
     {
+      id: 'calculators',
+      route: { kind: 'tool', id: 'calculators' },
+      label: 'Calculators',
+      icon: CalculatorIcon,
+    },
+    {
+      id: 'profile',
       route: { kind: 'tool', id: 'profile' },
       label: 'RuneProfile',
       // Their own mark rather than a generic person: this entry leads
@@ -140,6 +152,30 @@ export function App(): JSX.Element {
   // stylesheet — including the article CSS, which styles markup React never
   // touches — can respond to one attribute.
   const geTracker = useStore((s) => s.settings?.geTrackerReplacesGe ?? true)
+  const railOrder = useStore((s) => s.settings?.railOrder)
+
+  /**
+   * The rail, in the reader's order.
+   *
+   * Sorted by the saved list rather than stored pre-sorted, so the two things
+   * that can change independently — which entries exist, and what order they go
+   * in — never have to be kept in step. An entry the order does not mention
+   * keeps its shipped position; main reconciles the list itself on the way in.
+   */
+  const entries = useMemo(() => {
+    const all = navEntries(geTracker)
+    if (!railOrder) return all
+    const rank = new Map(railOrder.map((id, i) => [id, i]))
+    return [...all].sort(
+      (a, b) => (rank.get(a.id) ?? RAIL_IDS.indexOf(a.id)) - (rank.get(b.id) ?? RAIL_IDS.indexOf(b.id))
+    )
+  }, [geTracker, railOrder])
+
+  const railIds = useMemo(() => entries.map((e) => e.id), [entries])
+  const { dragging, styleFor, start: startDrag, consumeClick } = useRailDrag(
+    railIds,
+    useCallback((next: RailId[]) => patchSettings({ railOrder: next }), [patchSettings])
+  )
   const theme = useStore((s) => s.settings?.theme ?? 'mocha')
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -277,14 +313,25 @@ export function App(): JSX.Element {
         >
           <img src={mark} alt="" draggable={false} />
         </button>
-        {navEntries(geTracker).map(({ route: target, label, icon: Icon }) => (
+        {/* Always in the committed order — a drag moves the entries with
+            transforms and only really reorders this list on drop. */}
+        {entries.map(({ id, route: target, label, icon: Icon }, index) => (
           <button
-            key={label}
-            className={`rail-btn ${isActive(route, target) ? 'is-active' : ''}`}
+            key={id}
+            data-rail-id={id}
+            style={styleFor(index)}
+            className={`rail-btn ${isActive(route, target) ? 'is-active' : ''} ${
+              dragging === id ? 'is-dragging' : ''
+            }`}
             title={label}
             aria-label={label}
             aria-current={isActive(route, target)}
-            onClick={() => push(target)}
+            onPointerDown={(e) => startDrag(e, id, index)}
+            // A drag that ends over the entry it started on still fires a
+            // click; dropping an icon must not also navigate to it.
+            onClick={() => {
+              if (!consumeClick()) push(target)
+            }}
           >
             <Icon />
           </button>
@@ -362,6 +409,10 @@ function Body({ route }: { route: Route }): JSX.Element {
       return <Grand itemId={route.itemId} key={route.itemId ?? 'search'} />
     case 'hiscores':
       return <Hiscores />
+    case 'notes':
+      // Not keyed on the note id: the view owns the page list as well as the
+      // open page, and remounting on every switch would refetch the sidebar.
+      return <Notes id={route.id} />
     case 'tool':
       return <Tool id={route.id} arg={route.arg} />
     default:

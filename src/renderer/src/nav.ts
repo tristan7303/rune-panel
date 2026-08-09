@@ -30,6 +30,12 @@ export type Route =
   | { kind: 'tool'; id: 'dps' | 'calculators' | 'profile' | 'getracker'; arg?: string }
   | { kind: 'ge'; itemId?: number }
   | { kind: 'hiscores' }
+  /**
+   * `id` is the note to open. Absent means "whatever was open last, or the
+   * first one" — routing the choice rather than holding it in the view is what
+   * lets Back step between notes the way it steps between articles.
+   */
+  | { kind: 'notes'; id?: number }
   | { kind: 'settings' }
 
 /** Cap on retained history. Deep enough to never be felt, bounded so a long
@@ -106,6 +112,7 @@ function sameRoute(a: Route | undefined, b: Route): boolean {
   if (a.kind === 'page' && b.kind === 'page') return a.title === b.title && a.hash === b.hash
   if (a.kind === 'tool' && b.kind === 'tool') return a.id === b.id && a.arg === b.arg
   if (a.kind === 'ge' && b.kind === 'ge') return a.itemId === b.itemId
+  if (a.kind === 'notes' && b.kind === 'notes') return a.id === b.id
   return true
 }
 
@@ -130,6 +137,8 @@ export function routeTitle(route: Route): string {
       return 'Grand Exchange'
     case 'hiscores':
       return 'Hiscores'
+    case 'notes':
+      return 'Notes'
     case 'settings':
       return 'Settings'
   }

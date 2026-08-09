@@ -10,7 +10,7 @@
 import { app } from 'electron'
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import type { Settings, Theme, WindowBounds } from '../shared/ipc'
+import { RAIL_IDS, type RailId, type Settings, type Theme, type WindowBounds } from '../shared/ipc'
 
 /** Every theme the stylesheet defines. Anything else falls back to DEFAULTS. */
 const THEMES: Theme[] = ['dark', 'mocha', 'light', 'parchment']
@@ -36,6 +36,7 @@ export const DEFAULTS: Settings = {
   // lives, and no amount of fuzzy matching connects two words with no letters
   // in common.
   keywordAliases: [{ from: 'bis', to: 'strategies' }],
+  railOrder: [...RAIL_IDS],
   geTrackerReplacesGe: true,
   startOnLogin: true,
   uiScale: 1,
@@ -118,6 +119,7 @@ function sanitize(s: Settings): Settings {
     normaliseDropRates: Boolean(s.normaliseDropRates),
     showHighAlchInDrops: Boolean(s.showHighAlchInDrops),
     keywordAliases: sanitizeAliases(s.keywordAliases),
+    railOrder: sanitizeRailOrder(s.railOrder),
     // Defaults on, so an absent key means true rather than false.
     geTrackerReplacesGe: s.geTrackerReplacesGe !== false,
     // Defaults on, so an absent key means true rather than false.
@@ -151,6 +153,33 @@ function clampScale(value: unknown): number {
  */
 function bind(value: string, fallback: string): string {
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, 40) : fallback
+}
+
+/**
+ * The rail's order, reconciled against what the rail actually has.
+ *
+ * Two directions to get wrong, and both are silent. An id the app no longer
+ * ships is dropped, so a removed entry cannot hold a slot nothing can fill. An
+ * id the saved order has never heard of is appended in its shipped position, so
+ * an entry added in a later version appears for everyone rather than only for
+ * people who have never dragged anything — which is what storing the order
+ * verbatim would have done.
+ */
+function sanitizeRailOrder(value: unknown): RailId[] {
+  const known = new Set<string>(RAIL_IDS)
+  const seen = new Set<RailId>()
+  const out: RailId[] = []
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const id = String(entry) as RailId
+      if (!known.has(id) || seen.has(id)) continue
+      seen.add(id)
+      out.push(id)
+    }
+  }
+  for (const id of RAIL_IDS) if (!seen.has(id)) out.push(id)
+  return out
 }
 
 /** How many synonyms are worth honouring. Past this it is a dictionary. */

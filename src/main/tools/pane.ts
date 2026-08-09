@@ -17,7 +17,7 @@
 
 import { join } from 'path'
 import { WebContentsView, session, type BrowserWindow, type Input, type Rectangle } from 'electron'
-import { TOOLS, PALETTES, type ToolCookie, type ToolId } from './registry'
+import { TOOLS, PALETTES, type ToolCookie, type ToolId, type ToolPalette } from './registry'
 import { openExternal } from '../safe-open'
 import * as settings from '../settings'
 import { On, type PaneShortcut } from '../../shared/ipc'
@@ -179,22 +179,53 @@ export function debugBounds(): Rectangle {
  * page's own choice.
  */
 /**
+ * What the pane gets whatever page is in it: the surface it sits on, and its
+ * scrollbars.
+ *
+ * Both are unconditional, and for the same reason. Turning the site styling off
+ * means "show me the plain site" — it does not mean "flash white at me first",
+ * and it does not mean a Windows-grey scrollbar down the edge of a dark window.
+ * Neither of these touches the page's own content; they paint the furniture the
+ * page is framed in, which belongs to the app around it.
+ */
+function baseCss(palette: ToolPalette): string {
+  return `
+html, body { background-color: ${palette.surface}; }
+
+/**
+ * Neutralise any scrollbar-color the page sets.
+ *
+ * Load-bearing rather than tidy: Chromium ignores the ::-webkit-scrollbar
+ * pseudo-elements entirely on any scroller whose scrollbar-color is something
+ * other than 'auto'. A site that themes its own scrollbars — and the ones
+ * embedded here do — would silently defeat every rule below it.
+ */
+* { scrollbar-color: auto !important; }
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner { background: ${palette.sunken}; }
+
+/* The border paints in the track's colour, which is what insets the thumb into
+   a lozenge rather than a bar filling the full gutter. */
+::-webkit-scrollbar-thumb {
+  background: ${palette.rim};
+  border: 3px solid ${palette.sunken};
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover { background: ${palette.textDim}; }
+`.trim()
+}
+
+/**
  * The stylesheet for whatever is showing, or empty when there is nothing to
  * say. Read synchronously by the pane's preload before its first paint.
  */
 export function themeCss(): string {
   const palette = PALETTES[settings.get().theme] ?? PALETTES.dark
-
-  /**
-   * The background rule is unconditional, and the site's own styling is not.
-   *
-   * Turning the injection off in settings means "show me the plain site" — it
-   * does not mean "flash white at me first". This one declaration only paints
-   * the surface the pane is sitting in, so a document that has not styled
-   * itself yet, `about:blank` included, is never brighter than the app around
-   * it. Everything that actually restyles the page stays behind the setting.
-   */
-  const base = `html, body { background-color: ${palette.surface}; }`
+  const base = baseCss(palette)
 
   if (!current || !injectionEnabled) return base
   const tool = TOOLS[current.id]
@@ -209,12 +240,15 @@ export async function applyTheme(): Promise<void> {
 
   try {
     if (tool.js) await view.webContents.executeJavaScript(tool.js(palette))
-    if (injectionEnabled && tool.css) {
-      // Replace rather than stack: insertCSS returns a key precisely because
-      // repeated calls otherwise pile up a stylesheet per theme change.
-      if (injectedKey) await view.webContents.removeInsertedCSS(injectedKey).catch(() => '')
-      injectedKey = await view.webContents.insertCSS(tool.css(palette))
-    }
+
+    // The base goes in here as well as through the preload, because the preload
+    // only runs on navigation: without this, switching theme with a calculator
+    // already open would repaint the page and leave its scrollbars in the old
+    // one. Replace rather than stack — `insertCSS` returns a key precisely
+    // because repeated calls otherwise pile up a stylesheet per theme change.
+    const css = injectionEnabled && tool.css ? `${baseCss(palette)}\n${tool.css(palette)}` : baseCss(palette)
+    if (injectedKey) await view.webContents.removeInsertedCSS(injectedKey).catch(() => '')
+    injectedKey = await view.webContents.insertCSS(css)
   } catch (err) {
     console.warn(`[tools] ${current.id} theme:`, err instanceof Error ? err.message : err)
   }

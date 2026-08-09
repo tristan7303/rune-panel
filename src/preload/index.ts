@@ -22,6 +22,8 @@ import {
   type GeItemDetail,
   type MotionEvent,
   type MotionMode,
+  type Note,
+  type NoteSummary,
   type GeTimestep,
   type PaneBounds,
   type ProfileSummary,
@@ -82,6 +84,13 @@ const api: RunePanelApi = {
   getPage: (title: string, options?: { force?: boolean }): Promise<Article | null> =>
     ipcRenderer.invoke(Invoke.GetPage, title, options),
   prefetchPage: (title: string) => ipcRenderer.send(Send.PrefetchPage, title),
+
+  notesList: (): Promise<NoteSummary[]> => ipcRenderer.invoke(Invoke.NotesList),
+  notesRead: (id: number): Promise<Note | null> => ipcRenderer.invoke(Invoke.NotesRead, id),
+  notesCreate: (title?: string): Promise<Note> => ipcRenderer.invoke(Invoke.NotesCreate, title),
+  notesUpdate: (id: number, patch: { title?: string; body?: string }): Promise<Note | null> =>
+    ipcRenderer.invoke(Invoke.NotesUpdate, id, patch),
+  notesDelete: (id: number): Promise<void> => ipcRenderer.invoke(Invoke.NotesDelete, id),
 
   getCrawlState: (): Promise<CrawlState> => ipcRenderer.invoke(Invoke.GetCrawlState),
   startCrawl: () => ipcRenderer.send(Send.StartCrawl),

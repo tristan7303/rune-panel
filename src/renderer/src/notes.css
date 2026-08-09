@@ -1,0 +1,519 @@
+/**
+ * Notes: the page list, the toolbar, and the writing surface.
+ *
+ * Kept out of styles.css because most of this is not app chrome — it is the
+ * look of a document, and it is the second stylesheet in this project (after
+ * article.css) whose job is to make a body of text read well rather than to
+ * make a control look right.
+ *
+ * The surface rules are deliberately not scoped as tightly as the rest: what
+ * they style is markup ProseMirror emits, so the selectors follow its shapes —
+ * `ul[data-type='taskList']`, `p.is-editor-empty` — rather than classes of our
+ * own that nothing would ever set.
+ */
+
+/**
+ * A page list beside a page.
+ *
+ * Two columns filling the content area, each scrolling on its own: a long note
+ * must not push the page list off the bottom, and a long page list must not
+ * make the note scroll to reach its own toolbar.
+ */
+.notes {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 4px 10px 12px 0;
+  border-right: 1px solid var(--rim);
+  overflow-y: auto;
+}
+
+.notes-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0 10px;
+}
+
+.notes-list-head h2 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.notes-add {
+  padding: 3px 10px;
+  font-size: 11.5px;
+}
+
+.notes-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The delete control sits in the row rather than inside the button that opens
+   the note: a button inside a button is not markup, and a delete you can hit by
+   mis-clicking the page you meant to read is worse than one more element. */
+.notes-list li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.notes-item {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--duration) ease,
+    color var(--duration) ease;
+}
+
+.notes-item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.notes-item.is-open {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.notes-item-title {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Shown on hover or focus only: four rows each carrying a permanent cross reads
+   as a list you are being invited to dismantle. */
+.notes-delete {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity var(--duration) ease,
+    background var(--duration) ease;
+}
+
+.notes-list li:hover .notes-delete,
+.notes-delete:focus-visible {
+  opacity: 1;
+}
+
+.notes-delete:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.notes-empty {
+  margin: 6px 0 0;
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+/* ── The page ───────────────────────────────────────────────────────── */
+
+.notes-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-left: 18px;
+}
+
+.notes-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 2px 0 8px;
+}
+
+/* The title is the note's own name and reads as its heading, so it is drawn as
+   one. A bordered field here would look like a form sitting on a document. */
+.notes-title {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 20px;
+  font-weight: 620;
+}
+
+.notes-title:focus {
+  outline: none;
+}
+
+.notes-state {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  transition: color var(--duration) ease;
+}
+
+.notes-state.is-dirty {
+  color: var(--text-dim);
+}
+
+.notes-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0 8px;
+  border-top: 1px solid var(--rim);
+  border-bottom: 1px solid var(--rim);
+}
+
+.notes-block {
+  padding: 4px 8px;
+  border: 1px solid var(--rim);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.notes-tool {
+  min-width: 28px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition:
+    background var(--duration) ease,
+    color var(--duration) ease;
+}
+
+.notes-tool:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* A real pressed state: it says what the cursor is sitting inside, not what was
+   last clicked. */
+.notes-tool.is-active {
+  background: var(--surface-raised);
+  border-color: var(--rim);
+  color: var(--accent-b);
+}
+
+.notes-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--rim);
+}
+
+.notes-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 0 60px;
+}
+
+/* ── The writing surface ────────────────────────────────────────────── */
+
+.notes-surface {
+  min-height: 300px;
+  font-size: 14px;
+  line-height: 1.65;
+  outline: none;
+}
+
+.notes-surface > * + * {
+  margin-top: 0.7em;
+}
+
+.notes-surface h1 {
+  margin: 1.1em 0 0;
+  font-size: 21px;
+  font-weight: 650;
+}
+
+.notes-surface h2 {
+  margin: 1em 0 0;
+  font-size: 17px;
+  font-weight: 620;
+}
+
+.notes-surface h3 {
+  margin: 0.9em 0 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.notes-surface ul,
+.notes-surface ol {
+  padding-left: 22px;
+}
+
+/**
+ * A paragraph inside the writing carries no margin of its own.
+ *
+ * Spacing between blocks is the `> * + *` rule above, which is a gap *between*
+ * things rather than a halo around each. The browser's own `1em` top and bottom
+ * fought it everywhere it could not be seen: inside a list item it put a blank
+ * line in every bullet, and inside a task item — where the paragraph sits in a
+ * wrapper div, so a `li > p` reset never reached it — it pushed the text 14px
+ * below the checkbox it belongs beside.
+ */
+.notes-surface p {
+  margin: 0;
+}
+
+.notes-surface blockquote {
+  margin-left: 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--rim);
+  color: var(--text-dim);
+}
+
+.notes-surface code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-sunken);
+  font-size: 0.92em;
+}
+
+.notes-surface pre {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-sunken);
+  overflow-x: auto;
+}
+
+.notes-surface pre code {
+  padding: 0;
+  background: none;
+}
+
+.notes-surface a {
+  color: var(--accent-b);
+}
+
+/* An empty page says what to do rather than sitting blank. ProseMirror marks
+   the first node when the whole document is empty. */
+.notes-surface p.is-editor-empty:first-child::before {
+  content: 'Start writing…';
+  float: left;
+  height: 0;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+/**
+ * Checklists.
+ *
+ * TipTap renders each item as `label > (input + span)` beside a `div` holding
+ * the text. That empty span is the hook for drawing a box of our own: the real
+ * input is made invisible but kept exactly where it was, so it still takes
+ * clicks, still takes focus, and still reads as a checkbox to a screen reader.
+ * Hiding it with `display: none` would have thrown all three away.
+ */
+.notes-surface ul[data-type='taskList'] {
+  padding-left: 2px;
+  list-style: none;
+}
+
+.notes-surface ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 2px 0;
+}
+
+.notes-surface ul[data-type='taskList'] li > label {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 17px;
+  height: 17px;
+  /* Set against the first line's optical centre rather than the top of its box,
+     which is what left the box riding above the text it belongs to. */
+  margin-top: 0.29em;
+  cursor: pointer;
+  user-select: none;
+}
+
+.notes-surface ul[data-type='taskList'] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Present and clickable, just not drawn. */
+.notes-surface ul[data-type='taskList'] input[type='checkbox'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/**
+ * An empty box is an outline, not a fill.
+ *
+ * Drawn with `--text-faint` and no background of its own, because both halves
+ * of that matter across four themes. A fill of `--surface-sunken` reads as an
+ * empty box on the dark themes and as a solid grey blob on the light ones,
+ * where it is darker than the page behind it. And a border of `--rim-bright` is
+ * near-white — invisible on a light background, which left the blob with no
+ * edge at all. `--text-faint` is derived from the text colour, so it is light
+ * on the dark themes and dark on the light ones: an outline that stays an
+ * outline whichever way round the theme is.
+ */
+.notes-surface ul[data-type='taskList'] label > span {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid var(--text-faint);
+  border-radius: 5px;
+  background: transparent;
+  transition:
+    background var(--duration) ease,
+    border-color var(--duration) ease;
+}
+
+/* The tick, drawn as two borders of a rotated box. Transparent until ticked, so
+   the box does not resize when it fills. */
+.notes-surface ul[data-type='taskList'] label > span::after {
+  content: '';
+  width: 4px;
+  height: 8px;
+  margin-top: -2px;
+  border: solid transparent;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  transition: border-color var(--duration) ease;
+}
+
+.notes-surface ul[data-type='taskList'] li > label:hover > span {
+  border-color: var(--accent-b);
+}
+
+/* Focus lands on the invisible input, so the ring has to be drawn on the box
+   standing in for it. */
+.notes-surface ul[data-type='taskList'] input:focus-visible + span {
+  outline: 2px solid var(--accent-b);
+  outline-offset: 2px;
+}
+
+/**
+ * Ticked.
+ *
+ * Both the fill and the tick come off `--accent-b`, which is a light blue in
+ * the dark themes and a dark one in the light theme — a tick in any fixed
+ * colour would disappear against one of them. A wash of the accent behind a
+ * solid stroke of it cannot: the two always contrast by the same amount,
+ * whichever end of the range the theme sits at.
+ */
+.notes-surface ul[data-type='taskList'] li[data-checked='true'] > label > span {
+  border-color: var(--accent-b);
+  background: color-mix(in srgb, var(--accent-b) 22%, transparent);
+}
+
+.notes-surface ul[data-type='taskList'] li[data-checked='true'] > label > span::after {
+  border-color: var(--accent-b);
+}
+
+/* A ticked item is done, and reads as done. */
+.notes-surface ul[data-type='taskList'] li[data-checked='true'] > div {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+/* ── Confirming a delete ────────────────────────────────────────────── */
+
+.notes-confirm {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 45%);
+}
+
+.notes-confirm-box {
+  width: min(360px, calc(100% - 40px));
+  padding: 18px 20px 16px;
+  border: 1px solid var(--rim);
+  border-radius: 12px;
+  /* Opaque, for the same reason the expanded map is: every surface token in
+     this app carries alpha for the acrylic, and a dialog you can read the page
+     through is not a dialog. */
+  background-color: #07070c;
+  background-image: linear-gradient(var(--surface-raised), var(--surface-raised));
+}
+
+.notes-confirm-box h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 620;
+}
+
+.notes-confirm-box p {
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.notes-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Destructive, and coloured like it — but not the default: the safe button is
+   the one holding focus when the dialog opens. */
+.btn.is-danger {
+  border-color: #ff6262;
+  color: #ff8f8f;
+}
+
+.btn.is-danger:hover:not(:disabled) {
+  background: rgb(255 98 98 / 14%);
+}

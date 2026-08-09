@@ -95,6 +95,16 @@ export interface Settings {
    */
   keywordAliases: KeywordAlias[]
   /**
+   * The order of the navigation rail, as slot ids.
+   *
+   * Held as a list of what is there rather than a rank per entry, because the
+   * list is the thing being edited — a drag moves one id and leaves the rest
+   * alone. Entries the list does not mention are appended in their shipped
+   * order, so a rail entry added in a later version turns up at the bottom
+   * instead of vanishing for everyone who has ever dragged anything.
+   */
+  railOrder: RailId[]
+  /**
    * Prefer GE Tracker over the built-in Grand Exchange, everywhere.
    *
    * One switch rather than several, because half-applying it is the confusing
@@ -176,6 +186,39 @@ export interface Settings {
 export interface KeywordAlias {
   from: string
   to: string
+}
+
+/**
+ * The rail entries that can be reordered, in the order they ship.
+ *
+ * Identity is a slot rather than a route, which matters for one of them:
+ * `prices` is the Grand Exchange or GE Tracker depending on a setting, and the
+ * two swap in place. Keyed by route, flipping that setting would have looked
+ * like the entry being deleted and a different one appended to the end.
+ */
+export const RAIL_IDS = ['dps', 'prices', 'hiscores', 'notes', 'calculators', 'profile'] as const
+
+export type RailId = (typeof RAIL_IDS)[number]
+
+/** A note, whole. */
+export interface Note {
+  id: number
+  title: string
+  /** Markdown, as the editor serialises it. */
+  body: string
+  position: number
+  createdAt: number
+  updatedAt: number
+}
+
+/** A note in the sidebar, without the body the list has no use for. */
+export interface NoteSummary {
+  id: number
+  title: string
+  position: number
+  updatedAt: number
+  /** Whether deleting it should ask first. An empty note just goes. */
+  hasContent: boolean
 }
 
 export interface WindowBounds {
@@ -657,6 +700,17 @@ export const Invoke = {
   CapturePane: 'tools:capture',
   GetSetup: 'setup:state',
   GetUpdate: 'update:state',
+  /** Every note, without its body — the sidebar list. */
+  NotesList: 'notes:list',
+  NotesRead: 'notes:read',
+  NotesCreate: 'notes:create',
+  /**
+   * Save a title, a body, or both. Invoked rather than sent: the editor saves
+   * on a timer and needs to know the write landed before it stops calling the
+   * note unsaved.
+   */
+  NotesUpdate: 'notes:update',
+  NotesDelete: 'notes:delete',
 } as const
 
 /** Main -> renderer. */
@@ -718,6 +772,12 @@ export interface RunePanelApi {
   search(query: string): Promise<SearchResult[]>
   getPage(title: string, options?: { force?: boolean }): Promise<Article | null>
   prefetchPage(title: string): void
+
+  notesList(): Promise<NoteSummary[]>
+  notesRead(id: number): Promise<Note | null>
+  notesCreate(title?: string): Promise<Note>
+  notesUpdate(id: number, patch: { title?: string; body?: string }): Promise<Note | null>
+  notesDelete(id: number): Promise<void>
 
   getCrawlState(): Promise<CrawlState>
   startCrawl(): void

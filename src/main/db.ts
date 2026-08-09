@@ -144,6 +144,27 @@ const MIGRATIONS: string[] = [
   `
   DELETE FROM pages;
   `,
+
+  // Notes. The first table here that holds something the user wrote rather than
+  // something the wiki did, which changes what the file is: everything else can
+  // be thrown away and re-fetched, and this cannot. Hence a rowid table with
+  // autoincrement — a note keeps its id for as long as it exists, and a deleted
+  // one never has its id handed to a later note.
+  `
+  CREATE TABLE notes (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    title      TEXT    NOT NULL,
+    -- Markdown, as the editor serialises it.
+    body       TEXT    NOT NULL DEFAULT '',
+    -- Hand-ordered in the sidebar, so a position rather than a sort on a name
+    -- or a date. Sparse on purpose: a move rewrites one row, not the list.
+    position   REAL    NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE INDEX notes_position ON notes(position);
+  `,
 ]
 
 export function open(): DatabaseSync {

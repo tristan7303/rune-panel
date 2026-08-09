@@ -4,6 +4,7 @@ import { App } from './App'
 import { install as installMotion } from './motion'
 import './styles.css'
 import './article.css'
+import './notes.css'
 
 const container = document.getElementById('root')
 if (!container) throw new Error('#root missing from index.html')

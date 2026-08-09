@@ -359,7 +359,30 @@ body,
   color: var(--text-dim);
   cursor: pointer;
   position: relative;
+  /* The rail is reorderable by dragging, and a pointer gesture that the browser
+     may also read as a scroll or a pan never reaches `pointermove`. */
+  touch-action: none;
+  /* `transform` is left out on purpose: while a drag is running the transform
+     and its transition are written inline, and a transition declared here would
+     apply to the carried entry too — putting a lag between the cursor and the
+     thing it is holding. */
   transition: background var(--duration) ease, color var(--duration) ease;
+}
+
+/**
+ * The entry being carried.
+ *
+ * Lifted rather than hidden — it is the element itself following the cursor,
+ * not a copy, so the only thing this has to add is the sense of it being off
+ * the surface. Deliberately no `transform` here: the drag writes one inline,
+ * carrying both the position and the lift, and a rule at this level would
+ * silently win against it and pin the icon in place.
+ */
+.rail-btn.is-dragging {
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 38%);
+  cursor: grabbing;
 }
 
 .rail-btn:hover {

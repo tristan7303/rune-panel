@@ -19,6 +19,7 @@ import * as db from './db'
 import * as client from './wiki/client'
 import * as titles from './wiki/titles'
 import * as search from './wiki/search'
+import * as notes from './notes'
 import * as page from './wiki/page'
 import * as images from './wiki/images'
 import * as sync from './wiki/sync'
@@ -89,6 +90,14 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(Invoke.Search, (_e, query: string) => search.search(query))
+
+  ipcMain.handle(Invoke.NotesList, () => notes.list())
+  ipcMain.handle(Invoke.NotesRead, (_e, id: number) => notes.read(id))
+  ipcMain.handle(Invoke.NotesCreate, (_e, title?: string) => notes.create(title))
+  ipcMain.handle(Invoke.NotesUpdate, (_e, id: number, patch: { title?: string; body?: string }) =>
+    notes.update(id, patch)
+  )
+  ipcMain.handle(Invoke.NotesDelete, (_e, id: number) => notes.remove(id))
 
   ipcMain.handle(Invoke.GetPage, (_e, title: string, options?: { force?: boolean }) =>
     page.get(title, options)
