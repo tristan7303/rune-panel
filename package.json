@@ -12,6 +12,7 @@
     "sync:titles": "electron out/main/index.js --sync-titles",
     "crawl": "electron out/main/index.js --crawl",
     "dist": "npm run build && electron-builder --win --publish never",
+    "dist:setup": "node scripts/build-setup.mjs",
     "release": "npm run build && electron-builder --win --publish always"
   },
   "dependencies": {

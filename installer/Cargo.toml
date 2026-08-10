@@ -1,0 +1,30 @@
+# The branded setup shell.
+#
+# This is the exe a person downloads and runs. It draws one custom window —
+# HTML in a WebView2, themed exactly like the app — and drives the real NSIS
+# installer silently underneath. The NSIS artifact stays exactly what it was,
+# because it is also the auto-update vehicle: electron-updater on Windows
+# speaks NSIS and nothing else, so the engine cannot change, only the face.
+[package]
+name = "rune-panel-installer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+tao = "0.34"
+wry = "0.53"
+
+[build-dependencies]
+winresource = "0.1"
+# Converts build/icon.png into the .ico the exe resource wants, so the icon
+# has one source of truth in the repo.
+image = { version = "0.25", default-features = false, features = ["png", "ico"] }
+
+[profile.release]
+# The payload dwarfs the code, but there is no reason for the shell around a
+# hundred-megabyte archive to add more than it must.
+opt-level = "s"
+lto = true
+strip = true
+panic = "abort"

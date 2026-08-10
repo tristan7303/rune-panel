@@ -1,0 +1,390 @@
+<!doctype html>
+<!--
+  The whole installer, on one screen.
+
+  Four states live in the same window and swap in place: ready (Install),
+  installing (progress), done (Launch), error (Retry). Nothing navigates,
+  nothing pops up — the pattern every modern launcher installer follows,
+  because a wizard whose every answer is "next" is ceremony, not consent.
+
+  The Rust shell injects {{LOGO}} (a base64 png), {{VERSION}}, and {{MODE}}
+  ("install" | "update" | "reinstall") before loading, and afterwards talks to
+  the page through window.__setup: progress(pct, note), state(name, detail).
+  The page talks back through window.ipc.postMessage: install / launch /
+  close / minimize / drag.
+
+  Palette is the app's mocha theme — the same tokens as styles.css, flattened
+  to opaque because there is no acrylic behind an installer window.
+-->
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --bg-0: #241b14;
+    --bg-1: #2b211a;
+    --raised: #3b2e24;
+    --sunken: #1c1510;
+    --rim: rgba(255, 222, 180, 0.12);
+    --rim-bright: rgba(255, 235, 205, 0.22);
+    --text: rgba(245, 233, 216, 0.95);
+    --text-dim: rgba(245, 233, 216, 0.58);
+    --text-faint: rgba(245, 233, 216, 0.34);
+    --gold: #e8bd6b;
+    --gold-deep: #b98c3e;
+    --blue: #7fb5d8;
+    --ok: #9ac97f;
+    --bad: #d88f7f;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(120% 90% at 50% -20%, rgba(232, 189, 107, 0.14), transparent 55%),
+      linear-gradient(180deg, var(--bg-1), var(--bg-0));
+    /* The window is undecorated; this is its only edge. */
+    box-shadow: inset 0 0 0 1px var(--rim);
+    display: flex;
+    flex-direction: column;
+    cursor: default;
+  }
+
+  /* ── Title bar ─────────────────────────────────────────────────────── */
+
+  .titlebar {
+    height: 44px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    padding-left: 16px;
+    gap: 9px;
+    color: var(--text-dim);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+  }
+  .titlebar img { width: 18px; height: 18px; opacity: 0.9; }
+  .titlebar .grab { flex: 1; align-self: stretch; }
+
+  .winbtn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-family: 'Segoe UI Symbol', 'Segoe UI', sans-serif;
+    cursor: default;
+  }
+  .winbtn:hover { background: rgba(255, 226, 188, 0.08); color: var(--text); }
+  .winbtn.close:hover { background: #b0483a; color: #fff; }
+  body[data-busy] .winbtn.close { opacity: 0.35; pointer-events: none; }
+
+  /* ── Identity ──────────────────────────────────────────────────────── */
+
+  .hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding-bottom: 4px;
+  }
+  .hero .logo {
+    width: 92px;
+    height: 92px;
+    margin-bottom: 10px;
+    filter: drop-shadow(0 6px 24px rgba(232, 189, 107, 0.28));
+  }
+  .hero h1 {
+    font-size: 27px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .hero .version {
+    font-size: 11.5px;
+    color: var(--gold);
+    background: rgba(232, 189, 107, 0.1);
+    border: 1px solid rgba(232, 189, 107, 0.28);
+    border-radius: 99px;
+    padding: 2.5px 11px;
+    letter-spacing: 0.06em;
+  }
+  .hero .tag {
+    margin-top: 5px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  /* ── The stage: one slot the four states share ─────────────────────── */
+
+  .stage {
+    flex: none;
+    height: 148px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 6px 56px 0;
+  }
+  .state { display: none; width: 100%; flex-direction: column; align-items: center; }
+  body[data-state='ready']      .state.ready,
+  body[data-state='installing'] .state.installing,
+  body[data-state='done']       .state.done,
+  body[data-state='error']      .state.error { display: flex; animation: rise 260ms cubic-bezier(0.2, 0, 0, 1); }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(7px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .btn {
+    border: none;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 12px 66px;
+    color: #241b14;
+    background: linear-gradient(180deg, var(--gold), var(--gold-deep));
+    box-shadow:
+      0 1px 0 rgba(255, 240, 210, 0.5) inset,
+      0 6px 20px rgba(232, 189, 107, 0.22);
+    cursor: default;
+  }
+  .btn:hover  { filter: brightness(1.07); }
+  .btn:active { filter: brightness(0.94); transform: translateY(1px); }
+
+  .quiet {
+    margin-top: 12px;
+    border: none;
+    background: none;
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 12.5px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: default;
+  }
+  .quiet:hover { color: var(--text); }
+
+  .note {
+    margin-top: 13px;
+    font-size: 11.5px;
+    color: var(--text-faint);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* Installing */
+  .track {
+    width: 100%;
+    height: 7px;
+    border-radius: 99px;
+    background: var(--sunken);
+    box-shadow: 0 0 0 1px var(--rim) inset;
+    overflow: hidden;
+    margin-top: 22px;
+  }
+  .fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--gold-deep), var(--gold));
+    position: relative;
+    transition: width 180ms linear;
+  }
+  /* A sheen that keeps moving even when the number does not — the install's
+     first seconds are the engine unpacking to temp, where no bytes land in
+     the destination yet. Motion is the difference between "working" and
+     "hung". */
+  .fill::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 245, 225, 0.35), transparent);
+    animation: sheen 1.4s linear infinite;
+  }
+  @keyframes sheen {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(100%); }
+  }
+  .meter {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+  .meter .pct { color: var(--gold); font-variant-numeric: tabular-nums; }
+
+  /* Done */
+  .check {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: rgba(154, 201, 127, 0.14);
+    box-shadow: 0 0 0 1px rgba(154, 201, 127, 0.4) inset;
+    display: grid; place-items: center;
+    color: var(--ok);
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+  .done-line { font-size: 13.5px; color: var(--text-dim); margin-bottom: 14px; }
+  .done-line b { color: var(--text); font-weight: 600; }
+
+  /* Error */
+  .err-line {
+    font-size: 12.5px;
+    color: var(--bad);
+    margin-bottom: 13px;
+    text-align: center;
+    line-height: 1.5;
+    max-width: 100%;
+  }
+
+  .footer {
+    flex: none;
+    padding: 0 18px 12px;
+    font-size: 10.5px;
+    color: var(--text-faint);
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body data-state="ready">
+
+  <div class="titlebar">
+    <img src="data:image/png;base64,{{LOGO}}" alt="" />
+    <span>Rune Panel Setup</span>
+    <div class="grab" id="grab"></div>
+    <button class="winbtn" id="min" aria-label="Minimise">&#xE921;</button>
+    <button class="winbtn close" id="x" aria-label="Close">&#xE8BB;</button>
+  </div>
+
+  <div class="hero">
+    <img class="logo" src="data:image/png;base64,{{LOGO}}" alt="" />
+    <h1>Rune Panel</h1>
+    <span class="version">v{{VERSION}}</span>
+    <span class="tag">The Old School RuneScape companion overlay</span>
+  </div>
+
+  <div class="stage">
+    <div class="state ready">
+      <button class="btn" id="install">Install</button>
+      <div class="note" id="ready-note">
+        Installs for you only — no administrator needed.<br />
+        %LocalAppData%\Programs\Rune Panel
+      </div>
+    </div>
+
+    <div class="state installing">
+      <div class="track"><div class="fill" id="fill"></div></div>
+      <div class="meter">
+        <span id="status">Preparing…</span>
+        <span class="pct" id="pct">0%</span>
+      </div>
+    </div>
+
+    <div class="state done">
+      <div class="check">&#10003;</div>
+      <div class="done-line"><b>Rune Panel</b> is installed and ready.</div>
+      <button class="btn" id="launch">Launch</button>
+      <button class="quiet" id="close2">Close</button>
+    </div>
+
+    <div class="state error">
+      <div class="err-line" id="err">Something went wrong.</div>
+      <button class="btn" id="retry">Try again</button>
+      <button class="quiet" id="close3">Close</button>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Not affiliated with Jagex or the OSRS Wiki.</span>
+    <span>github.com/tristan7303/rune-panel</span>
+  </div>
+
+<script>
+  const send = (msg) => window.ipc.postMessage(msg)
+  const $ = (id) => document.getElementById(id)
+
+  // "install" | "update" | "reinstall", decided by the shell from the
+  // registry before the page loads. Same action either way — the engine
+  // installs over what is there — only the words change.
+  const MODE = '{{MODE}}'
+  if (MODE === 'update') {
+    $('install').textContent = 'Update'
+    $('ready-note').innerHTML = 'A previous version is installed — this replaces it.<br />Your notes and settings are kept.'
+  } else if (MODE === 'reinstall') {
+    $('install').textContent = 'Reinstall'
+    $('ready-note').innerHTML = 'This version is already installed.<br />Reinstalling repairs it; your notes and settings are kept.'
+  }
+
+  const setState = (s) => {
+    document.body.dataset.state = s
+    if (s === 'installing') document.body.setAttribute('data-busy', '')
+    else document.body.removeAttribute('data-busy')
+  }
+
+  $('install').addEventListener('click', () => { setState('installing'); send('install') })
+  $('retry').addEventListener('click', () => { setState('installing'); send('install') })
+  $('launch').addEventListener('click', () => send('launch'))
+  $('min').addEventListener('click', () => send('minimize'))
+  for (const id of ['x', 'close2', 'close3'])
+    $(id).addEventListener('click', () => send('close'))
+
+  // The bar and the top strip both drag the window. Buttons stop the press
+  // before it gets here, so only empty chrome grabs.
+  for (const el of [$('grab'), document.querySelector('.titlebar')]) {
+    el.addEventListener('mousedown', (e) => {
+      if (e.button === 0 && (e.target === el || e.target.tagName === 'SPAN' || e.target.tagName === 'IMG'))
+        send('drag')
+    })
+  }
+
+  /**
+   * Progress, displayed a touch behind the truth.
+   *
+   * The shell reports real bytes on the ground, which arrive in bursts as the
+   * engine writes files. Easing toward the latest report keeps the bar in
+   * constant motion instead of stuttering between plateaus.
+   */
+  let target = 0
+  let shown = 0
+  setInterval(() => {
+    if (document.body.dataset.state !== 'installing') return
+    shown += (target - shown) * 0.12
+    if (target - shown < 0.1) shown = target
+    $('fill').style.width = shown.toFixed(1) + '%'
+    $('pct').textContent = Math.round(shown) + '%'
+  }, 90)
+
+  window.__setup = {
+    progress(pct, note) {
+      target = Math.max(target, Math.min(100, pct))
+      if (note) $('status').textContent = note
+    },
+    state(name, detail) {
+      if (name === 'done') {
+        target = 100
+        $('fill').style.width = '100%'
+        $('pct').textContent = '100%'
+        setTimeout(() => setState('done'), 350)
+      } else if (name === 'error') {
+        setState('error')
+        $('err').textContent = detail || 'The install did not finish. Nothing was harmed — you can try again.'
+      } else {
+        setState(name)
+      }
+    },
+  }
+</script>
+</body>
+</html>
