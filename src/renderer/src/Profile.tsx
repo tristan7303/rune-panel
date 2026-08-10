@@ -13,9 +13,9 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { ProfileSummary } from '@shared/ipc'
 import { ToolPane } from './ToolPane'
-import { UserIcon } from './icons'
 import { usePrimaryInput } from './focus'
 import { useStore } from './store'
+import runeProfileLogo from './assets/runeprofile-logo.png'
 
 const STORAGE_KEY = 'rp.profiles'
 const MAX_SAVED = 8
@@ -99,7 +99,10 @@ export function Profile(): JSX.Element {
   return (
     <div className="profile-search">
       <div className="profile-hero">
-        <UserIcon />
+        {/* Their mark, not a generic silhouette — the same treatment the GE
+            Tracker landing gives its logo. Theirs is a square avatar rather
+            than a wordmark, so the name stays as text beneath it. */}
+        <img src={runeProfileLogo} alt="" draggable={false} />
         <h1>RuneProfile</h1>
         <p>
           Skills, quests, achievement diaries, combat achievements and the full collection log.
