@@ -194,31 +194,37 @@ const MAX_ALIASES = 40
  * keystroke landed and the Add button did nothing at all. An incomplete rule is
  * not invalid, it is unfinished; the searcher ignores it until it is not.
  *
- * What is enforced is what cannot be typed back out of: both sides are trimmed,
+ * What is enforced is what cannot be typed back out of: both sides are
  * lowercased and length-capped, a `from` cannot be claimed twice, and the list
- * has a ceiling.
+ * has a ceiling. Spaces are *not* trimmed, and for the same reason incomplete
+ * rows are kept: every keystroke round-trips through here, so trimming meant
+ * the space you just typed after "best" was gone before "in slot" could follow
+ * it. A phrase is a legal rule; the searcher normalises whitespace when it
+ * matches, so stray spaces cost nothing.
  */
 function sanitizeAliases(value: unknown): Array<{ from: string; to: string }> {
   if (!Array.isArray(value)) return []
   const claimed = new Set<string>()
   const out: Array<{ from: string; to: string }> = []
+  // The form that matters for "already claimed" and "maps to itself" — what
+  // the searcher will actually compare, not what is mid-keystroke.
+  const norm = (s: string): string => s.trim().replace(/\s+/g, ' ')
 
   for (const entry of value) {
     if (!entry || typeof entry !== 'object') continue
     const from = String((entry as { from?: unknown }).from ?? '')
-      .trim()
       .toLowerCase()
       .slice(0, 40)
     const to = String((entry as { to?: unknown }).to ?? '')
-      .trim()
       .toLowerCase()
       .slice(0, 60)
 
-    // A word already spoken for, or one that only maps to itself, is a rule
+    // A phrase already spoken for, or one that only maps to itself, is a rule
     // that could never do anything — but only once it is complete enough to
     // judge, so blanks fall through.
-    if (from && (claimed.has(from) || from === to)) continue
-    if (from) claimed.add(from)
+    const key = norm(from)
+    if (key && (claimed.has(key) || key === norm(to))) continue
+    if (key) claimed.add(key)
 
     out.push({ from, to })
     if (out.length >= MAX_ALIASES) break

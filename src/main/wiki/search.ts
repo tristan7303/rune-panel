@@ -109,29 +109,46 @@ export function load(): void {
 }
 
 /**
- * Substitute any configured synonym, whole word.
+ * Substitute any configured synonym, whole words or whole phrases.
  *
  * Returns null when nothing applies, which is the common case and worth not
- * paying a second search for. Word-by-word rather than by substring, so a rule
- * for "bis" cannot fire inside "Bisque"; case is folded because the rules are
+ * paying a second search for. Matching is on word boundaries rather than by
+ * substring, so a rule for "bis" cannot fire inside "Bisque"; a phrase rule
+ * matches the same way, as a run of consecutive words, so "best in slot"
+ * cannot fire across "the best inn". Case is folded because the rules are
  * stored lowercased and nobody capitalises a search box.
  */
 function expand(query: string, aliases: KeywordAlias[]): string | null {
-  // Both halves written, and a `from` of one word — the editor stores a rule
-  // from the moment you add the row, so half of one is the normal state while
-  // it is being typed rather than something to complain about. A `from` with a
-  // space in it could never match a single word and is skipped for the same
-  // reason: it is not yet a rule that means anything.
-  const usable = aliases.filter((a) => a.from && a.to && !/\s/.test(a.from))
+  // Both halves written — the editor stores a rule from the moment you add the
+  // row, so half of one is the normal state while it is being typed rather
+  // than something to complain about. Whitespace is normalised here because
+  // the sanitizer deliberately leaves it alone (trimming there ate the space
+  // being typed between the words of a phrase).
+  const usable = aliases
+    .filter((a) => a.from.trim() && a.to.trim())
+    .map((a) => ({ from: a.from.trim().split(/\s+/), to: a.to.trim().replace(/\s+/g, ' ') }))
+    // Longest phrase first, so a rule for "best in slot" wins over one for
+    // "best" at the same position instead of losing to list order.
+    .sort((a, b) => b.from.length - a.from.length)
   if (usable.length === 0) return null
 
+  const words = query.split(/\s+/)
+  const lower = words.map((w) => w.toLowerCase())
+  const out: string[] = []
   let changed = false
-  const out = query.split(/\s+/).map((word) => {
-    const rule = usable.find((a) => a.from === word.toLowerCase())
-    if (!rule) return word
-    changed = true
-    return rule.to
-  })
+  for (let i = 0; i < words.length; ) {
+    const rule = usable.find((r) => r.from.every((w, n) => lower[i + n] === w))
+    if (rule) {
+      // The matched words are consumed together and never rescanned, so one
+      // rule's output cannot trigger another's.
+      out.push(rule.to)
+      i += rule.from.length
+      changed = true
+    } else {
+      out.push(words[i])
+      i += 1
+    }
+  }
   return changed ? out.join(' ') : null
 }
 

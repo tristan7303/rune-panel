@@ -455,10 +455,12 @@ function DropExample({ showAlch }: { showAlch: boolean }): JSX.Element {
  * Search synonyms, as an editable list.
  *
  * Written straight through to the setting on every keystroke rather than held
- * in a draft. Main lowercases, trims and drops incomplete rows on the way in,
- * so a half-typed rule is simply a rule that does not fire yet — there is no
- * invalid state to protect the user from, and a Save button for a two-word rule
- * would be more ceremony than the rule.
+ * in a draft. Main lowercases on the way in but keeps incomplete rows and
+ * spaces exactly as typed — trimming here once meant the space between the
+ * words of a phrase vanished before the next word could land. A half-typed
+ * rule is simply a rule that does not fire yet; there is no invalid state to
+ * protect the user from, and a Save button for a two-word rule would be more
+ * ceremony than the rule.
  */
 function AliasField({
   aliases,
@@ -472,8 +474,8 @@ function AliasField({
 
   return (
     <Field
-      label="Match a word with another"
-      hint="Typing the word on the left also searches for the one on the right, so “scurrius bis” finds Scurrius/Strategies — the wiki names that page formally and nobody types it that way. Whole words only, so a rule for “bis” will not fire inside “Bisque”."
+      label="Match a word or phrase with another"
+      hint="Typing what is on the left also searches for what is on the right, so “scurrius bis” finds Scurrius/Strategies — the wiki names that page formally and nobody types it that way. Either side can be a phrase, like “best in slot” → “strategies”. Whole words only, so a rule for “bis” will not fire inside “Bisque”."
     >
       <div className="settings-aliases">
         {aliases.map((alias, i) => (
