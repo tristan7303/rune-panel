@@ -103,6 +103,23 @@ export function useRailDrag(order: RailId[], onCommit: (next: RailId[]) => void)
     setDragState(next)
   }, [])
 
+  /**
+   * The committed order as it is *now*, for commits that fire later.
+   *
+   * A commit can run long after the render whose closure created it — at the
+   * end of the settle animation, or flushed early by the next drag. Built on
+   * the `order` argument as it was at press time, such a commit would quietly
+   * reorder from a stale list and undo the move before it.
+   */
+  const orderRef = useRef(order)
+  orderRef.current = order
+
+  /** Tears down the previous press's listeners, whatever state it died in. */
+  const teardown = useRef<(() => void) | null>(null)
+
+  /** A drop still easing home, with the commit it owes when it lands. */
+  const settle = useRef<{ timer: number; commit: () => void } | null>(null)
+
   /** Where every entry sat when the press began, and how tall a slot is. */
   const geometry = useRef<{ centres: number[]; slot: number }>({ centres: [], slot: 0 })
 
@@ -143,11 +160,46 @@ export function useRailDrag(order: RailId[], onCommit: (next: RailId[]) => void)
         slot: boxes.length > 1 ? boxes[1].top - boxes[0].top : (boxes[0]?.height ?? 0),
       }
 
+      /**
+       * Whatever a previous press left behind is resolved before this one
+       * begins. A drag whose release this window never saw still has its
+       * listeners attached and its state on screen; left in place, the two
+       * sessions' listeners stack, one release runs both finishes, and the
+       * stale one eats this press's click. A settle still in flight commits
+       * now, so its timer cannot fire mid-drag and null a state it no longer
+       * owns.
+       */
+      teardown.current?.()
+      if (settle.current) {
+        window.clearTimeout(settle.current.timer)
+        settle.current.commit()
+      }
+      if (dragRef.current) setDrag(null)
+
       const startY = e.clientY
       lifted.current = false
       suppressClick.current = false
 
       const onMove = (move: PointerEvent): void => {
+        /**
+         * No button held means the release already happened, somewhere this
+         * window could not see it.
+         *
+         * The embedded tool panes are separate web contents composited above
+         * this document, and they take the pointer the moment it crosses them
+         * — the same fact that forces Ctrl+scroll to be handled in their own
+         * preload. A drag released over one, or outside the window, ends with
+         * its pointerup delivered elsewhere: the drag outlives its own mouse
+         * button, the icon chases an unpressed cursor, and the stale finish
+         * eats the next click's navigation — which is exactly "the rail goes
+         * dead on pages with a browser instance". The first move that comes
+         * back carries the truth in `buttons`; act on it here.
+         */
+        if (move.buttons === 0) {
+          finish()
+          return
+        }
+
         const dy = move.clientY - startY
         if (!lifted.current) {
           if (Math.abs(dy) < DRAG_THRESHOLD_PX) return
@@ -169,15 +221,20 @@ export function useRailDrag(order: RailId[], onCommit: (next: RailId[]) => void)
         setDrag({ id, from, to, dy, settling: false })
       }
 
-      const finish = (): void => {
+      const cleanup = (): void => {
         window.removeEventListener('pointermove', onMove)
         window.removeEventListener('pointerup', finish)
         window.removeEventListener('pointercancel', finish)
         window.removeEventListener('blur', finish)
+        teardown.current = null
+      }
 
-        // Read rather than mutated inside the updater below: React may invoke a
-        // state updater more than once (it does under StrictMode), and anything
-        // with a side effect in it would then run twice.
+      const finish = (): void => {
+        cleanup()
+
+        // Read rather than mutated inside a state updater: React may invoke an
+        // updater more than once (it does under StrictMode), and anything with
+        // a side effect in it would then run twice.
         const landed = dragRef.current
         suppressClick.current = landed !== null && landed.to !== landed.from
 
@@ -186,10 +243,12 @@ export function useRailDrag(order: RailId[], onCommit: (next: RailId[]) => void)
           // the time the list really reorders, the element is already there.
           const resting = (landed.to - landed.from) * geometry.current.slot
           setDrag({ ...landed, dy: resting, settling: true })
-          window.setTimeout(() => {
-            if (landed.to !== landed.from) onCommit(reorder(order, landed.id, landed.to))
+          const commit = (): void => {
+            settle.current = null
+            if (landed.to !== landed.from) onCommit(reorder(orderRef.current, landed.id, landed.to))
             setDrag(null)
-          }, SLIDE_MS)
+          }
+          settle.current = { timer: window.setTimeout(commit, SLIDE_MS), commit }
         }
 
         // The suppression expires with the press that earned it: a click
@@ -223,8 +282,11 @@ export function useRailDrag(order: RailId[], onCommit: (next: RailId[]) => void)
       window.addEventListener('pointerup', finish)
       window.addEventListener('pointercancel', finish)
       window.addEventListener('blur', finish)
+      teardown.current = cleanup
     },
-    [order, onCommit, setDrag]
+    // Not `order`: the one place it was read now goes through `orderRef`, so a
+    // commit firing after a re-render cannot be built on a stale list.
+    [onCommit, setDrag]
   )
 
   /**
