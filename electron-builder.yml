@@ -76,9 +76,10 @@ nsis:
   # a four-minute download).
   deleteAppDataOnUninstall: false
 
-# Builds the branded setup shell (installer/) with the NSIS exe embedded and
-# publishes it alongside. Needs a Rust toolchain; the GitHub runners have one.
-afterAllArtifactBuild: scripts/attach-setup-shell.js
+# The branded setup shell (installer/) is deliberately NOT built from a hook
+# here. scripts/build-setup-shell.js runs after electron-builder exits —
+# a cargo build sharing the process window with a 100 MB upload is what
+# timed the v0.2.4 release out, twice.
 
 publish:
   provider: github

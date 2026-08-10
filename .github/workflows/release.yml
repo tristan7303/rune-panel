@@ -68,11 +68,16 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
-      # The branded installer, built by the afterAllArtifactBuild hook during
-      # the step above. Uploaded here with `gh` (preinstalled, first-party)
-      # rather than returned to electron-builder's publisher: its http client
-      # times out on parallel 100 MB uploads, which is exactly what two
-      # installers are. Retries because a single big upload can still hiccup.
+      # Only now, with the publish finished, is it safe to spend the runner's
+      # cores on cargo — this build running concurrently with the upload above
+      # is what timed the publish out.
+      - name: Build branded installer
+        run: node scripts/build-setup-shell.js
+
+      # Uploaded with `gh` (preinstalled, first-party) rather than through
+      # electron-builder's publisher, whose http client is the one that keeps
+      # timing out on 100 MB files. Retries because a single big upload can
+      # still hiccup.
       - name: Attach branded installer
         shell: pwsh
         env:

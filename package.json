@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "sync:titles": "electron out/main/index.js --sync-titles",
     "crawl": "electron out/main/index.js --crawl",
-    "dist": "npm run build && electron-builder --win --publish never",
+    "dist": "npm run build && electron-builder --win --publish never && node scripts/build-setup-shell.js",
     "release": "npm run build && electron-builder --win --publish always"
   },
   "dependencies": {
