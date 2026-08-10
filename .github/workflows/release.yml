@@ -52,3 +52,24 @@ jobs:
           # Signing, if a certificate is ever configured. Unset means unsigned.
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+
+      # The branded installer, built by the afterAllArtifactBuild hook during
+      # the step above. Uploaded here with `gh` (preinstalled, first-party)
+      # rather than returned to electron-builder's publisher: its http client
+      # times out on parallel 100 MB uploads, which is exactly what two
+      # installers are. Retries because a single big upload can still hiccup.
+      - name: Attach branded installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $v = (Get-Content package.json | ConvertFrom-Json).version
+          $exe = "release/RunePanel-Installer-$v.exe"
+          if (-not (Test-Path $exe)) { Write-Error "missing $exe"; exit 1 }
+          foreach ($try in 1..5) {
+            gh release upload "v$v" $exe --clobber -R ${{ github.repository }}
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Write-Host "upload attempt $try failed; retrying"
+            Start-Sleep -Seconds (15 * $try)
+          }
+          exit 1

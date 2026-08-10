@@ -41,7 +41,13 @@ exports.default = async function attachSetupShell(buildResult) {
     path.join(root, 'installer', 'target', 'release', 'rune-panel-installer.exe'),
     artifact
   )
-  return [artifact]
+  // Deliberately NOT handed back for electron-builder to publish. Returning it
+  // put two ~100 MB uploads through electron-builder's http client at once,
+  // and the v0.2.4 release died on its "Request timed out" — a long-standing
+  // weakness of that uploader. The release workflow attaches this file itself
+  // with `gh`, which retries properly; electron-builder keeps uploading only
+  // what the updater needs.
+  return []
 }
 
 function dirSize(dir) {
