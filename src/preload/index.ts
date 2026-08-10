@@ -26,6 +26,7 @@ import {
   type NoteSummary,
   type GeTimestep,
   type PaneBounds,
+  type ProfileData,
   type ProfileSummary,
   type RunePanelApi,
   type ScaleDirection,
@@ -102,6 +103,8 @@ const api: RunePanelApi = {
   setPaneBounds: (bounds: PaneBounds) => ipcRenderer.send(Send.SetPaneBounds, bounds),
   lookupProfile: (username: string): Promise<ProfileSummary> =>
     ipcRenderer.invoke(Invoke.LookupProfile, username),
+  profileData: (username: string, options?: { force?: boolean }): Promise<ProfileData> =>
+    ipcRenderer.invoke(Invoke.ProfileData, username, options),
 
   geDetail: (itemId: number, timestep?: GeTimestep): Promise<GeItemDetail | null> =>
     ipcRenderer.invoke(Invoke.GeDetail, itemId, timestep),

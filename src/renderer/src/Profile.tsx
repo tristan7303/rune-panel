@@ -20,13 +20,24 @@ import runeProfileLogo from './assets/runeprofile-logo.png'
 const STORAGE_KEY = 'rp.profiles'
 const MAX_SAVED = 8
 
-export function Profile(): JSX.Element {
+export function Profile({ initial }: { initial?: string } = {}): JSX.Element {
   const [username, setUsername] = useState('')
   const [saved, setSaved] = useState<string[]>(() => loadSaved())
   const [viewing, setViewing] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inputRef = usePrimaryInput()
+
+  // Arriving with a name — the Character page's "full profile" button — skips
+  // the search view and goes straight to the pane. Once: this is a landing
+  // instruction, not state, and going back to the search box must stick.
+  const opened = useRef(false)
+  useEffect(() => {
+    if (opened.current || !initial?.trim()) return
+    opened.current = true
+    void open(initial)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial])
 
   useEffect(() => {
     if (viewing) setError(null)

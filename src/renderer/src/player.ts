@@ -6,12 +6,12 @@
  * the hiscores, which are public and need no login — the name in settings is the
  * only input.
  *
- * Quests and combat achievements are deliberately absent. They are not on the
- * hiscores at all, and the only place they exist is the wiki's own WikiSync
- * service: the local endpoint its DPS calculator talks to serves a loadout and
- * eight combat levels and nothing else, and the rest is uploaded to a server
- * whose maintainers ask third parties not to read it. So skills it is, rather
- * than a feature that half works against an API we were asked to leave alone.
+ * Quests and combat achievements live in `runeprofile.ts` instead. They are
+ * not on the hiscores at all, and for a long time the only place they existed
+ * was the wiki's WikiSync service, whose maintainers ask third parties not to
+ * read it — RuneProfile is the answer to that: an opt-in service with a public
+ * API. Skills stay here regardless, because the hiscores answer for every
+ * account while RuneProfile only knows the ones running its plugin.
  */
 
 import { create } from 'zustand'

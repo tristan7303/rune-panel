@@ -77,6 +77,7 @@ export async function runSmoke(initial: Settings): Promise<void> {
       if (process.env.SMOKE_FETCH) {
         await checkPrices(win.webContents)
         await checkProfileLookup(win.webContents)
+        await checkProfileData(win.webContents)
         await checkHiscores(win.webContents)
         await checkToolPane(win)
       }
@@ -969,6 +970,41 @@ async function checkProfileLookup(wc: Electron.WebContents): Promise<void> {
   // calling .filter on it threw on every single lookup.
   check('profile: lookup succeeds', p.exists === true, p.error ?? 'ok')
   check('profile: reports a total level', (p.totalLevel ?? 0) > 1000, String(p.totalLevel))
+}
+
+/**
+ * The full RuneProfile detail set, against the live API.
+ *
+ * The last check is the load-bearing one: article marking matches completed
+ * combat-achievement tasks by id, on the claim that the API's `index` is the
+ * same number the wiki writes as `data-ca-task-id`. 268 is "Vorkath Veteran"
+ * on both sides today — if RuneProfile ever renumbers, this is the check that
+ * says so before a reader wonders why every row went grey.
+ */
+async function checkProfileData(wc: Electron.WebContents): Promise<void> {
+  const raw = await wc.executeJavaScript(
+    `window.rp.profileData('pgn').then(d => JSON.stringify({
+       exists: d.exists,
+       quests: d.quests?.length ?? 0,
+       caTasks: d.caTasks?.length ?? 0,
+       cook: d.quests?.find(q => q.name === "Cook's Assistant")?.state,
+       vorkath: d.caTasks?.some(t => t.index === 268 && t.name === 'Vorkath Veteran') ?? false,
+       error: d.error,
+     }))`
+  )
+  const d = JSON.parse(raw) as {
+    exists: boolean
+    quests: number
+    caTasks: number
+    cook?: string
+    vorkath: boolean
+    error?: string
+  }
+  check('profile: detail fetch succeeds', d.exists, d.error ?? 'ok')
+  check('profile: quest log is full-size', d.quests >= 190, `${d.quests} quests`)
+  check('profile: CA task list is full-size', d.caTasks >= 600, `${d.caTasks} tasks`)
+  check('profile: quest states carry wiki names', d.cook === 'finished', `Cook's Assistant: ${d.cook}`)
+  check('profile: CA ids line up with the wiki', d.vorkath, 'index 268 = Vorkath Veteran')
 }
 
 /**

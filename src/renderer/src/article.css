@@ -1771,6 +1771,60 @@
   color: #a33b3b;
 }
 
+/* ── Quest and combat-achievement progress ──────────────────────────────
+ *
+ * The same treatment as skill requirements, applied to links: a quest link in
+ * a requirements context takes the colour of its state, and a completed
+ * combat-achievement task goes green. Colour only, on the link text — these
+ * share cells with icons and other links, and anything louder turns a
+ * requirements table into a scoreboard.
+ *
+ * Quest marks exist in three states because "not started" and "half done" are
+ * different answers to "can I start this yet". CA marks are green or nothing:
+ * an undone task is the page's default state, not a failure.
+ *
+ * Not scoped to `.article-body` alone: like `.scp`, these appear in the
+ * natively drawn infobox as well.
+ */
+.article-body a.rp-quest-done,
+.infobox-card a.rp-quest-done,
+.article-body tr.rp-ca-done > td:first-child a,
+.infobox-card tr.rp-ca-done > td:first-child a,
+.article-body a.rp-ca-done,
+.infobox-card a.rp-ca-done {
+  color: #5fbf7a;
+}
+
+.article-body a.rp-quest-progress,
+.infobox-card a.rp-quest-progress {
+  color: #d9b45f;
+}
+
+.article-body a.rp-quest-todo,
+.infobox-card a.rp-quest-todo {
+  color: #e08a8a;
+}
+
+/* Darkened for the light surfaces, same as the skill pair above. */
+:root[data-theme='light'] a.rp-quest-done,
+:root[data-theme='light'] tr.rp-ca-done > td:first-child a,
+:root[data-theme='light'] a.rp-ca-done,
+:root[data-theme='parchment'] a.rp-quest-done,
+:root[data-theme='parchment'] tr.rp-ca-done > td:first-child a,
+:root[data-theme='parchment'] a.rp-ca-done {
+  color: #1f7a3d;
+}
+
+:root[data-theme='light'] a.rp-quest-progress,
+:root[data-theme='parchment'] a.rp-quest-progress {
+  color: #8a6d1f;
+}
+
+:root[data-theme='light'] a.rp-quest-todo,
+:root[data-theme='parchment'] a.rp-quest-todo {
+  color: #a33b3b;
+}
+
 /* Gear notes, moved below the table by the transform. */
 .article-body .rp-gear-notes {
   margin-top: 16px;

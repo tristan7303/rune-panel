@@ -17,6 +17,7 @@ import { useStore } from './store'
 import { WorldMap } from './WorldMap'
 import { ExpandIcon } from './icons'
 import { usePlayer, markRequirements } from './player'
+import { useProfile, markQuests, markCaTasks } from './runeprofile'
 import {
   formatOneIn,
   normaliseRateCells,
@@ -59,6 +60,9 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
   const scrollRef = useRef<HTMLDivElement>(null)
   const push = useNav((s) => s.push)
   const levels = usePlayer((s) => s.levels)
+  const questStates = useProfile((s) => s.questStates)
+  const caCompleted = useProfile((s) => s.caCompleted)
+  const caCompletedNames = useProfile((s) => s.caCompletedNames)
   /** What drops this item, read out of the page's own sources table. */
   const [sources, setSources] = useState<DropSource[]>([])
   const showDropRates = useStore((s) => s.settings?.dropRateInTitle ?? false)
@@ -154,6 +158,20 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
     if (!scrollRef.current || !article) return
     markRequirements(scrollRef.current, levels)
   }, [article, variant, levels])
+
+  /**
+   * Mark quest and combat-achievement progress, from RuneProfile.
+   *
+   * Same shape as the skill pass above and for the same reasons: run from the
+   * scroller so the native infobox is reached, re-run on variant switches, and
+   * never bake the answer into the shared page cache. Additive classes only —
+   * the memoised body HTML must not be re-set.
+   */
+  useEffect(() => {
+    if (!scrollRef.current || !article) return
+    markQuests(scrollRef.current, questStates)
+    markCaTasks(scrollRef.current, caCompleted, caCompletedNames)
+  }, [article, variant, questStates, caCompleted, caCompletedNames])
 
   /**
    * Drop rates: read them out of the body, and optionally restate them.

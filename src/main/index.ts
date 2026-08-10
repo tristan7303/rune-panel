@@ -125,6 +125,9 @@ function registerIpc(): void {
   ipcMain.handle(Invoke.CapturePane, () => pane.capture())
   ipcMain.on(Send.SetPaneBounds, (_e, bounds: PaneBounds) => pane.setBounds(bounds))
   ipcMain.handle(Invoke.LookupProfile, (_e, username: string) => profile.lookup(username))
+  ipcMain.handle(Invoke.ProfileData, (_e, username: string, options?: { force?: boolean }) =>
+    profile.data(username, options)
+  )
 
   ipcMain.handle(Invoke.GeDetail, (_e, itemId: number, timestep?: ge.Timestep) =>
     ge.detail(itemId, timestep)

@@ -29,6 +29,8 @@ import { Setup } from './Setup'
 import { UpdateBanner } from './UpdateBanner'
 import { focusPrimary } from './focus'
 import { usePlayer, seedRsn } from './player'
+import { useProfile } from './runeprofile'
+import { Character } from './Character'
 import { onBind } from './keys'
 import mark from './assets/mark.png'
 import profileLogo from './assets/logo.png'
@@ -40,6 +42,7 @@ import {
   NotesIcon,
   CalculatorIcon,
   GearIcon,
+  UserIcon,
   SunIcon,
   MoonIcon,
   CoffeeIcon,
@@ -145,8 +148,13 @@ export function App(): JSX.Element {
       patchSettings({ rsn: carried })
       return
     }
-    if (rsn.trim()) usePlayer.getState().load(rsn)
-    else usePlayer.getState().clear()
+    if (rsn.trim()) {
+      usePlayer.getState().load(rsn)
+      useProfile.getState().load(rsn)
+    } else {
+      usePlayer.getState().clear()
+      useProfile.getState().clear()
+    }
   }, [rsn, patchSettings])
 
   // The theme lives on <html> rather than in React state so the whole
@@ -340,6 +348,14 @@ export function App(): JSX.Element {
         <div className="rail-spacer" />
         <ThemeToggle />
         <button
+          className={`rail-btn ${route.kind === 'character' ? 'is-active' : ''}`}
+          title="Character"
+          aria-label="Character"
+          onClick={() => push({ kind: 'character' })}
+        >
+          <UserIcon />
+        </button>
+        <button
           className={`rail-btn ${route.kind === 'settings' ? 'is-active' : ''}`}
           title="Settings"
           aria-label="Settings"
@@ -414,6 +430,8 @@ function Body({ route }: { route: Route }): JSX.Element {
       // Not keyed on the note id: the view owns the page list as well as the
       // open page, and remounting on every switch would refetch the sidebar.
       return <Notes id={route.id} />
+    case 'character':
+      return <Character />
     case 'tool':
       return <Tool id={route.id} arg={route.arg} />
     default:
@@ -536,7 +554,9 @@ function Tool({
       // No picker: the DPS calculator is one page, so go straight into it.
       return <ToolPane id="dps" />
     case 'profile':
-      return <Profile />
+      // Keyed on the argument so arriving from the Character page remounts and
+      // opens on that name, rather than whatever the view last showed.
+      return <Profile initial={arg} key={arg ?? ''} />
     case 'calculators':
       return <Calculators />
     case 'getracker':

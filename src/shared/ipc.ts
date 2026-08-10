@@ -513,9 +513,88 @@ export interface ProfileSummary {
   clan?: string
   questsCompleted?: number
   questsTotal?: number
+  questsStarted?: number
+  questPointsEarned?: number
+  questPointsTotal?: number
   collectionObtained?: number
   collectionTotal?: number
+  /** When the account last synced through the plugin, ISO 8601. */
+  updatedAt?: string
   error?: string
+}
+
+// ── RuneProfile detail data ─────────────────────────────────────────────────
+
+export type QuestType = 'free' | 'members' | 'mini'
+export type QuestProgress = 'not_started' | 'in_progress' | 'finished'
+
+export interface ProfileQuest {
+  id: number
+  /** Matches the wiki page title verbatim — "Romeo & Juliet", not a slug. */
+  name: string
+  points: number
+  type: QuestType
+  state: QuestProgress
+}
+
+export interface ProfileCaTask {
+  /**
+   * The game's own task id. The wiki stamps the same number on every task row
+   * as `data-ca-task-id`, which is what makes exact matching possible.
+   */
+  index: number
+  tierId: number
+  tierName: string
+  name: string
+  description: string
+  type: string
+  monster: string | null
+  completed: boolean
+}
+
+export interface ProfileCaTier {
+  id: number
+  name: string
+  completed: number
+  total: number
+}
+
+export interface ProfileDiary {
+  areaId: number
+  area: string
+  completed: number
+  total: number
+}
+
+export interface ProfileSkill {
+  name: string
+  xp: number
+  level: number
+  virtualLevel: number
+  xpToNextLevel: number | null
+}
+
+/**
+ * Everything the Character page and the article markers need, in one reply.
+ *
+ * `exists: false` covers both "no such account" and "hasn't synced" — the API
+ * cannot tell them apart and neither can we, so `error` carries the one
+ * message that is honest about both. The detail arrays are optional because a
+ * miss has none, not because a hit might omit them.
+ */
+export interface ProfileData {
+  username: string
+  exists: boolean
+  error?: string
+  fetchedAt: number
+  summary?: ProfileSummary
+  quests?: ProfileQuest[]
+  caTasks?: ProfileCaTask[]
+  caTotalPoints?: number
+  caTierReached?: string | null
+  combatAchievements?: ProfileCaTier[]
+  achievementDiaries?: ProfileDiary[]
+  skills?: ProfileSkill[]
 }
 
 // ── Grand Exchange ──────────────────────────────────────────────────────────
@@ -685,6 +764,8 @@ export const Invoke = {
   GetPage: 'wiki:page',
   GetCrawlState: 'wiki:crawl-state',
   LookupProfile: 'profile:lookup',
+  /** The full detail set behind the Character page and article marking. */
+  ProfileData: 'profile:data',
   GeDetail: 'ge:detail',
   GeFindByName: 'ge:find',
   /** Fuzzy search restricted to items that actually have a price. */
@@ -788,6 +869,7 @@ export interface RunePanelApi {
   capturePane(): Promise<string | null>
   setPaneBounds(bounds: PaneBounds): void
   lookupProfile(username: string): Promise<ProfileSummary>
+  profileData(username: string, options?: { force?: boolean }): Promise<ProfileData>
 
   geDetail(itemId: number, timestep?: GeTimestep): Promise<GeItemDetail | null>
   geFindByName(name: string): Promise<GeItem | null>

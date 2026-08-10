@@ -36,6 +36,7 @@ export type Route =
    * lets Back step between notes the way it steps between articles.
    */
   | { kind: 'notes'; id?: number }
+  | { kind: 'character' }
   | { kind: 'settings' }
 
 /** Cap on retained history. Deep enough to never be felt, bounded so a long
@@ -139,6 +140,8 @@ export function routeTitle(route: Route): string {
       return 'Hiscores'
     case 'notes':
       return 'Notes'
+    case 'character':
+      return 'Character'
     case 'settings':
       return 'Settings'
   }
