@@ -76,6 +76,10 @@ nsis:
   # a four-minute download).
   deleteAppDataOnUninstall: false
 
+# Builds the branded setup shell (installer/) with the NSIS exe embedded and
+# publishes it alongside. Needs a Rust toolchain; the GitHub runners have one.
+afterAllArtifactBuild: scripts/attach-setup-shell.js
+
 publish:
   provider: github
   owner: tristan7303
@@ -86,25 +90,28 @@ publish:
 
 # Written into every release automatically.
 #
-# A release page shows four files and only one of them is for a person: the
-# installer. `latest.yml` is the update feed the app reads, and the two source
-# archives are attached by GitHub whether we like it or not. None of that can be
-# bundled into a single zip — electron-updater fetches `latest.yml` and then the
-# installer as separate URLs, so zipping them breaks updates for everyone —
-# which leaves saying plainly which file to click.
+# A release page shows several files and only one of them is for a person: the
+# branded installer. `RunePanel-Setup` is the raw NSIS engine the in-app
+# updater downloads and runs silently, `latest.yml` is the update feed it
+# reads, and the two source archives are attached by GitHub whether we like it
+# or not. None of that can be bundled into a single zip — electron-updater
+# fetches `latest.yml` and then the setup exe as separate URLs, so zipping
+# them breaks updates for everyone — which leaves saying plainly which file to
+# click.
 releaseInfo:
   releaseNotes: |
     ### Download
 
-    Grab the **`RunePanel-Setup-….exe`** below. That is the only file you need.
-    Run it.
+    Grab the **`RunePanel-Installer-….exe`** below. That is the only file you
+    need. Run it.
 
     Windows will say *"Windows protected your PC"* because the installer is not
     code-signed. Click **More info** → **Run anyway**. Only happens once;
     updates after this are handled inside the app.
 
-    The other files are not for you: `latest.yml` is how Rune Panel checks for
-    updates, and the two source archives are added by GitHub automatically.
+    The other files are not for you: `RunePanel-Setup-….exe` and `latest.yml`
+    are how Rune Panel updates itself, and the two source archives are added by
+    GitHub automatically.
 
     ### First launch
 

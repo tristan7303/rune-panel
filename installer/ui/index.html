@@ -76,10 +76,11 @@
     border: none;
     background: transparent;
     color: var(--text-dim);
-    font-size: 13px;
-    font-family: 'Segoe UI Symbol', 'Segoe UI', sans-serif;
+    display: grid;
+    place-items: center;
     cursor: default;
   }
+  .winbtn svg { width: 12px; height: 12px; display: block; }
   .winbtn:hover { background: rgba(255, 226, 188, 0.08); color: var(--text); }
   .winbtn.close:hover { background: #b0483a; color: #fff; }
   body[data-busy] .winbtn.close { opacity: 0.35; pointer-events: none; }
@@ -264,8 +265,15 @@
     <img src="data:image/png;base64,{{LOGO}}" alt="" />
     <span>Rune Panel Setup</span>
     <div class="grab" id="grab"></div>
-    <button class="winbtn" id="min" aria-label="Minimise">&#xE921;</button>
-    <button class="winbtn close" id="x" aria-label="Close">&#xE8BB;</button>
+    <!-- Drawn, not typed: the system caption glyphs live in the Segoe MDL2
+         Assets font, which is not guaranteed inside a WebView, and a missing
+         glyph renders as a box. Two strokes cannot fall back to anything. -->
+    <button class="winbtn" id="min" aria-label="Minimise">
+      <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1 6h10" stroke="currentColor" stroke-width="1.2" /></svg>
+    </button>
+    <button class="winbtn close" id="x" aria-label="Close">
+      <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.2" /></svg>
+    </button>
   </div>
 
   <div class="hero">
