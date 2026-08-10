@@ -155,6 +155,15 @@ export const MoonIcon = (): JSX.Element => (
   </Svg>
 )
 
+/** Mocha: a mug with steam, so it stops sharing dark mode's moon. */
+export const CoffeeIcon = (): JSX.Element => (
+  <Svg>
+    <path d="M4.5 10h11v6.5a4 4 0 0 1-4 4h-3a4 4 0 0 1-4-4z" />
+    <path d="M15.5 11.5H17a2.5 2.5 0 0 1 0 5h-1.5" />
+    <path d="M7.5 3.5c-.7.9.7 1.6 0 3M11.5 3.5c-.7.9.7 1.6 0 3" />
+  </Svg>
+)
+
 export const BackIcon = (): JSX.Element => (
   <Svg>
     <path d="m14 6-6 6 6 6" />

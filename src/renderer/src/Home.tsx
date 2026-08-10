@@ -25,6 +25,12 @@ interface Card {
   image?: string
   /** A bundled asset instead, for anything the wiki has no art for. */
   asset?: string
+  /**
+   * Blow the sprite up to fill the art box. Wiki sprites render at their own
+   * size, which is right for items — but the interface icons are drawn small,
+   * and at natural size they rattle around in the tile.
+   */
+  zoom?: boolean
 }
 
 /**
@@ -67,6 +73,7 @@ function cards(geTracker: boolean): Card[] {
     title: 'Hiscores',
     blurb: 'Look up an account and compare it against your own.',
     image: 'HiScores_icon.png',
+    zoom: true,
   },
   {
     route: { kind: 'tool', id: 'profile' },
@@ -81,12 +88,15 @@ function cards(geTracker: boolean): Card[] {
     title: 'Calculators',
     blurb: 'Skill calculators, live from the wiki so they always match the game.',
     image: 'Smithing_icon.png',
+    zoom: true,
   },
   {
-    route: { kind: 'page', title: 'Old School RuneScape Wiki' },
-    title: 'Browse the wiki',
-    blurb: 'Every article and alias, cached locally after the first read.',
-    image: 'Book_of_knowledge.png',
+    route: { kind: 'notes' },
+    title: 'Notes',
+    blurb: 'Pages for gear, routes and to-dos, saved as you type.',
+    // The Barbarian Training journal — the one item in the game actually
+    // called "My notes".
+    image: 'My_notes.png',
   },
   ]
 }
@@ -116,7 +126,10 @@ export function Home(): JSX.Element {
               <img
                 // A bundled asset is a logo and wants smooth downscaling; a
                 // wiki filename is pixel art and wants none.
-                className={card.asset ? 'is-logo' : undefined}
+                className={
+                  [card.asset && 'is-logo', card.zoom && 'is-zoomed'].filter(Boolean).join(' ') ||
+                  undefined
+                }
                 src={card.asset ?? `rpimg://img/${card.image ?? ''}`}
                 alt=""
                 loading="lazy"

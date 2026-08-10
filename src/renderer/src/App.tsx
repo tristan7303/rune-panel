@@ -42,6 +42,7 @@ import {
   GearIcon,
   SunIcon,
   MoonIcon,
+  CoffeeIcon,
   PageIcon,
   BackIcon,
   ForwardIcon,
@@ -423,7 +424,7 @@ function Body({ route }: { route: Route }): JSX.Element {
 // Ordered dark to light, so the list reads as a ramp rather than a set.
 const THEMES: Array<{ id: Theme; label: string; hint: string; icon: () => JSX.Element }> = [
   { id: 'dark', label: 'Dark', hint: 'Over a dark game client', icon: MoonIcon },
-  { id: 'mocha', label: 'Mocha', hint: 'Warm and dim, for reading at night', icon: MoonIcon },
+  { id: 'mocha', label: 'Mocha', hint: 'Warm and dim, for reading at night', icon: CoffeeIcon },
   { id: 'parchment', label: 'Parchment', hint: 'Warm tan, easiest for long reads', icon: PageIcon },
   { id: 'light', label: 'Light', hint: 'Plain white', icon: SunIcon },
 ]

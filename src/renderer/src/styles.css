@@ -1096,10 +1096,9 @@ kbd {
   color: var(--text-dim);
 }
 
-.profile-hero svg {
-  width: 30px;
-  height: 30px;
-  color: var(--accent-a);
+.profile-hero img {
+  width: 72px;
+  height: 72px;
 }
 
 .profile-hero h1 {
@@ -2285,6 +2284,15 @@ kbd {
    with nearest-neighbour is what makes a clean mark look ragged. */
 .home-card-art img.is-logo {
   image-rendering: auto;
+}
+
+/* Interface icons are drawn smaller than item sprites; at natural size they
+   rattle around in the tile. `contain` scales them up — but only a step, a
+   sprite blown to the box's full 48px reads as clipart. */
+.home-card-art img.is-zoomed {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
 }
 
 .home-card-text {
