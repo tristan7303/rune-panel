@@ -16,6 +16,7 @@ import {
   type CrawlState,
   type GePrice,
   type PaneShortcut,
+  type OpenRoute,
   type AccountMode,
   type GeItem,
   type Hiscores,
@@ -136,6 +137,7 @@ const api: RunePanelApi = {
   onCrawlProgress: (cb) => subscribeWith<CrawlState>(On.CrawlProgress, cb),
   onPaneLoading: (cb) => subscribeWith<boolean>(On.PaneLoading, cb),
   onPaneShortcut: (cb) => subscribeWith<PaneShortcut>(On.PaneShortcut, cb),
+  onOpenRoute: (cb) => subscribeWith<OpenRoute>(On.OpenRoute, cb),
 }
 
 contextBridge.exposeInMainWorld('rp', api)

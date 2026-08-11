@@ -57,10 +57,18 @@ let haystack: string[] = []
 let canonical = new Int32Array(0)
 let loaded = false
 
+/**
+ * Lowercased title -> row, for exact lookups. Built lazily on the first
+ * `resolveExact` call rather than in `load()`, because only the plugin bridge
+ * needs it and most sessions never see a bridge request.
+ */
+let exactIndex: Map<string, number> | null = null
+
 /** Drop the in-memory index. Called after a sync replaces the rows. */
 export function invalidate(): void {
   haystack = []
   canonical = new Int32Array(0)
+  exactIndex = null
   loaded = false
 }
 
@@ -106,6 +114,36 @@ export function load(): void {
   }
 
   loaded = true
+}
+
+/**
+ * Resolve a name the game reports to a canonical article title, or null.
+ *
+ * Exact matching only, case-insensitive, against titles *and* redirects with
+ * the redirect followed — the wiki's redirect table is what makes a game
+ * spelling land on the right article. No fuzziness here on purpose: this
+ * answers the plugin bridge, where a near-miss would open the wrong article
+ * over the game with nobody watching the query. A null is the honest answer;
+ * the caller falls back to the browser, where Special:Lookup resolves by id.
+ */
+export function resolveExact(name: string): string | null {
+  load()
+  if (haystack.length === 0) return null
+
+  if (!exactIndex) {
+    exactIndex = new Map()
+    // First writer wins on a case-collision, which matches SQLite's own
+    // primary-key order being scanned front to back.
+    for (let i = 0; i < haystack.length; i++) {
+      const key = haystack[i].toLowerCase()
+      if (!exactIndex.has(key)) exactIndex.set(key, i)
+    }
+  }
+
+  const row = exactIndex.get(name.trim().toLowerCase())
+  if (row === undefined) return null
+  const target = canonical[row]
+  return haystack[target >= 0 ? target : row]
 }
 
 /**

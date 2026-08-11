@@ -13,8 +13,13 @@
 import { useState, type JSX } from 'react'
 import { ToolPane } from './ToolPane'
 
-/** Curated: the wiki has hundreds and no index page worth embedding. */
-const PAGES: Array<{ title: string; label: string }> = [
+/**
+ * Curated: the wiki has hundreds and no index page worth embedding.
+ *
+ * Exported for the RuneProfile page, which offers the same list at the foot of
+ * its search view now that the rail no longer carries a Calculators entry.
+ */
+export const CALC_PAGES: Array<{ title: string; label: string }> = [
   { title: 'Calculator:Smithing', label: 'Smithing' },
   { title: 'Calculator:Herblore', label: 'Herblore' },
   { title: 'Calculator:Crafting', label: 'Crafting' },
@@ -29,8 +34,11 @@ const PAGES: Array<{ title: string; label: string }> = [
   { title: 'Calculator:Skill calculators', label: 'All calculators' },
 ]
 
-export function Calculators(): JSX.Element {
-  const [page, setPage] = useState<string | null>(null)
+export function Calculators({ initial }: { initial?: string } = {}): JSX.Element {
+  // A route argument lands straight in that calculator — how the buttons on
+  // the RuneProfile page arrive. The view is keyed on the argument, so this
+  // needs no effect to track it; going back to the picker is plain state.
+  const [page, setPage] = useState<string | null>(initial ?? null)
 
   if (page) {
     return (
@@ -39,7 +47,9 @@ export function Calculators(): JSX.Element {
           <button className="btn" onClick={() => setPage(null)}>
             ← All calculators
           </button>
-          <span className="tool-bar-title">{PAGES.find((p) => p.title === page)?.label ?? page}</span>
+          <span className="tool-bar-title">
+            {CALC_PAGES.find((p) => p.title === page)?.label ?? page}
+          </span>
         </div>
         <ToolPane id="calculators" arg={page} />
       </div>
@@ -54,7 +64,7 @@ export function Calculators(): JSX.Element {
         compute.
       </p>
       <div className="calc-grid">
-        {PAGES.map((p) => (
+        {CALC_PAGES.map((p) => (
           <button key={p.title} className="calc-card" onClick={() => setPage(p.title)}>
             {p.label}
           </button>

@@ -136,6 +136,28 @@ export function SettingsView(): JSX.Element {
       <Group title="Account">
         <RsnField />
       </Group>
+
+      <Group title="RuneLite plugin">
+        <Field
+          label="Accept lookups from RuneLite"
+          hint="Lets the Rune Panel companion plugin open articles and DPS loadouts here instead of your browser. Listens on this computer only (127.0.0.1) — nothing is reachable from the network. Does nothing unless the plugin is installed in RuneLite."
+        >
+          <Switch
+            checked={settings.pluginBridge}
+            onChange={(pluginBridge) => patch({ pluginBridge })}
+            label="Accept lookups from RuneLite"
+          />
+        </Field>
+
+        {settings.pluginBridge && (
+          <Field
+            label="Port"
+            hint="Change only if something else has claimed it. Must match the port in the plugin's settings in RuneLite."
+          >
+            <PortField value={settings.pluginBridgePort} onChange={(pluginBridgePort) => patch({ pluginBridgePort })} />
+          </Field>
+        )}
+      </Group>
         </>
       )}
 
@@ -187,6 +209,30 @@ export function SettingsView(): JSX.Element {
 
       {tab === 'Reading' && (
         <>
+      <Group title="Articles">
+        <Field
+          label="Hide requirements you meet"
+          hint="Trims Requirements lists down to what is still missing. Needs something to check against: skills are judged from the RuneScape name in General, quests from RuneProfile via the Character page. Anything it cannot verify stays visible, so an empty list means everything checkable is done."
+        >
+          <Switch
+            checked={settings.hideMetRequirements}
+            onChange={(hideMetRequirements) => patch({ hideMetRequirements })}
+            label="Hide requirements you meet"
+          />
+        </Field>
+
+        <Field
+          label="Pin the Contents box to the left edge"
+          hint="Moves a page's Contents out of the article to the far left, where it stays put while you scroll — the page starts where the text does. Only when the window is wide enough to afford it; narrower, the box sits inline as usual."
+        >
+          <Switch
+            checked={settings.pinContents}
+            onChange={(pinContents) => patch({ pinContents })}
+            label="Pin the Contents box to the left edge"
+          />
+        </Field>
+      </Group>
+
       <Group title="Prices">
         <Field
           label="Replace Wiki prices with GE Tracker"
@@ -623,6 +669,46 @@ function ScaleStepper({
   )
 }
 
+
+/**
+ * The bridge port, committed on blur or Enter rather than per keystroke.
+ *
+ * Writing through on every keystroke would restart the server on "7", "77",
+ * "773"… and each of those is a legal port that briefly binds. A draft string
+ * also gives the empty box somewhere to exist; main's sanitize snaps anything
+ * unusable back to the default.
+ */
+function PortField({
+  value,
+  onChange,
+}: {
+  value: number
+  onChange: (port: number) => void
+}): JSX.Element {
+  const [draft, setDraft] = useState<string | null>(null)
+
+  const commit = (): void => {
+    const typed = Number.parseInt((draft ?? '').replace(/[^0-9]/g, ''), 10)
+    if (Number.isFinite(typed) && typed !== value) onChange(typed)
+    setDraft(null)
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      aria-label="Plugin bridge port"
+      value={draft ?? String(value)}
+      onChange={(e) => setDraft(e.target.value)}
+      onFocus={(e) => e.target.select()}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit()
+        if (e.key === 'Escape') setDraft(null)
+      }}
+    />
+  )
+}
 
 const MODE_LABEL: Record<AccountMode, string> = {
   main: 'main',

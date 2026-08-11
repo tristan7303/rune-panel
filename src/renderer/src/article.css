@@ -134,6 +134,52 @@
   margin: 0;
 }
 
+/* ── Section pins ───────────────────────────────────────────────────────
+ *
+ * A pushpin at the end of every heading and quest-details row header,
+ * injected by the article view after render. Hidden until the heading is
+ * hovered — the GE Tracker star's manners — except when already pinned,
+ * which should be visible at a glance. Not scoped to `.article-body`: the
+ * same buttons serve as the unpin controls in the Pinned view.
+ */
+.rp-pin-btn {
+  margin-left: 7px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  vertical-align: baseline;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.mw-heading:hover .rp-pin-btn,
+th:hover > .rp-pin-btn,
+.rp-pin-btn:focus-visible,
+.rp-pin-btn.is-pinned {
+  opacity: 1;
+}
+
+.rp-pin-btn:hover,
+.rp-pin-btn.is-pinned {
+  color: var(--accent-gold);
+}
+
+/* Filled head = pinned; the hollow/filled split the ★/☆ pair draws with two
+   glyphs, done with one path. */
+.rp-pin-btn.is-pinned svg {
+  fill: currentColor;
+}
+
+/* The page pin beside the title never hides — it is the feature's front door,
+   and the title is not a hover target the way a heading is. */
+.article-title .rp-pin-btn {
+  opacity: 1;
+  vertical-align: middle;
+  margin-left: 10px;
+}
+
 .article-body ul,
 .article-body ol {
   margin: 0 0 14px;
@@ -259,6 +305,43 @@
 
 .article-body .rp-toc-text {
   min-width: 0;
+}
+
+/* ── Pinned contents ────────────────────────────────────────────────────
+ *
+ * An index in the column costs its whole height in scrolling before the lead,
+ * so with the setting on (the renderer stamps `rp-toc-pinned` on the scroller)
+ * the box moves to the window's left edge and stays put while the article
+ * scrolls.
+ *
+ * Only when the window can afford it: below the breakpoint the rule does not
+ * apply at all and the box sits inline as ever, so resizing the window moves it
+ * between the two shapes live. Fixed rather than sticky because the box is
+ * mid-body in the markup — sticky would hold it only from where it happens to
+ * sit, which for a contents box is the top of the page and nowhere after.
+ *
+ * Pinned is the one shape where the box scrolls internally: fixed to the
+ * viewport it has nowhere to grow, and clipping the tail entirely would hide
+ * exactly the sections a long page needs the index for.
+ */
+@media (min-width: 1000px) {
+  /* Guarded on a box existing — short pages build no Contents at all, and an
+     empty gutter on those is cost with nothing bought. */
+  .article-scroll.rp-toc-pinned:has(.rp-toc) {
+    /* Room for the box plus its gaps, in place of the usual 32px gutter. */
+    padding-left: calc(240px + 14px + 20px);
+  }
+
+  .article-scroll.rp-toc-pinned .article-body .rp-toc {
+    position: fixed;
+    left: calc(var(--rail) + 14px);
+    top: calc(var(--topbar) + 14px);
+    width: 240px;
+    min-width: 0;
+    max-height: calc(100vh - var(--topbar) - 28px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 
 /**
@@ -1769,6 +1852,14 @@
 :root[data-theme='light'] .scp.rp-req-unmet,
 :root[data-theme='parchment'] .scp.rp-req-unmet {
   color: #a33b3b;
+}
+
+/* A requirement the account has already fulfilled, hidden by the pruning pass
+   (see pruneMetRequirements in player.ts) when the setting asks for it. A
+   class rather than a removal, so toggling the setting back restores the
+   entry without re-fetching anything. */
+.rp-req-hidden {
+  display: none;
 }
 
 /* ── Quest and combat-achievement progress ──────────────────────────────

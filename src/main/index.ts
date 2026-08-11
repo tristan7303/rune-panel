@@ -30,6 +30,7 @@ import * as hiscores from './hiscores'
 import * as setup from './setup'
 import * as updater from './updater'
 import * as anim from './anim'
+import * as bridge from './bridge'
 import type { PaneBounds, ScaleDirection, ToolId } from '../shared/ipc'
 
 /**
@@ -232,6 +233,15 @@ function main(): void {
     registerIpc()
     registerHotkey(initial.hotkey)
 
+    // The RuneLite plugin's way in. Summon first, then navigate: show() sends
+    // On.Shown (whose handler focuses search), so the route push must land
+    // after it to win — the same ordering discipline On.PaneShortcut uses.
+    bridge.onRoute((route) => {
+      show()
+      getWindow()?.webContents.send(On.OpenRoute, route)
+    })
+    bridge.apply(initial)
+
     // Outside the smoke branch below on purpose: in a development build this
     // only records that updates do not apply, and the renderer needs that
     // answer either way.
@@ -249,6 +259,7 @@ function main(): void {
       // for the next navigation to pick the change up.
       void pane.applyTheme()
       pane.applyScale()
+      bridge.apply(next)
       getWindow()?.webContents.send(On.Settings, next)
     })
 
@@ -306,6 +317,7 @@ function main(): void {
   app.on('will-quit', () => {
     globalShortcut.unregisterAll()
     destroyTray()
+    bridge.stop()
     sync.stop()
     pane.destroy()
     // Closing checkpoints the WAL, so the next launch does not start by

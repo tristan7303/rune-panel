@@ -128,6 +128,20 @@ export interface Settings {
    */
   startOnLogin: boolean
   /**
+   * Accept lookups from the companion RuneLite plugin.
+   *
+   * A small HTTP server bound to 127.0.0.1 only — nothing on the network can
+   * reach it — that lets the plugin open articles and DPS loadouts here
+   * instead of a browser. On by default because it is inert without the
+   * plugin installed, and the plugin is the whole reason to have it.
+   */
+  pluginBridge: boolean
+  /**
+   * The port that server listens on. Must match the plugin's own setting;
+   * only worth touching if something else has claimed the default.
+   */
+  pluginBridgePort: number
+  /**
    * How large the interface is drawn, as a multiplier.
    *
    * The whole renderer, not a font size — this app measures in pixels
@@ -172,6 +186,28 @@ export interface Settings {
    * article view, which holds the anchor until the page stops reflowing.
    */
   smoothSectionJumps: boolean
+  /**
+   * Hide requirements you already meet.
+   *
+   * Applies inside Requirements contexts only — the quest-details cell and
+   * plain Requirements sections — never to skill mentions in prose or gear
+   * tables. An entry is hidden only on positive evidence: a skill marked met
+   * against your hiscores, a quest RuneProfile reports finished. Anything
+   * unknown stays visible, so with no name set the switch simply does nothing.
+   * Off by default: the full list is the wiki's answer, the trimmed one is an
+   * opt-in.
+   */
+  hideMetRequirements: boolean
+  /**
+   * Pin the Contents box to the left edge of the window.
+   *
+   * Every page with a Contents box, but only when the window is wide enough
+   * that a sidebar leaves a readable column — a media query decides, so
+   * resizing the window moves the box in and out of the gutter live. Pinned,
+   * it is fixed against the window and scrolls internally. Off by default —
+   * the inline box is the wiki's own shape.
+   */
+  pinContents: boolean
   /** Last window bounds, restored on next launch. Null until first move/resize. */
   bounds: WindowBounds | null
 }
@@ -196,7 +232,7 @@ export interface KeywordAlias {
  * two swap in place. Keyed by route, flipping that setting would have looked
  * like the entry being deleted and a different one appended to the end.
  */
-export const RAIL_IDS = ['dps', 'prices', 'hiscores', 'notes', 'calculators', 'profile'] as const
+export const RAIL_IDS = ['dps', 'prices', 'hiscores', 'notes', 'pinned', 'profile'] as const
 
 export type RailId = (typeof RAIL_IDS)[number]
 
@@ -727,6 +763,19 @@ export interface UpdateStatus {
 /** Which app shortcut was pressed inside an embedded pane. */
 export type PaneShortcut = 'search' | 'ge'
 
+/**
+ * A navigation pushed from main — today, only the RuneLite plugin bridge.
+ *
+ * A strict subset of the renderer's `Route` union, so the first two shapes are
+ * `push()`-able verbatim; `search` is not a route at all, it summons the window
+ * and focuses the search box. Kept deliberately narrow: the bridge should only
+ * ever be able to ask for things a person could ask for by clicking.
+ */
+export type OpenRoute =
+  | { kind: 'page'; title: string; hash?: string }
+  | { kind: 'tool'; id: 'dps'; arg?: string }
+  | { kind: 'search' }
+
 export type CrawlPhase = 'idle' | 'refreshing' | 'crawling' | 'paused' | 'done' | 'error'
 
 export interface CrawlState {
@@ -829,6 +878,12 @@ export const On = {
    * and forwards the ones that belong to the app.
    */
   PaneShortcut: 'tools:shortcut',
+  /**
+   * The RuneLite plugin asked for something — an article, the DPS calculator,
+   * or just the search box. Main has already summoned the window; this is the
+   * navigation half.
+   */
+  OpenRoute: 'app:open-route',
 } as const
 
 /** The surface exposed on `window.rp` by the preload script. */
@@ -895,6 +950,7 @@ export interface RunePanelApi {
   onCrawlProgress(cb: (state: CrawlState) => void): () => void
   onPaneLoading(cb: (loading: boolean) => void): () => void
   onPaneShortcut(cb: (which: PaneShortcut) => void): () => void
+  onOpenRoute(cb: (route: OpenRoute) => void): () => void
 }
 
 declare global {

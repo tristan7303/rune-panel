@@ -39,10 +39,14 @@ export const DEFAULTS: Settings = {
   railOrder: [...RAIL_IDS],
   geTrackerReplacesGe: true,
   startOnLogin: true,
+  pluginBridge: true,
+  pluginBridgePort: 7737,
   uiScale: 1,
   acrylic: true,
   reduceMotion: false,
   smoothSectionJumps: true,
+  hideMetRequirements: false,
+  pinContents: false,
   bounds: null,
 }
 
@@ -124,6 +128,9 @@ function sanitize(s: Settings): Settings {
     geTrackerReplacesGe: s.geTrackerReplacesGe !== false,
     // Defaults on, so an absent key means true rather than false.
     startOnLogin: s.startOnLogin !== false,
+    // Defaults on, so an absent key means true rather than false.
+    pluginBridge: s.pluginBridge !== false,
+    pluginBridgePort: clampPort(s.pluginBridgePort),
     // Clamped rather than trusted: a hand-edited 0.1 would render the window
     // unusable and leave no control big enough to fix it with.
     uiScale: clampScale(s.uiScale),
@@ -131,6 +138,8 @@ function sanitize(s: Settings): Settings {
     reduceMotion: Boolean(s.reduceMotion),
     // Defaults on, so an absent key means true rather than false.
     smoothSectionJumps: s.smoothSectionJumps !== false,
+    hideMetRequirements: Boolean(s.hideMetRequirements),
+    pinContents: Boolean(s.pinContents),
     bounds: sanitizeBounds(s.bounds),
   }
 }
@@ -142,6 +151,18 @@ function sanitize(s: Settings): Settings {
 function clampScale(value: unknown): number {
   const scale = typeof value === 'number' && Number.isFinite(value) ? value : 1
   return Math.min(2, Math.max(0.5, Math.round(scale * 100) / 100))
+}
+
+/**
+ * The plugin bridge's port, kept where an unprivileged process may listen.
+ *
+ * Anything unusable falls back to the default rather than nearest-legal,
+ * because the plugin side defaults to the same number — snapping a typo to
+ * 1024 would leave the two silently disagreeing.
+ */
+function clampPort(value: unknown): number {
+  const port = typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : NaN
+  return port >= 1024 && port <= 65535 ? port : DEFAULTS.pluginBridgePort
 }
 
 /**

@@ -91,6 +91,35 @@ export const TrophyIcon = (): JSX.Element => (
   </Svg>
 )
 
+/**
+ * The pushpin's paths, shared between the React icon and `PIN_SVG`.
+ *
+ * The head is a closed shape on purpose: the pinned state fills it with
+ * `currentColor` in CSS, which is the ★/☆ distinction the GE Tracker star
+ * draws with two glyphs, done here with one.
+ */
+export const PIN_PATHS = ['M9 3.5h6l-.7 6.2 3.2 2.9v1.9H6.5v-1.9l3.2-2.9z', 'M12 14.5V21']
+
+/** A pushpin, for the pinned view and its controls. */
+export const PinIcon = (): JSX.Element => (
+  <Svg>
+    {PIN_PATHS.map((d) => (
+      <path key={d} d={d} />
+    ))}
+  </Svg>
+)
+
+/**
+ * The same pushpin as a markup string, for the buttons the article view
+ * injects into wiki HTML — those are built with `innerHTML`, where a component
+ * cannot go. Static by construction, so the assignment is safe.
+ */
+export const PIN_SVG =
+  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
+  ' stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  PIN_PATHS.map((d) => `<path d="${d}"/>`).join('') +
+  '</svg>'
+
 /** A house, for returning to a tool's own landing view. */
 export const HomeIcon = (): JSX.Element => (
   <Svg>

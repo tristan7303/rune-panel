@@ -995,6 +995,128 @@ kbd {
   line-height: 1.6;
 }
 
+/* ── Pinned ─────────────────────────────────────────────────────────────
+ *
+ * A column of cards, one per pinned page, each holding its pinned sections'
+ * rendered content. The fragments sit inside real `.article-body` wrappers so
+ * article.css styles them exactly as the page does; everything here is only
+ * the shell around that.
+ */
+.pinned-view {
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pinned-card {
+  padding: 10px 14px 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--rim);
+  border-radius: 10px;
+}
+
+.pinned-card-head,
+.pinned-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The unpin controls sit at the right edge, and the page-level one never
+   hides — it is the card's only handle on an unfetchable page. Section unpins
+   surface on card hover, like the grid stars. */
+.pinned-card-head .rp-pin-btn,
+.pinned-section-head .rp-pin-btn {
+  margin-left: auto;
+}
+
+.pinned-card-head .rp-pin-btn,
+.pinned-card:hover .rp-pin-btn {
+  opacity: 1;
+}
+
+.pinned-title,
+.pinned-section-title {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pinned-title {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.pinned-section-title {
+  font-size: 13px;
+  font-weight: 620;
+  color: var(--accent-b);
+}
+
+.pinned-title:hover,
+.pinned-section-title:hover {
+  text-decoration: underline;
+}
+
+.pinned-section {
+  margin-top: 6px;
+}
+
+/* Capped with its own scroll: a pinned Strategies section is most of a page,
+   and the view is a dashboard, not the page twice. */
+.pinned-section-body {
+  margin-top: 4px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--rim);
+  border-radius: 8px;
+}
+
+.pinned-note {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* Same construction as the GE Tracker's empty state. */
+.pinned-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 32px 60px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.pinned-empty svg {
+  width: 30px;
+  height: 30px;
+  color: var(--accent-b);
+}
+
+.pinned-empty h1 {
+  margin: 6px 0 0;
+  font-size: 20px;
+  font-weight: 620;
+  color: var(--text);
+}
+
+.pinned-empty p {
+  max-width: 46ch;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 /**
  * The suggestions, floating over the pane's rectangle.
  *
@@ -1204,6 +1326,22 @@ kbd {
 .profile-forget:hover {
   background: rgba(232, 84, 84, 0.22);
   color: #ffd9d9;
+}
+
+/* The calculators, rehomed from their own rail entry to the foot of the
+   Character page. Reuses the picker's grid and cards; only the heading and
+   the gap from the content above are new. */
+.character-calcs {
+  margin-top: 30px;
+}
+
+.character-calcs h2 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
 
 /* ── Character page ─────────────────────────────────────────────────── */

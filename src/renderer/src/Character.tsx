@@ -21,6 +21,7 @@ import { useNav } from './nav'
 import { useProfile } from './runeprofile'
 import { UserIcon } from './icons'
 import { skillIcon } from './hiscoreIcons'
+import { CALC_PAGES } from './Calculators'
 
 export function Character(): JSX.Element {
   const rsn = useStore((s) => s.settings?.rsn)
@@ -43,6 +44,7 @@ export function Character(): JSX.Element {
             Set your RuneScape name in Settings
           </button>
         </div>
+        <CharacterCalcs />
       </div>
     )
   }
@@ -51,6 +53,7 @@ export function Character(): JSX.Element {
     return (
       <div className="character">
         <p className="character-note">Looking up {rsn}…</p>
+        <CharacterCalcs />
       </div>
     )
   }
@@ -80,6 +83,7 @@ export function Character(): JSX.Element {
             </button>
           </div>
         </div>
+        <CharacterCalcs />
       </div>
     )
   }
@@ -189,6 +193,34 @@ function CharacterBody({
             ))}
           </div>
         </section>
+      </div>
+
+      <CharacterCalcs />
+    </div>
+  )
+}
+
+/**
+ * The wiki's calculators, rehomed from their own rail entry — planning tools
+ * belong with the account they plan for. Rendered on every state of the page,
+ * because the calculators work fine without a name set. Each opens the
+ * calculators view straight into that calculator; Back returns here.
+ */
+function CharacterCalcs(): JSX.Element {
+  const push = useNav((s) => s.push)
+  return (
+    <div className="character-calcs">
+      <h2>Calculators</h2>
+      <div className="calc-grid">
+        {CALC_PAGES.map((p) => (
+          <button
+            key={p.title}
+            className="calc-card"
+            onClick={() => push({ kind: 'tool', id: 'calculators', arg: p.title })}
+          >
+            {p.label}
+          </button>
+        ))}
       </div>
     </div>
   )

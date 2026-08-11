@@ -131,7 +131,13 @@ export type { ToolId }
 const DPS: ToolDef = {
   id: 'dps',
   label: 'DPS calculator',
-  url: () => 'https://tools.runescape.wiki/osrs-dps/',
+  // The argument is a shortlink id — how the RuneLite plugin hands over a
+  // loadout: the bridge stores it with the wiki's shortlink service and the
+  // calculator restores it from `?id=`.
+  url: (id) =>
+    id
+      ? `https://tools.runescape.wiki/osrs-dps/?id=${encodeURIComponent(id)}`
+      : 'https://tools.runescape.wiki/osrs-dps/',
   css: (p) => `
     /* The header carries the wiki logo, the "DPS Calculator" h1 and a Discord
        link — all redundant inside an app whose title bar already says where

@@ -36,6 +36,7 @@ export type Route =
    * lets Back step between notes the way it steps between articles.
    */
   | { kind: 'notes'; id?: number }
+  | { kind: 'pinned' }
   | { kind: 'character' }
   | { kind: 'settings' }
 
@@ -140,6 +141,8 @@ export function routeTitle(route: Route): string {
       return 'Hiscores'
     case 'notes':
       return 'Notes'
+    case 'pinned':
+      return 'Pinned'
     case 'character':
       return 'Character'
     case 'settings':

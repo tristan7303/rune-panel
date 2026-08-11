@@ -15,8 +15,14 @@ import type {
 import { useNav } from './nav'
 import { useStore } from './store'
 import { WorldMap } from './WorldMap'
-import { ExpandIcon } from './icons'
-import { usePlayer, markRequirements } from './player'
+import { ExpandIcon, PinIcon, PIN_SVG } from './icons'
+import { usePins, isPagePinned, isSectionPinned, QD_PREFIX } from './pins'
+import {
+  usePlayer,
+  markRequirements,
+  abbreviateRequirementTags,
+  pruneMetRequirements,
+} from './player'
 import { useProfile, markQuests, markCaTasks } from './runeprofile'
 import {
   formatOneIn,
@@ -71,6 +77,8 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
   const showAlch = useStore((s) => s.settings?.showHighAlchInDrops ?? false)
   /** Whether a jump within this page travels or arrives. */
   const glide = useStore((s) => s.settings?.smoothSectionJumps ?? true)
+  const hideMet = useStore((s) => s.settings?.hideMetRequirements ?? false)
+  const pinContents = useStore((s) => s.settings?.pinContents ?? false)
 
   useEffect(() => {
     let live = true
@@ -156,6 +164,7 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
    */
   useEffect(() => {
     if (!scrollRef.current || !article) return
+    abbreviateRequirementTags(scrollRef.current)
     markRequirements(scrollRef.current, levels)
   }, [article, variant, levels])
 
@@ -172,6 +181,80 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
     markQuests(scrollRef.current, questStates)
     markCaTasks(scrollRef.current, caCompleted, caCompletedNames)
   }, [article, variant, questStates, caCompleted, caCompletedNames])
+
+  /**
+   * Hide the requirements you already meet, when asked to.
+   *
+   * Declared after the two marking passes because it reads the classes they
+   * write — React runs effects in order, which is the whole of the sequencing
+   * this needs. Depends on everything they depend on, so any change that moves
+   * a mark re-judges what is hidden.
+   */
+  useEffect(() => {
+    if (!scrollRef.current || !article) return
+    pruneMetRequirements(scrollRef.current, hideMet)
+  }, [article, variant, levels, questStates, caCompleted, caCompletedNames, hideMet])
+
+  /**
+   * Offer a pin on every section heading, and on quest-details rows.
+   *
+   * Injected into the wiki HTML after render — the same additive-only
+   * discipline as the marking passes, and safe for the same reason: the
+   * memoised body means React never re-sets the markup under it. Rows get pins
+   * too because "Requirements" on a quest page is a row of the details table,
+   * not a heading, and it is the single most pinnable thing here.
+   *
+   * Clicks are handled by the delegated listener below rather than per-button
+   * handlers, since the body is replaced wholesale on navigation.
+   */
+  useEffect(() => {
+    const root = bodyRef.current
+    if (!root || !article) return
+
+    const make = (anchor: string, line: string): HTMLButtonElement => {
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'rp-pin-btn'
+      btn.dataset.pinAnchor = anchor
+      btn.dataset.pinLine = line
+      // A static string of our own authorship — see PIN_SVG in icons.tsx.
+      btn.innerHTML = PIN_SVG
+      return btn
+    }
+
+    for (const div of root.querySelectorAll('.mw-heading')) {
+      const h = div.querySelector<HTMLElement>('h2, h3, h4, h5')
+      if (!h?.id || h.querySelector('.rp-pin-btn')) continue
+      h.appendChild(make(h.id, h.textContent?.trim() ?? h.id))
+    }
+    for (const th of root.querySelectorAll<HTMLElement>(
+      'table.questdetails th.questdetails-header'
+    )) {
+      if (th.querySelector('.rp-pin-btn')) continue
+      const text = th.textContent?.trim()
+      if (text) th.appendChild(make(`${QD_PREFIX}${text}`, text))
+    }
+  }, [article])
+
+  /**
+   * Keep every pin's filled/hollow state true to the store.
+   *
+   * Declared after the injection effect so the first pass finds the buttons it
+   * just placed; re-runs whenever the pins change, from either end — a section
+   * unpinned in the Pinned view goes hollow here without a reload.
+   */
+  const pins = usePins((s) => s.pages)
+  useEffect(() => {
+    const root = bodyRef.current
+    if (!root || !article) return
+    for (const btn of root.querySelectorAll<HTMLElement>('.rp-pin-btn')) {
+      const anchor = btn.dataset.pinAnchor
+      if (!anchor) continue
+      const pinned = isSectionPinned(pins, article.title, anchor)
+      btn.classList.toggle('is-pinned', pinned)
+      btn.title = pinned ? 'Unpin this section' : 'Pin this section'
+    }
+  }, [article, pins])
 
   /**
    * Drop rates: read them out of the body, and optionally restate them.
@@ -202,6 +285,23 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
     if (!root) return
 
     const onClick = (e: MouseEvent): void => {
+      // Section pins, injected above. Toggled through the store's own state
+      // rather than the button's class, so a double-fire cannot desync them.
+      const pin = (e.target as HTMLElement).closest<HTMLElement>('.rp-pin-btn')
+      if (pin) {
+        if (article) {
+          const anchor = pin.dataset.pinAnchor ?? ''
+          const line = pin.dataset.pinLine ?? anchor
+          const store = usePins.getState()
+          if (isSectionPinned(store.pages, article.title, anchor)) {
+            store.unpinSection(article.title, anchor)
+          } else {
+            store.pinSection(article.title, anchor, line)
+          }
+        }
+        return
+      }
+
       // Gear-setup tabs, built by the transform out of MediaWiki's Tabber
       // markup. Handled here rather than with per-button listeners because the
       // body is replaced wholesale on every navigation.
@@ -339,10 +439,14 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
   if (!article) return <div className="placeholder">Nothing to show.</div>
 
   return (
-    <div className="article-scroll" ref={scrollRef}>
+    // The class is the setting; whether it does anything is the stylesheet's
+    // call — a media query keeps the box inline when the window is too narrow
+    // to give up a column, so resizing moves it live with no script involved.
+    <div className={`article-scroll ${pinContents ? 'rp-toc-pinned' : ''}`} ref={scrollRef}>
       <article className="article selectable">
         <h1 className="article-title">
           {article.title}
+          <PagePin title={article.title} />
           <DropBadges
             sources={sources}
             order={dropOrder}
@@ -689,6 +793,30 @@ function scrollToAnchor(
   for (const event of TAKEOVER) scroller.addEventListener(event, stop, { passive: true })
   window.addEventListener('keydown', stop)
   cancelSettle = stop
+}
+
+/**
+ * Pin the whole page, from beside its title.
+ *
+ * The page-level counterpart to the section pins injected into the body, and
+ * the GE Tracker star's shape: one control beside the name, filled when on.
+ * Unpinning here takes the page's pinned sections with it — they belong to
+ * the page entry.
+ */
+function PagePin({ title }: { title: string }): JSX.Element {
+  const pins = usePins((s) => s.pages)
+  const pinned = isPagePinned(pins, title)
+  return (
+    <button
+      className={`rp-pin-btn article-pin ${pinned ? 'is-pinned' : ''}`}
+      title={pinned ? 'Unpin this page (and any pinned sections)' : 'Pin this page'}
+      onClick={() =>
+        pinned ? usePins.getState().unpinPage(title) : usePins.getState().pinPage(title)
+      }
+    >
+      <PinIcon />
+    </button>
+  )
 }
 
 /* ── Drop rates beside the title ─────────────────────────────────────────── */

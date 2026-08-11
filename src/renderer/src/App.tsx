@@ -25,6 +25,7 @@ import { Calculators } from './Calculators'
 import { Grand } from './Grand'
 import { Hiscores } from './Hiscores'
 import { Notes } from './Notes'
+import { Pinned } from './Pinned'
 import { Setup } from './Setup'
 import { UpdateBanner } from './UpdateBanner'
 import { focusPrimary } from './focus'
@@ -40,13 +41,13 @@ import {
   CoinsIcon,
   TrophyIcon,
   NotesIcon,
-  CalculatorIcon,
   GearIcon,
   UserIcon,
   SunIcon,
   MoonIcon,
   CoffeeIcon,
   PageIcon,
+  PinIcon,
   BackIcon,
   ForwardIcon,
   CloseIcon,
@@ -82,12 +83,7 @@ function navEntries(geTracker: boolean): NavEntry[] {
     prices,
     { id: 'hiscores', route: { kind: 'hiscores' }, label: 'Hiscores', icon: TrophyIcon },
     { id: 'notes', route: { kind: 'notes' }, label: 'Notes', icon: NotesIcon },
-    {
-      id: 'calculators',
-      route: { kind: 'tool', id: 'calculators' },
-      label: 'Calculators',
-      icon: CalculatorIcon,
-    },
+    { id: 'pinned', route: { kind: 'pinned' }, label: 'Pinned', icon: PinIcon },
     {
       id: 'profile',
       route: { kind: 'tool', id: 'profile' },
@@ -239,6 +235,25 @@ export function App(): JSX.Element {
         else push(geTracker ? { kind: 'tool', id: 'getracker' } : { kind: 'ge' })
       }),
     [push, geTracker]
+  )
+
+  /**
+   * A lookup arriving from the RuneLite plugin, via main's bridge.
+   *
+   * Main has already summoned the window; the page and DPS shapes are valid
+   * routes as-is, and `search` just wants the box — the plugin's orb-search
+   * with no way to type a query in-game yet.
+   */
+  useEffect(
+    () =>
+      window.rp.onOpenRoute((route) => {
+        if (route.kind === 'search') {
+          focusPrimary()
+          return
+        }
+        push(route)
+      }),
+    [push]
   )
 
   const geKey = useStore((s) => s.settings?.geKey ?? 'Ctrl+G')
@@ -430,6 +445,8 @@ function Body({ route }: { route: Route }): JSX.Element {
       // Not keyed on the note id: the view owns the page list as well as the
       // open page, and remounting on every switch would refetch the sidebar.
       return <Notes id={route.id} />
+    case 'pinned':
+      return <Pinned />
     case 'character':
       return <Character />
     case 'tool':
@@ -552,13 +569,17 @@ function Tool({
   switch (id) {
     case 'dps':
       // No picker: the DPS calculator is one page, so go straight into it.
-      return <ToolPane id="dps" />
+      // Keyed on the argument so a loadout arriving from the RuneLite plugin
+      // remounts onto its shortlink rather than reusing the empty calculator.
+      return <ToolPane id="dps" arg={arg} key={arg ?? ''} />
     case 'profile':
       // Keyed on the argument so arriving from the Character page remounts and
       // opens on that name, rather than whatever the view last showed.
       return <Profile initial={arg} key={arg ?? ''} />
     case 'calculators':
-      return <Calculators />
+      // Keyed on the argument like the profile: arriving from a calculator
+      // button on the RuneProfile page opens straight into that calculator.
+      return <Calculators initial={arg} key={arg ?? ''} />
     case 'getracker':
       // Keyed on the argument so arriving from a different item remounts and
       // opens on it, rather than keeping whatever the view was last showing.

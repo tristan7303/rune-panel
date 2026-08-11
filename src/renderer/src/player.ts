@@ -136,3 +136,101 @@ export function markRequirements(root: Element, levels: Record<string, number> |
     span.classList.add(have >= need ? 'rp-req-met' : 'rp-req-unmet')
   }
 }
+
+/**
+ * The wiki's bracketed requirement notes, abbreviated.
+ *
+ * A quest's Requirements cell hangs `[not boostable]` and `[required to start]`
+ * off half its entries, and at full length the notes outweigh the requirements
+ * they annotate. Each note is a `<sup class="nowrap">` whose inner span carries
+ * the explanation as a `title` tooltip — so only the visible text is shortened,
+ * and hovering still says what the letters mean.
+ *
+ * Done here rather than in the transform so pages already sitting in the cache
+ * get it too. Idempotent by construction: the shortened text no longer matches.
+ */
+const TAG_SHORT: Record<string, string> = {
+  'not boostable': 'nb',
+  'required to start': 'rq',
+}
+
+export function abbreviateRequirementTags(root: Element): void {
+  for (const span of root.querySelectorAll<HTMLElement>('sup.nowrap span[title]')) {
+    const short = TAG_SHORT[span.textContent?.trim().toLowerCase() ?? '']
+    if (short) span.textContent = short
+  }
+}
+
+/** The class a hidden fulfilled requirement wears. */
+const REQ_HIDDEN = 'rp-req-hidden'
+
+/**
+ * Hide requirement entries the account has already fulfilled.
+ *
+ * Runs after the marking passes and reads their classes rather than the data
+ * again, so the two can never disagree about what "met" means. Scoped to the
+ * same contexts `markQuests` treats as questions — the quest-details cell
+ * (`td.qc-input`) and plain Requirements sections — because a met skill in a
+ * gear table or prose is information, not a checklist entry.
+ *
+ * Hiding needs positive evidence. An entry goes only when everything checkable
+ * in it is green — every skill marker met, every quest link finished — and at
+ * least one such mark exists. A link with no mark is an unknown (no name set,
+ * an unsynced account, or simply a monster in "Ability to defeat X"), and
+ * unknowns stay visible: the switch trims what you have done, it must never
+ * trim what it cannot vouch for.
+ *
+ * A fulfilled entry takes its sub-requirements with it — a finished quest's own
+ * requirement tree is spent — while an unfulfilled parent keeps its children
+ * individually judged. Idempotent like the marking passes: every hidden class
+ * is cleared before the pass, so toggling the setting off restores the page.
+ */
+export function pruneMetRequirements(root: Element, enabled: boolean): void {
+  for (const el of root.querySelectorAll(`.${REQ_HIDDEN}`)) el.classList.remove(REQ_HIDDEN)
+  if (!enabled) return
+
+  const contexts: Element[] = [...root.querySelectorAll('td.qc-input')]
+
+  // Requirements sections by heading — the same walk markQuests does, kept in
+  // step with it: siblings up to the next heading belong to the section.
+  for (const heading of root.querySelectorAll<HTMLElement>('.mw-heading')) {
+    const id = heading.querySelector('h1, h2, h3, h4, h5, h6')?.id ?? ''
+    if (!id.startsWith('Requirements')) continue
+    for (
+      let node = heading.nextElementSibling;
+      node && !node.classList.contains('mw-heading');
+      node = node.nextElementSibling
+    ) {
+      if (/^(UL|OL)$/.test(node.tagName)) contexts.push(node)
+    }
+  }
+
+  for (const context of contexts) {
+    for (const li of context.querySelectorAll<HTMLElement>('li')) {
+      if (fulfilled(li)) li.classList.add(REQ_HIDDEN)
+    }
+  }
+}
+
+/**
+ * Is this entry's own line fully met?
+ *
+ * Judged on the entry's direct content only — markers belonging to a nested
+ * entry answer for that entry, not this one. Skill links live inside their
+ * `.scp` marker and are part of it; any other unmarked link is an unknown and
+ * vetoes the hide.
+ */
+function fulfilled(li: HTMLElement): boolean {
+  let met = 0
+  for (const el of li.querySelectorAll<HTMLElement>('.scp, a[data-title]')) {
+    if (el.closest('li') !== li) continue
+    if (el.classList.contains('scp')) {
+      if (!el.classList.contains('rp-req-met')) return false
+      met++
+    } else if (!el.closest('.scp')) {
+      if (!el.classList.contains('rp-quest-done')) return false
+      met++
+    }
+  }
+  return met > 0
+}
