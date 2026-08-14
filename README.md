@@ -2,8 +2,6 @@
   <img src="images/rune-panel-logo.png" alt="Rune Panel" width="200">
 </p>
 
-<h1 align="center">Rune Panel</h1>
-
 <p align="center">
   An all-in-one Old School RuneScape companion for Windows.<br>
   Press a hotkey and everything is there — over your game, over your browser, wherever you are.
