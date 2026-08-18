@@ -122,32 +122,72 @@ export async function show(id: ToolId, arg?: string): Promise<void> {
   emitLoading(true)
 
   /**
-   * Shown only once there is something to show.
+   * Shown at `dom-ready`, not at the end of the load.
    *
-   * This used to be made visible before the navigation started, which put the
-   * *previous* document on screen for the whole load — `about:blank` and its
-   * default white on a first open, the last tool you looked at on a later one.
-   * Waiting costs nothing visible: the slot it would occupy is already painted
-   * in the theme's surface, so the pane simply arrives rather than flashing
-   * first.
+   * This used to await `loadURL`, whose promise only resolves at
+   * `did-finish-load` — after every subresource, which on an ad-heavy site
+   * means several seconds of spinner over a page that was parsed, themed and
+   * showable almost immediately. `dom-ready` is the moment there is a document
+   * to look at, and the preload has already put our stylesheet in place before
+   * its first paint, so showing here cannot flash the site's own colours.
+   * Late-rendering content still gets the `did-finish-load` re-theme in
+   * `wire`.
+   *
+   * The race handles the other order: a navigation that fails outright
+   * rejects `loadURL` before any `dom-ready`, and landing in the catch is
+   * what takes the spinner down instead of leaving it forever.
    */
-  await view.webContents.loadURL(url)
+  const token = ++navToken
+  const wc = view.webContents
+  let readyListener: (() => void) | null = null
+  try {
+    const domReady = new Promise<void>((resolve) => {
+      readyListener = () => {
+        // A freshly created view is still finishing about:blank when the real
+        // navigation starts; its dom-ready must not show an empty document.
+        if (wc.getURL() === 'about:blank') return
+        resolve()
+      }
+      wc.on('dom-ready', readyListener)
+    })
+    const load = wc.loadURL(url)
+    // The load usually outlives the race; its failures are reported by the
+    // `did-fail-load` handler, so the leftover rejection just needs defusing.
+    load.catch(() => undefined)
+    await Promise.race([domReady, load])
 
-  /**
-   * Loaded is not the same as styled, and it is styled that matters.
-   *
-   * `applyTheme` is fired from `dom-ready` and `did-finish-load`, but nothing
-   * waited for it — `insertCSS` is async, so `loadURL` could resolve and the
-   * view be shown with the injection still in flight. What you saw in that gap
-   * was the site in its own colours: not a white frame, the whole unstyled
-   * page.
-   *
-   * Awaited here, so the first frame that reaches the screen is already ours.
-   */
-  await applyTheme()
-  view.setVisible(true)
-  emitLoading(false)
+    // A later show() superseded this one; it owns the view and spinner now.
+    if (token !== navToken) return
+
+    /**
+     * Loaded is not the same as styled, and it is styled that matters.
+     *
+     * `applyTheme` is fired from `dom-ready`, but nothing waited for it —
+     * `insertCSS` is async, so the view could be shown with the injection
+     * still in flight. Awaited here, so the first frame that reaches the
+     * screen is already ours.
+     */
+    await applyTheme()
+    if (token !== navToken) return
+    view.setVisible(true)
+  } catch (err) {
+    console.warn(`[tools] ${id} load:`, err instanceof Error ? err.message : err)
+  } finally {
+    if (readyListener) wc.off('dom-ready', readyListener)
+    if (token === navToken) emitLoading(false)
+  }
 }
+
+/**
+ * Which navigation the pane currently belongs to.
+ *
+ * Bumped by every `show` that starts one. Switching tools mid-load leaves the
+ * first `show` suspended at its `await`; when it wakes, the token no longer
+ * matches and it must not touch the view — showing it would put the *second*
+ * tool's half-loaded page on screen, and dropping the spinner would strand the
+ * load that is still genuinely in flight.
+ */
+let navToken = 0
 
 /**
  * The pane's webContents, for the smoke suite only.
