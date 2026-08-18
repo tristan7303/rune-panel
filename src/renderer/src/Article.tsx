@@ -12,7 +12,7 @@ import type {
   Infobox as InfoboxData,
   InfoboxMap as InfoboxMapData,
 } from '@shared/ipc'
-import { useNav } from './nav'
+import { useNav, useRoute, rememberScroll, recallScroll } from './nav'
 import { useStore } from './store'
 import { WorldMap } from './WorldMap'
 import { ExpandIcon, PinIcon, PIN_SVG } from './icons'
@@ -65,6 +65,8 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
   const bodyRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const push = useNav((s) => s.push)
+  /** The history entry this view is showing — the key scroll memory hangs on. */
+  const route = useRoute()
   const levels = usePlayer((s) => s.levels)
   const questStates = useProfile((s) => s.questStates)
   const caCompleted = useProfile((s) => s.caCompleted)
@@ -134,21 +136,47 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
    * to wait for the article, since the anchor lives in HTML that does not exist
    * until then; an anchor that does not resolve falls back to the top rather
    * than leaving you wherever the last page was.
+   *
+   * A history entry being *returned to* — Back, Forward — is the exception:
+   * it remembers where it was scrolled, and that memory outranks both the top
+   * and the hash, because re-running the hash jump would discard wherever the
+   * reader had moved on to since.
    */
   useEffect(() => {
     const scroller = scrollRef.current
     if (!scroller) return
-    const target = hash && article && bodyRef.current ? findAnchor(bodyRef.current, hash) : null
-    if (target) {
-      scrollToAnchor(scroller, target)
+    const remembered = article ? recallScroll(route) : undefined
+    if (remembered !== undefined) {
+      restoreScroll(scroller, remembered)
     } else {
-      cancelSettle?.()
-      scroller.scrollTo(0, 0)
+      const target = hash && article && bodyRef.current ? findAnchor(bodyRef.current, hash) : null
+      if (target) {
+        scrollToAnchor(scroller, target)
+      } else {
+        cancelSettle?.()
+        scroller.scrollTo(0, 0)
+      }
     }
     // Leaving the page abandons any jump still correcting itself, so a late
     // image on the article you have left cannot yank the one you are on.
     return () => cancelSettle?.()
-  }, [title, hash, article])
+  }, [title, hash, article, route])
+
+  /**
+   * Remember where this entry is scrolled, for Back and Forward.
+   *
+   * Written on every scroll rather than captured on the way out, because by
+   * the time this view is being torn down the next route has already rendered
+   * and there is no reliable "just before leaving" moment left. Straight into
+   * a WeakMap — no state, no re-renders, nothing to throttle.
+   */
+  useEffect(() => {
+    const scroller = scrollRef.current
+    if (!scroller || !article) return
+    const save = (): void => rememberScroll(route, scroller.scrollTop)
+    scroller.addEventListener('scroll', save, { passive: true })
+    return () => scroller.removeEventListener('scroll', save)
+  }, [route, article])
 
   /**
    * Mark skill requirements against your own levels.
@@ -462,8 +490,6 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
           />
         </h1>
 
-        <PriceHeader title={article.title} />
-
         {article.infobox && (
           <Infobox
             box={article.infobox}
@@ -505,80 +531,54 @@ export function Article({ title, hash }: { title: string; hash?: string }): JSX.
 }
 
 /**
- * The infobox, drawn natively.
- *
- * Variants are the interesting part. Many items exist in more than one form —
- * charged and uncharged, active and inactive — and the wiki packs every form's
- * values into the same cells, relying on its own JavaScript to show one at a
- * time. Here they become real tabs, and a row with nothing to say for the
- * selected variant is omitted rather than shown empty.
+ * The wiki's "(info)" link inside an Exchange row's value, and the tradeable
+ * form it names. That name is the item the price actually belongs to — a
+ * charged weapon's Exchange row quotes its uncharged form.
  */
+const INFO_LINK = /\s*\(<a\b[^>]*\bdata-title="Exchange:([^"]+)"[^>]*>info<\/a>\)/
+
 /**
- * Live price under the title, for anything tradeable.
+ * The Exchange row's value, with the "(info)" link replaced by a View button.
  *
- * The infobox carries an Exchange row, but it is a static number the wiki
- * rendered whenever the page was last edited. This one is current, and puts the
- * two figures that actually decide a trade — buy and sell — where the eye
- * already is. Renders nothing at all for untradeable pages, which is most of
- * them.
+ * The link went to the wiki's `Exchange:` page — a worse copy of the price
+ * history this app already draws. The button goes to the reader's chosen price
+ * view instead: the built-in chart is offline and drawn in the app's theme, GE
+ * Tracker has margins and a longer history. A variant that is not sold has no
+ * link and gets no button.
  */
-function PriceHeader({ title }: { title: string }): JSX.Element | null {
-  const [item, setItem] = useState<{ id: number; name: string } | null>(null)
-  const [price, setPrice] = useState<{ high: number | null; low: number | null } | null>(null)
+function ExchangeCell({ html }: { html: string }): JSX.Element {
   const push = useNav((s) => s.push)
   const geTrackerPrices = useStore((s) => s.settings?.geTrackerReplacesGe ?? true)
 
-  useEffect(() => {
-    let live = true
-    setItem(null)
-    setPrice(null)
-    void window.rp
-      .geFindByName(title)
-      .then(async (found) => {
-        if (!live || !found) return
-        setItem(found)
-        const detail = await window.rp.geDetail(found.id)
-        if (live && detail?.price) setPrice(detail.price)
-      })
-      .catch(() => {
-        // A page with no tradeable counterpart is the common case, not an error.
-      })
-    return () => {
-      live = false
-    }
-  }, [title])
+  // The only entity cheerio escapes that plausibly appears in an item name.
+  const item = INFO_LINK.exec(html)?.[1]?.replace(/&amp;/g, '&')
+  // Memoised for the same reason as the body: a fresh `{ __html }` every
+  // render would re-set the cell and shed anything written onto it after.
+  const value = useMemo(
+    () => ({ __html: item ? html.replace(INFO_LINK, '') : html }),
+    [html, item]
+  )
 
-  if (!item || !price || (price.high === null && price.low === null)) return null
+  const view = (): void => {
+    if (!item) return
+    // GE Tracker is keyed by name; the built-in chart wants the item id, which
+    // only main's item index can answer.
+    if (geTrackerPrices) push({ kind: 'tool', id: 'getracker', arg: item })
+    else
+      void window.rp
+        .geFindByName(item)
+        .then((found) => push(found ? { kind: 'ge', itemId: found.id } : { kind: 'ge' }))
+  }
 
   return (
-    <div className="price-header">
-      <span className="price-header-pair">
-        <span className="price-header-label">Buy</span>
-        <strong>{price.high !== null ? price.high.toLocaleString() : '—'}</strong>
-      </span>
-      <span className="price-header-pair">
-        <span className="price-header-label">Sell</span>
-        <strong>{price.low !== null ? price.low.toLocaleString() : '—'}</strong>
-      </span>
-      {/* Named for the item it resolves to, since a charged weapon's price is
-          really its uncharged form's. */}
-      <button
-        className="btn price-header-btn"
-        // Where this goes is a setting: the built-in chart is offline and drawn
-        // in the app's theme, GE Tracker has margins and a longer history. The
-        // item name rather than the id, because their URLs are keyed by name.
-        onClick={() =>
-          push(
-            geTrackerPrices
-              ? { kind: 'tool', id: 'getracker', arg: item.name }
-              : { kind: 'ge', itemId: item.id }
-          )
-        }
-      >
-        Price history
-      </button>
-      {item.name !== title && <span className="price-header-note">as {item.name}</span>}
-    </div>
+    <dd>
+      <span dangerouslySetInnerHTML={value} />
+      {item && (
+        <button className="infobox-price-view" title={`Price history for ${item}`} onClick={view}>
+          View
+        </button>
+      )}
+    </dd>
   )
 }
 
@@ -790,6 +790,67 @@ function scrollToAnchor(
   frame = requestAnimationFrame(tick)
   // The click that started this has already been and gone, so its own
   // pointerdown cannot cancel the jump it asked for.
+  for (const event of TAKEOVER) scroller.addEventListener(event, stop, { passive: true })
+  window.addEventListener('keydown', stop)
+  cancelSettle = stop
+}
+
+/**
+ * Put the scroller back where a history entry left it, and hold it there.
+ *
+ * The same problem as an anchored jump — the page is shorter now than it was
+ * when the offset was measured, because the images below the fold have not
+ * arrived — but with no element to aim at, only a number. So the offset is
+ * re-asserted whenever growth reveals there is more page to scroll into, and
+ * only ever upward: Chromium's own scroll anchoring is holding the *visible*
+ * content still as things load above it, and pushing the offset back down
+ * would trade what the reader sees for a figure. Real input cancels it, and
+ * once the height goes quiet whatever it settled on is the answer.
+ */
+function restoreScroll(scroller: HTMLElement, top: number): void {
+  cancelSettle?.()
+
+  // The images that decide the final layout are the ones above and inside the
+  // remembered viewport; ask for them now. Re-run as the page grows, because
+  // an unloaded image occupies nearly nothing — each pass promotes the ones
+  // the last pass could finally place below the earlier arrivals.
+  const eagerAbove = (): void => {
+    const box = scroller.getBoundingClientRect()
+    const limit = top + scroller.clientHeight
+    for (const img of scroller.querySelectorAll<HTMLImageElement>('img[loading="lazy"]')) {
+      const at = img.getBoundingClientRect().top - box.top + scroller.scrollTop
+      if (at <= limit) img.loading = 'eager'
+    }
+  }
+
+  eagerAbove()
+  scroller.scrollTop = top
+
+  let frame = 0
+  const backstop = performance.now() + MAX_SETTLE_MS
+  let height = scroller.scrollHeight
+  let steady = performance.now()
+
+  const stop = (): void => {
+    cancelAnimationFrame(frame)
+    for (const event of TAKEOVER) scroller.removeEventListener(event, stop)
+    window.removeEventListener('keydown', stop)
+    cancelSettle = null
+  }
+
+  const tick = (now: number): void => {
+    const grown = scroller.scrollHeight
+    if (grown !== height) {
+      height = grown
+      steady = now
+      eagerAbove()
+      if (scroller.scrollTop < top) scroller.scrollTop = top
+    }
+    if (now > backstop || now - steady > QUIET_MS) return stop()
+    frame = requestAnimationFrame(tick)
+  }
+
+  frame = requestAnimationFrame(tick)
   for (const event of TAKEOVER) scroller.addEventListener(event, stop, { passive: true })
   window.addEventListener('keydown', stop)
   cancelSettle = stop
@@ -1066,12 +1127,17 @@ function Infobox({
           if (!value) return null
           // The live Grand Exchange price is the row people scan an item page
           // for; it earns a gold rule rather than sitting in the run of
-          // release dates and weights.
+          // release dates and weights, and its cell trades the wiki's "(info)"
+          // link for a View button into the price history.
           const isPrice = /^exchange$/i.test(row.label.replace(/<[^>]*>/g, '').trim())
           return (
             <div className={`infobox-row ${isPrice ? 'is-price' : ''}`} key={`${row.label}-${i}`}>
               <dt dangerouslySetInnerHTML={{ __html: row.label }} />
-              <dd dangerouslySetInnerHTML={{ __html: value }} />
+              {isPrice ? (
+                <ExchangeCell html={value} />
+              ) : (
+                <dd dangerouslySetInnerHTML={{ __html: value }} />
+              )}
             </div>
           )
         })}

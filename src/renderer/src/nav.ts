@@ -24,8 +24,8 @@ export type Route =
   /**
    * `arg` is whatever the tool needs to open on something specific — for GE
    * Tracker, the item name to look up. Routing it rather than holding it in the
-   * view means "Price history" on an article can land on the item directly, and
-   * that going back returns to whatever was showing before.
+   * view means "View" on an article's Exchange row can land on the item
+   * directly, and that going back returns to whatever was showing before.
    */
   | { kind: 'tool'; id: 'dps' | 'calculators' | 'profile' | 'getracker'; arg?: string }
   | { kind: 'ge'; itemId?: number }
@@ -43,6 +43,26 @@ export type Route =
 /** Cap on retained history. Deep enough to never be felt, bounded so a long
  *  session cannot grow it without limit. */
 const MAX_ENTRIES = 200
+
+/**
+ * Scroll positions, remembered per history entry.
+ *
+ * Keyed by the entry object itself rather than by title, because the same page
+ * pushed twice is two entries and only *returning* to one — Back, Forward —
+ * should land where you left it. A fresh push is a fresh object with no
+ * memory, so it starts at the top the way a new visit should. A WeakMap so
+ * entries trimmed out of the history take their positions with them.
+ */
+const scrollMemo = new WeakMap<Route, number>()
+
+export function rememberScroll(route: Route, top: number): void {
+  scrollMemo.set(route, top)
+}
+
+/** Where this entry was scrolled to when it was last on screen, if ever. */
+export function recallScroll(route: Route): number | undefined {
+  return scrollMemo.get(route)
+}
 
 interface NavState {
   entries: Route[]
