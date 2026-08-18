@@ -17,6 +17,7 @@ const THEMES: Theme[] = ['dark', 'mocha', 'light', 'parchment']
 
 export const DEFAULTS: Settings = {
   theme: 'mocha',
+  parchmentWorn: false,
   // Global accelerators are first-come-first-served: whichever app registers
   // first wins, and the loser gets no hotkey at all with only a console warning
   // to say so. Nothing else on this machine should claim this one.
@@ -109,6 +110,7 @@ export function onChange(listener: (next: Settings) => void): void {
 function sanitize(s: Settings): Settings {
   return {
     theme: THEMES.includes(s.theme) ? s.theme : DEFAULTS.theme,
+    parchmentWorn: Boolean(s.parchmentWorn),
     hotkey: typeof s.hotkey === 'string' && s.hotkey.trim() ? s.hotkey.trim() : DEFAULTS.hotkey,
     searchKey: bind(s.searchKey, DEFAULTS.searchKey),
     geKey: bind(s.geKey, DEFAULTS.geKey),

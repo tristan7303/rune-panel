@@ -69,12 +69,12 @@ export const PALETTES: Record<Theme, ToolPalette> = {
   },
   parchment: {
     dark: false,
-    surface: '#e8dcc4',
-    raised: '#f4ebd7',
-    sunken: '#d6c7aa',
-    rim: '#b8a582',
-    text: '#302414',
-    textDim: '#6b5c44',
+    surface: '#d5c5a6',
+    raised: '#e4d6bb',
+    sunken: '#c0ad8c',
+    rim: '#a68f68',
+    text: '#2b2011',
+    textDim: '#5e5541',
     accent: '#7a4bb8',
   },
   light: {

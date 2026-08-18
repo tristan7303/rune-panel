@@ -21,6 +21,13 @@ export type Theme = 'dark' | 'mocha' | 'light' | 'parchment'
 export interface Settings {
   /** Reading surface. */
   theme: Theme
+  /**
+   * Blotches, grain and darkened edges over the parchment theme, like a map
+   * that has been carried around. Purely cosmetic and off by default; stored
+   * independently of `theme` so switching away and back keeps the choice, and
+   * it simply does nothing under the other three themes.
+   */
+  parchmentWorn: boolean
   /** Global accelerator that opens and closes the window. */
   hotkey: string
   /**

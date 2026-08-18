@@ -182,9 +182,14 @@ export function App(): JSX.Element {
     useCallback((next: RailId[]) => patchSettings({ railOrder: next }), [patchSettings])
   )
   const theme = useStore((s) => s.settings?.theme ?? 'mocha')
+  const worn = useStore((s) => s.settings?.parchmentWorn ?? false)
   useEffect(() => {
     document.documentElement.dataset.theme = theme
-  }, [theme])
+    // Present-or-absent rather than true/false, so the stylesheet can key the
+    // worn-paper overlay on a bare attribute selector.
+    if (worn && theme === 'parchment') document.documentElement.dataset.worn = ''
+    else delete document.documentElement.dataset.worn
+  }, [theme, worn])
 
   // Reopening keeps whatever was on screen. Resetting made sense when search
   // was a destination you had to navigate to; now that Ctrl+F reaches it from
@@ -473,6 +478,7 @@ const THEMES: Array<{ id: Theme; label: string; hint: string; icon: () => JSX.El
  */
 function ThemeToggle(): JSX.Element {
   const theme = useStore((s) => s.settings?.theme ?? 'mocha')
+  const worn = useStore((s) => s.settings?.parchmentWorn ?? false)
   const patch = useStore((s) => s.patchSettings)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -553,6 +559,24 @@ function ThemeToggle(): JSX.Element {
               <Icon />
             </button>
           ))}
+          {/* Only offered while parchment is the theme — under the others the
+              overlay does nothing, and a dead switch is worse than no switch. */}
+          {theme === 'parchment' && (
+            <label className="theme-extra">
+              <span className="theme-option-text">
+                <strong>Worn</strong>
+                <em>Blotches and stains, like a carried map</em>
+              </span>
+              <button
+                type="button"
+                role="switch"
+                className="switch"
+                aria-checked={worn}
+                aria-label="Worn parchment"
+                onClick={() => patch({ parchmentWorn: !worn })}
+              />
+            </label>
+          )}
         </div>
       )}
     </div>
