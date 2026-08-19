@@ -60,6 +60,30 @@ export function isProgrammatic(): boolean {
 }
 
 /**
+ * Put the caret in the header wiki search, whatever the route.
+ *
+ * For the two triggers that name their destination: the wiki-search shortcut,
+ * and summoning the panel while an embedded pane route is up — where
+ * `focusPrimary` would hand the caret to that route's own box instead.
+ *
+ * `programmatic` draws the same line `focusPrimary` does: a shortcut press is
+ * the user asking for the box, so the results dropdown reopens as it would on
+ * a click; the panel merely reappearing is not, so it stays shut.
+ */
+export function focusSearch(opts?: { programmatic?: boolean }): void {
+  if (!searchInput?.isConnected) return
+  programmatic = opts?.programmatic ?? false
+  try {
+    searchInput.focus({ preventScroll: true })
+    searchInput.select()
+  } finally {
+    queueMicrotask(() => {
+      programmatic = false
+    })
+  }
+}
+
+/**
  * Put the caret where typing should go.
  *
  * `pageOnly` for routes where the fallback would be worse than nothing: on a

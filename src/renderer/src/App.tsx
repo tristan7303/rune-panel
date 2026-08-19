@@ -28,7 +28,7 @@ import { Notes } from './Notes'
 import { Pinned } from './Pinned'
 import { Setup } from './Setup'
 import { UpdateBanner } from './UpdateBanner'
-import { focusPrimary } from './focus'
+import { focusPrimary, focusSearch } from './focus'
 import { usePlayer, seedRsn } from './player'
 import { useProfile } from './runeprofile'
 import { Character } from './Character'
@@ -199,7 +199,20 @@ export function App(): JSX.Element {
   // the panel is nearly always the first half of "look something up", and the
   // second half should not need a click. The cost is real and accepted: reopen
   // on an article and Space scrolls nothing until you click into the page.
-  useEffect(() => window.rp.onShown(() => focusPrimary()), [])
+  //
+  // On an embedded-pane route, the box is the wiki search specifically: the
+  // route's own input (the GE search, the RSN box) would win focusPrimary, but
+  // it was already reachable before the panel was hidden — summoning is "look
+  // something up", and the wiki search is the box that means that.
+  useEffect(
+    () =>
+      window.rp.onShown(() => {
+        const { entries, index } = useNav.getState()
+        if (entries[index].kind === 'tool') focusSearch({ programmatic: true })
+        else focusPrimary()
+      }),
+    []
+  )
 
   // Arriving somewhere with a search box focuses it, for the same reason. Keyed
   // on the kind rather than the whole route, so choosing a GE item does not
@@ -228,7 +241,10 @@ export function App(): JSX.Element {
     () =>
       window.rp.onPaneShortcut((which) => {
         if (which === 'search') {
-          focusPrimary()
+          // The header box specifically, not focusPrimary: on the GE Tracker
+          // route the page input is the GE search, and the wiki-search key
+          // landing there would need a second press to reach the wiki.
+          focusSearch()
           return
         }
         // Same contract as pressing it locally: go there, or focus the box if
